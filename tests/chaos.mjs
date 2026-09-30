@@ -53,7 +53,8 @@ ok(back && back.f >= before.f, `새로고침 후 레이스를 따라잡아 이�
 // ── 3) A 연결 강제 끊김 → 자동 재접속 ──
 await ev(A, () => window.__app.net.ws.close(4999, 'test'));
 await sleep(1500);
-const dcSeen = await ev(B, () => window.__game.session.sim.cars[0].st.dc);
+// 재접속이 빨라 상태로는 이미 풀렸을 수 있다 → B가 받은 입력 기록에 "끊김" 입력이 있었는지로 본다
+const dcSeen = await ev(B, () => window.__game.session.ev[0].some(([f, v]) => (v >> 21) & 1) ? 1 : 0);
 let reA = null;
 for (let i = 0; i < 30; i++) {
   await sleep(500);
