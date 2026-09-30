@@ -7,7 +7,7 @@ const [q = 'medium', secs = '60', track = 'circuit', cpu = '1'] = process.argv.s
 const BASE = process.env.BASE || 'http://127.0.0.1:8790/';
 const b = await puppeteer.launch({
   executablePath: 'C:/Program Files/Google/Chrome/Application/chrome.exe', headless: 'new',
-  args: ['--no-sandbox', '--window-size=1920,1080', '--enable-gpu', '--use-angle=d3d11', '--ignore-gpu-blocklist'],
+  args: ['--no-sandbox', '--window-size=1920,1080', '--enable-gpu', '--use-angle=d3d11', '--ignore-gpu-blocklist', ...(process.env.UNCAP ? ['--disable-gpu-vsync', '--disable-frame-rate-limit'] : [])],
   defaultViewport: { width: 1920, height: 1080 },
 });
 const p = await b.newPage();
