@@ -14,7 +14,7 @@ import { Sim } from '../web/src/sim/race.js';
 const BASE = process.env.BASE || 'http://127.0.0.1:8790/';
 const WS = process.env.WS ?? 'ws://127.0.0.1:8797/ws';
 const [track = 'circuit', laps = '1'] = process.argv.slice(2);
-const CODE = 'E' + Math.random().toString(36).slice(2, 6).toUpperCase().replace(/[^A-Z0-9]/g, 'Q');
+const CODE = process.env.ROOM || ('E' + Math.random().toString(36).slice(2, 6).toUpperCase().replace(/[^A-Z0-9]/g, 'Q'));
 const MODE = process.env.MODE || 'gpu';
 const out = 'tests/shots';
 fs.mkdirSync(out, { recursive: true });
@@ -24,10 +24,11 @@ const ok = (c, m) => { const t = `  ${c ? '✅' : '❌'} ${m}`; console.log(t); 
 const sleep = ms => new Promise(r => setTimeout(r, ms));
 
 const who = [
-  { name: '나', car: 'baram', extra: '&autostart=3' },
+  { name: '나', car: 'baram', extra: `&autostart=${process.env.NPLAYERS || 3}&track=${track}&laps=${laps}` },
   { name: '동우', car: 'deundeun', extra: '' },
   { name: '여친', car: 'beongae', extra: '' },
 ];
+if (process.env.ONLY2) who.length = 2;       // 외부 시험: 세 번째는 GitHub 클라우드 PC 에서 온다
 const browsers = [], pages = [];
 const t0 = Date.now();
 console.log(`방 ${CODE} · ${track} ${laps}랩 · 서버 ${WS || '(net.json)'}`);
@@ -49,8 +50,6 @@ for (const [i, w] of who.entries()) {
   pages.push(p);
   await sleep(i === 0 ? 1500 : 600);
 }
-// 랩 수 설정 (방장)
-await pages[0].evaluate(l => { const s = document.getElementById('l-laps'); s.value = String(l); s.dispatchEvent(new Event('change')); }, +laps);
 
 // 진행 감시
 let shot = false, done = false, lastLog = 0;
@@ -63,7 +62,7 @@ while (Date.now() < deadline) {
     lap: window.__game ? window.__game.session.sim.cars.map(c => c.st.lap).join('') : '',
   })).catch(() => ({ f: -2 }))));
   if (Date.now() - lastLog > 10000) { console.log('  ', ((Date.now() - t0) / 1000).toFixed(0) + 's', st.map(s => `f${s.f} rb${s.rb}/${s.mx} rtt${Math.round(s.rtt)} lap${s.lap}`).join(' | ')); lastLog = Date.now(); }
-  if (!shot && st.every(s => s.f > 60 * 25)) {
+  if (!shot && st.every(s => s.f > 60 * 25) && st[0].f < 60 * 40) {
     for (const [i, p] of pages.entries()) await p.screenshot({ path: `${out}/e2e_${i}.png` });
     shot = true;
   }
@@ -75,10 +74,11 @@ const R = await Promise.all(pages.map(p => p.evaluate(() => {
   return L ? { res: L.res, frame: L.frame, stats: L.stats, ev: L.ev, cfg: L.cfg, local: L.local, sent: L.sent, desync: L.desync } : null;
 })));
 for (const [i, p] of pages.entries()) await p.screenshot({ path: `${out}/e2e_result_${i}.png` });
+if (R.every(Boolean)) fs.writeFileSync('tests/out/e2e_last.json', JSON.stringify(R.map(r => ({ res: r.res, sent: r.sent, stats: r.stats }))));
 if (R.every(Boolean)) {
   const fmt = r => r.res.map(x => `${x.name}:${x.fin}`).join(' ');
   ok(R.every(r => fmt(r) === fmt(R[0])), `세 화면의 순위·기록 동일: ${fmt(R[0])}`);
-  ok(R.every(r => r.res.every(x => x.fin > 0)), '세 명 모두 완주');
+  ok(R.every(r => r.res.every(x => x.fin > 0)), `${R[0].res.length}명 모두 완주`);
   // 해시 비교 (공통 프레임)
   const keys = Object.keys(R[0].sent).filter(k => R.every(r => r.sent[k] !== undefined));
   const same = keys.filter(k => R.every(r => r.sent[k] === R[0].sent[k]));

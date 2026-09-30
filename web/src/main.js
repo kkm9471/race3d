@@ -538,10 +538,16 @@ async function joinRoom(code, name) {
       // 시험 자동화: ?ready=1 이면 자동 준비, ?autostart=N 이면 방장이 N명 준비되면 출발
       const me = l.players.find(p => p.id === app.myId);
       if (Q.get('ready') === '1' && !app.raced && me && !me.ready && l.phase === 'lobby' && !app.game && !app.autoReadySent) { app.autoReadySent = true; net.send({ t: 'ready', on: true }); setTimeout(() => { app.autoReadySent = false; }, 1500); }
+      // 시험 자동화: ?track=&laps= 이면 방장이 그렇게 맞춘다
+      if (l.host === app.myId && l.phase === 'lobby' && !app.raced) {
+        if (Q.get('track') && l.track !== Q.get('track')) net.send({ t: 'set', track: Q.get('track') });
+        if (Q.get('laps') && l.laps !== +Q.get('laps')) net.send({ t: 'set', laps: +Q.get('laps') });
+      }
       const need = +(Q.get('autostart') || 0);
       if (need && !app.raced && l.host === app.myId && l.phase === 'lobby' && !app.game) {
         const conn = l.players.filter(p => p.conn);
-        if (conn.length >= need && conn.every(p => p.ready || p.id === app.myId) && !app.autoStartSent) { app.autoStartSent = true; setTimeout(() => { net.send({ t: 'start' }); app.autoStartSent = false; }, 800); }
+        const setOK = (!Q.get('track') || l.track === Q.get('track')) && (!Q.get('laps') || l.laps === +Q.get('laps'));
+        if (setOK && conn.length >= need && conn.every(p => p.ready || p.id === app.myId) && !app.autoStartSent) { app.autoStartSent = true; setTimeout(() => { net.send({ t: 'start' }); app.autoStartSent = false; }, 800); }
       }
     },
     start(race) { enterRace(race, []); },
