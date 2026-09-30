@@ -48,7 +48,7 @@ for (const [i, w] of who.entries()) {
   // 실패한 요청은 주소까지 남긴다 (예전에 원인 모를 503 이 한 번 있었다)
   p.on('response', r => { if (r.status() >= 400) errs.push(`HTTP ${r.status()} ${r.url()}`); });
   p.on('requestfailed', r => errs.push(`요청 실패 ${r.failure()?.errorText} ${r.url()}`));
-  const url = `${BASE}index.html?auto=${CODE}&name=${encodeURIComponent(w.name)}&car=${w.car}&bot=1&ready=1&q=low&noscale=1${w.extra}${WS ? '&ws=' + encodeURIComponent(WS) : ''}`;
+  const url = `${BASE}index.html?auto=${CODE}&name=${encodeURIComponent(w.name)}&car=${w.car}&bot=${process.env.BOT || 'ram'}&ready=1&q=low&noscale=1${w.extra}${WS ? '&ws=' + encodeURIComponent(WS) : ''}`;
   await p.goto(url, { waitUntil: 'load' });
   pages.push(p);
   await sleep(i === 0 ? 1500 : 600);
@@ -112,7 +112,9 @@ if (R.every(Boolean)) {
   }
   const nodeSame = keys.filter(k => nodeHash[k] === R[0].sent[k]).length;
   ok(nodeSame === keys.length, `Node 재계산 해시도 일치 ${nodeSame}/${keys.length} (차끼리 충돌 ${carHits}회, 벽 ${wallHits}회 포함)`);
-  // 충돌이 없었던 판도 있다(우연). 실패가 아니라 기록으로만 남긴다 — 충돌 동기화 증거는 충돌이 있었던 판에서
+  // 기본은 ?bot=ram(서로 피하지 않는 자동운전)이라 충돌이 나야 정상. 봇이 서로 피하게 된 뒤(2026-10-01) 충돌 0회로 증거가 사라졌던 것을 막는다
+  // (BOT=1 로 돌리면 충돌이 없을 수 있다 — 그땐 기록만)
+  if ((process.env.BOT || 'ram') === 'ram') ok(carHits > 0, `충돌 시험 구성(서로 안 피함)에서 차끼리 부딪힘 ${carHits}회`);
   const tc = carHits > 0 ? `  ✅ 레이스 중 차끼리 부딪힘 ${carHits}회 — 충돌이 있어도 세 화면 같음` : '  ℹ 이번 판은 차끼리 부딪히지 않음 (충돌 동기화는 다른 판에서 확인)';
   console.log(tc); lines.push(tc);
   const totalMsgs = R.reduce((a, r) => a + (r.netSent || 0), 0), secs = Math.max(...R.map(r => r.raceSec || 1));

@@ -107,7 +107,7 @@ export function botInput(sim, k, skill = 0.95, mem = sim.cars[k].st) {
   // 다른 차: 앞차와는 속도에 맞는 거리를 두고(범퍼로 밀지 않게), 내가 더 빠르면 빈 쪽으로 비켜 추월,
   // 나란히면 서로 옆으로 벌린다. 옆 위치는 트랙 기준 가로 위치(off)로 정한다.
   let want = null;
-  for (let q = 0; q < sim.cars.length; q++) {
+  for (let q = 0; q < sim.cars.length && !mem.ram; q++) {
     if (q === k) continue;
     const o = sim.cars[q].st;
     if (o.ghostT > 0 || o.dc || o.fin) continue;

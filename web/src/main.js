@@ -156,7 +156,8 @@ class Game {
     if (this.local < 0) return;
     const sim = this.session.sim;
     let v;
-    if (this.bot) v = botInput(sim, this.local, 0.9, this._botMem ||= { stuckT: 0 });   // 시뮬 밖 기억(해시에 안 섞이게)
+    // 시뮬 밖 기억(해시에 안 섞이게). ?bot=ram 은 시험용: 다른 차를 피하지 않는다(세 화면 충돌 동기 시험에 접촉을 만들려고)
+    if (this.bot) v = botInput(sim, this.local, 0.9, this._botMem ||= { stuckT: 0, ram: Q.get('bot') === 'ram' });
     else {
       const i = controls.read();
       this.look = i.look;
@@ -507,7 +508,7 @@ function launch(cfg, localSlot, net, startAt, names, log = []) {
     if (app.game) { app.game.stop(); app.game = null; }
     try {
       app.game = new Game({
-        cfg, localSlot, net, startAt, names, bot: Q.get('bot') === '1',
+        cfg, localSlot, net, startAt, names, bot: Q.get('bot') === '1' || Q.get('bot') === 'ram',
         onEnd: (res, g) => {
           app.game = null;
           if (net) app.leftRace = startAt;        // 끝낸 레이스로 재접속 때 다시 끌려 들어가지 않게
