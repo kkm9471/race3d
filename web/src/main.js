@@ -99,6 +99,7 @@ class Game {
     this.session = new Session(cfg, localSlot);
     this.def = TRACK_BY_ID[cfg.track];
     this.view = new RaceView(gfx, this.session, this.def);
+    this.view.onHit = (e, follow) => audio.hit(e, this.session.sim, follow);
     this.hud = new Hud($('hud'));
     this.hud.setupMap(this.session.sim.T);
     this.lastSent = -1; this.seq = 0; this.sendBuf = [];

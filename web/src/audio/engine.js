@@ -80,6 +80,7 @@ export class EngineAudio {
       const load = 0.35 + st.thr * 0.65;
       v.f.frequency.setTargetAtTime(300 + fire * 3 * load, t, 0.05);
       let vol = (k === follow ? 0.22 : 0.12) * (0.4 + load * 0.6);
+      if (st.shiftT > 0) vol *= 0.35;       // 변속하는 동안 힘이 끊기는 소리 (부웅—붕)
       if (k !== follow && me) {
         const d = Math.hypot(st.px - me.st.px, st.pz - me.st.pz);
         vol *= Math.max(0, 1 - d / 120);
@@ -91,6 +92,26 @@ export class EngineAudio {
       v.ng.gain.setTargetAtTime(sq * (k === follow ? 0.12 : 0.05), t, 0.05);
     }
     if (me && this.wind) this.wind.wg.gain.setTargetAtTime(Math.min(0.15, me.out.speed / 600), t, 0.1);
+  }
+
+  /** 부딪힘: 세기(충돌 속도 vn m/s)와 내 차와의 거리로 크기를 정한다. 쿵(낮은 음) + 철판 긁힘(잡음) */
+  hit(e, sim, follow) {
+    if (!this.ctx || !this.on || !this.noise) return;
+    const c = this.ctx, t = c.currentTime;
+    if (t - (this.lastHit || 0) < 0.07) return;      // 비비는 동안 따발총처럼 울리지 않게
+    const me = sim.cars[follow];
+    let vol = Math.min(1, e.vn / 12);
+    if (me && e.a !== follow && e.b !== follow) vol *= Math.max(0, 1 - Math.hypot(e.x - me.st.px, e.z - me.st.pz) / 80);
+    if (vol < 0.05) return;
+    this.lastHit = t;
+    const thump = c.createOscillator(); thump.type = 'sine';
+    thump.frequency.setValueAtTime(e.t === 'wall' ? 70 : 95, t); thump.frequency.exponentialRampToValueAtTime(40, t + 0.25);
+    const tg = c.createGain(); tg.gain.setValueAtTime(1.1 * vol, t); tg.gain.exponentialRampToValueAtTime(0.001, t + 0.3);
+    thump.connect(tg); tg.connect(this.master); thump.start(t); thump.stop(t + 0.32);
+    const n = c.createBufferSource(); n.buffer = this.noise;
+    const bf = c.createBiquadFilter(); bf.type = 'bandpass'; bf.frequency.value = e.t === 'wall' ? 700 : 1100; bf.Q.value = 1.2;
+    const ng = c.createGain(); ng.gain.setValueAtTime(0.9 * vol, t); ng.gain.exponentialRampToValueAtTime(0.001, t + 0.22);
+    n.connect(bf); bf.connect(ng); ng.connect(this.master); n.start(t, Math.random() * 1.5); n.stop(t + 0.24);
   }
 
   stop() {

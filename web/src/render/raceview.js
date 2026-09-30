@@ -85,6 +85,7 @@ export class RaceView {
       if ((e.t === 'car' || e.t === 'wall') && e.vn > 2.5) {
         this.fx.sparks(e.x, e.y, e.z, Math.min(1, e.vn / 15));
         if (e.a === followSlot || e.b === followSlot) this.shake = Math.min(1, this.shake + e.vn / 20);
+        if (this.onHit) this.onHit(e, followSlot);      // 부딪힘 소리 (main.js 가 연결)
       }
     }
     this.fx.update(dt);
