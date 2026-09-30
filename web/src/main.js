@@ -110,6 +110,7 @@ class Game {
     if (net) { net.fast = true; for (let i = 0; i < 4; i++) setTimeout(() => net.ping(), i * 150); }
     this.slow = 0;
     controls.onAction = a => this.action(a);
+    if (Q.get('cam')) this.view.camMode = +Q.get('cam');
     audio.start(cfg.players.map(p => CAR_BY_ID[p.car] || CARS[0]), localSlot);
     window.__game = this;
   }
@@ -245,6 +246,7 @@ class Game {
     for (const [hf, h] of this.session.hashes) {
       if (hf <= c && hf < this.session.frame && !this.sentHash.has(hf)) {
         this.sentHash.set(hf, h);
+        (this.sentInfo ||= {})[hf] = { c: this.net.confirmed, fr: this.session.frame, pend: this.session.pending.length, rb: this.session.rollbacks };
         this.net.send({ t: 'hash', f: hf, h });
       }
     }
@@ -466,7 +468,8 @@ function launch(cfg, localSlot, net, startAt, names, log = []) {
         onEnd: (res, g) => {
           app.game = null;
           window.__lastResults = { res, hash: g.session.sim.hash(), frame: g.session.sim.gs.frame, stats: { ...g.session.stats(), rtt: g.net?.rtt, offset: g.net?.offset },
-            ev: g.session.ev, cfg, local: localSlot, sent: window.__sentHashes || {}, desync: !!(g.net && g.net.desync) };
+            ev: g.session.ev, cfg, local: localSlot, sent: window.__sentHashes || {}, desync: !!(g.net && g.net.desync),
+            final: Object.fromEntries(g.session.hashes), sentInfo: g.sentInfo || {} };
           showResults(res, cfg, localSlot);
         },
       });

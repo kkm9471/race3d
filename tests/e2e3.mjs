@@ -71,7 +71,7 @@ while (Date.now() < deadline) {
 ok(done, `세 브라우저 모두 결과 화면까지 (${((Date.now() - t0) / 1000).toFixed(0)}초)`);
 const R = await Promise.all(pages.map(p => p.evaluate(() => {
   const L = window.__lastResults;
-  return L ? { res: L.res, frame: L.frame, stats: L.stats, ev: L.ev, cfg: L.cfg, local: L.local, sent: L.sent, desync: L.desync } : null;
+  return L ? { res: L.res, frame: L.frame, stats: L.stats, ev: L.ev, cfg: L.cfg, local: L.local, sent: L.sent, desync: L.desync, final: L.final, sentInfo: L.sentInfo } : null;
 })));
 for (const [i, p] of pages.entries()) await p.screenshot({ path: `${out}/e2e_result_${i}.png` });
 if (R.every(Boolean)) fs.writeFileSync('tests/out/e2e_last.json', JSON.stringify(R.map(r => ({ res: r.res, sent: r.sent, stats: r.stats }))));
@@ -84,6 +84,14 @@ if (R.every(Boolean)) {
   const same = keys.filter(k => R.every(r => r.sent[k] === R[0].sent[k]));
   ok(keys.length > 5 && same.length === keys.length, `전체 상태 해시 ${keys.length}개 시점에서 세 화면 일치 (${same.length}/${keys.length})`);
   ok(R.every(r => !r.desync), '어긋남 경고 없음');
+  // 진단: 보낸 해시가 틀린 곳은 "최종값"과 비교해 보낼 때가 일렀던 것인지(거짓 경보) 계산 자체가 다른지 구분
+  const fkeys = Object.keys(R[0].final).filter(k => R.every(r => r.final[k] !== undefined));
+  const fsame = fkeys.filter(k => R.every(r => r.final[k] === R[0].final[k])).length;
+  ok(fsame === fkeys.length, `레이스 끝 최종 해시 ${fsame}/${fkeys.length} 일치 (진짜 계산 차이가 없다는 뜻)`);
+  for (const [i, r] of R.entries()) {
+    const bad = Object.keys(r.sent).filter(k => r.final[k] !== undefined && r.sent[k] !== r.final[k]);
+    if (bad.length) console.log(`   브라우저${i + 1}: 보낸 뒤 바뀐 해시 ${bad.length}개 예:`, bad.slice(0, 4).map(k => `${k}:${JSON.stringify(r.sentInfo[k])}`).join(' '));
+  }
   // Node 재계산
   const cfg = R[0].cfg;
   const sim = new Sim(cfg);
