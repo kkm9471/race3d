@@ -45,6 +45,9 @@ for (const [i, w] of who.entries()) {
   p.on('pageerror', e => errs.push(e.message));
   p.on('console', m => { if (m.type() === 'error') errs.push(m.text()); });
   p.errs = errs;
+  // 실패한 요청은 주소까지 남긴다 (예전에 원인 모를 503 이 한 번 있었다)
+  p.on('response', r => { if (r.status() >= 400) errs.push(`HTTP ${r.status()} ${r.url()}`); });
+  p.on('requestfailed', r => errs.push(`요청 실패 ${r.failure()?.errorText} ${r.url()}`));
   const url = `${BASE}index.html?auto=${CODE}&name=${encodeURIComponent(w.name)}&car=${w.car}&bot=1&ready=1&q=low&noscale=1${w.extra}${WS ? '&ws=' + encodeURIComponent(WS) : ''}`;
   await p.goto(url, { waitUntil: 'load' });
   pages.push(p);
