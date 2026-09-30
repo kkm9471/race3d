@@ -169,5 +169,10 @@ if ((process.argv[1] || '').replace(/\\/g, '/').endsWith('tests/physics_report.m
   console.log(txt);
   console.log(`\n범위 밖: ${bad}개   (${((Date.now() - t0) / 1000).toFixed(1)}초)`);
   fs.mkdirSync('tests/out', { recursive: true });
-  if (!ids.length) fs.writeFileSync('tests/out/physics.md', `# 물리 측정 (${new Date().toISOString()})\n\n${txt}\n\n범위 밖: ${bad}개\n`);
+  if (!ids.length) {
+    fs.writeFileSync('tests/out/physics.md', `# 물리 측정 (${new Date().toISOString()})\n\n${txt}\n\n범위 밖: ${bad}개\n`);
+    // 게임 대기실이 보여 줄 실측값 (손으로 옮겨 적지 않는다)
+    const m = Object.fromEntries(rows.map(({ spec, a, b, k }) => [spec.id, { acc100: +a.t100.toFixed(1), vmax: Math.round(a.vmax), brake100: +b.dist.toFixed(1), latG: +k.latG.toFixed(2) }]));
+    fs.writeFileSync('web/src/sim/measured.js', `// tests/physics_report.mjs 가 만든 실측값 — 손으로 고치지 말 것\nexport const MEASURED = ${JSON.stringify(m, null, 1)};\n`);
+  }
 }

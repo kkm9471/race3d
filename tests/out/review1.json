@@ -1,0 +1,236 @@
+[
+ {
+  "real": true,
+  "sev": "high",
+  "file": "server/src/room.js",
+  "line": 83,
+  "title": "After the room sleeps (hibernates), the host setting is rolled back to an old saved value, so nobody can start the race",
+  "fix": "(1) Add `await this.load();` at the top of webSocketClose and webSocketError. (2) At the end of leave(), after prune() and pushLobby(), persist the state with `this.save();` (make leave async and await it in callers, or rely on the DO output gate). (3) At the end of load(), call `this.prune();` so the host is re-picked from players whose sockets are actually live (the constructor already rebuilt them from getWebSockets).",
+  "reason": "Confirmed by running the real Room class with a simulated hibernation (a new Room on the same storage and sockets). kkm(p1), 동우(p2) and gf(p3) join. kkm sends 'bye' and the in-memory host becomes p2. The DO then wakes on 동우's 'ready'. Result: the lobby shows host=p1 and lists p1 as conn:false, and 동우's 'start' gets {code:'host','방장만 출발할 수 있습니다'}. The room is still stuck 60 s later. Only a hello or leave, which run prune(), recovers it: after 동우 pressed F5 the host became p3. Root cause: prune()/leave() change host only in memory. save() runs only in hello, set and done (l.186, 231, 317), and load() merges the stale stored settings back (l.84). It is worse than reported: webSocketClose/webSocketError (l.362-371) never call load(). If the host just closes the tab while the idle lobby is hibernated, the wake triggered by the close pushes a lobby with host=p2 and code=''. The next message then runs load() and resets host to p1. Also reproduced: 동우, shown as host, presses start and gets err 'host'. The trigger is common: the host leaves or closes the tab after the lobby has been idle for about 10 s or more. The players see a disconnected host with a crown and no start button, and nothing tells them to refresh."
+ },
+ {
+  "real": true,
+  "sev": "high",
+  "file": "server/src/room.js",
+  "line": 90,
+  "title": "Players who left are brought back from storage on every wake with a fresh 45 s grace period, so a new visitor gets '방이 가득 찼습니다' (room full)",
+  "fix": "Persist leftAt in save() (`leftAt: p.conn ? Date.now() : (p.leftAt || 0)`) and call save() at the end of leave(). In load(), restore with the stored `leftAt: p.leftAt || 0` instead of Date.now(), then call this.prune() at the end of load(). This removes stale entries and also fixes the host rollback. Optionally, count only connected players plus in-race slots toward MAX_PLAYERS.",
+  "reason": "Confirmed with the real Room. (a) A room code is reused later with new tabs, which means new sessionStorage tokens. Three old entries are in storage (last save at hello or done; leave/prune never save). After eviction, kkm joins as the 4th entry and his hello re-saves all 4 (l.231). 동우 joins 20 s later after a hibernation and gets {code:'full'} with close 4001. gf, 80 s later after another wake, also gets 'full'. The stored players stay [kkm, dongwoo, gf, kkm], so the ghosts keep coming back. (b) With 4 old entries, the very first newcomer after eviction gets 'full'. Cause: save() does not store leftAt, load() restores every stored entry with `leftAt: Date.now()` (l.90), so prune() cannot drop them for 45 s, and every successful hello writes them back. The 'full' check (l.217-218) counts them. The client treats 4001 as final (client.js l.56, main.js l.604). Within one session, any departed player whose entry was saved comes back as a '연결 끊김' row on each wake and takes a slot. For a friend group that reuses a room code, this breaks the core 'enter the code to join' flow."
+ },
+ {
+  "real": true,
+  "sev": "high",
+  "file": "web/src/sim/car.js",
+  "line": 313,
+  "title": "Engine braking and the rev limiter push the wrong way when the wheels turn backward in a forward gear, so a spun car speeds up backward on its own",
+  "fix": "car.js:303 → `if ((Math.abs(rpmW) < e.launch || rpmW < 0) && (g === 1 || g === -1)) {` (the engine is never back-driven, so the clutch slips: Te = 0 when coasting, forward launch torque under throttle). car.js:313 → `const brakeT = P.maxTq * (0.05 + 0.13 * Math.min(rpm, e.redline) / e.redline) * (rpmW < 0 ? -1 : 1);` (engine braking always opposes the actual rotation and has an upper bound; this also covers the brief gear > 1 case). I checked this on a scratch copy. Backward coasting now slows down (kongal -72 to -48 km/h over 30 s), and every car recovers under throttle, including jimkkun. 0-100, top speed, 100-0 braking, and the 1-lap bot time and final hash are bit-identical to the current build for all 10 cars. Add a regression test: setSpeed(-20) in gear 1, coast and full throttle, and assert |fwd| decreases.",
+  "reason": "Confirmed in the code and reproduced. rpmW = wd*ratio*30/PI (line 262) is negative when a forward gear's wheels roll backward. Line 238 downshifts to 1st on any negative wheelRpm. Once |rpmW| >= e.launch, line 303 sends the car to the else branch, where Te = -brakeT (line 314, limiter) or lerp*thr - brakeT*(1-thr) (line 315). With ratio > 0, Tout = Te*ratio*eff (line 318) drives the wheel further backward. brakeT grows with rpm (line 313), so this feeds itself. I ran Node against the current build on a flat world. (a) Spin at 108 km/h with handbrake + full steer, then no input for 10 s: 8 of 10 cars accelerate backward (kongal -56 to -72, baram -43 to -75, jimkkun -36 to -85, heukmeonji -43 to -89 km/h). Only cheondung and yuseong coast down, because they come out of the spin below launch rpm. (b) Same spin, then full throttle: jimkkun still accelerates backward from -35 to -83 km/h. Its 1st gear tops out at 34 km/h, so it sits on the limiter branch where throttle is ignored. (c) Start at -72 km/h in 1st and coast for 30 s: kongal reaches -179, baram -311, cheondung -548 (rear wheel om -4.9e7 rad/s), yuseong -1217 km/h. Full throttle gives identical numbers for kongal, baram, cheondung and chueok. It stays deterministic, so there is no desync, but it is a major physics fault that a common spin triggers. It is not critical because players can escape with R reset or brake-to-reverse. The same sign error hits reverse gear when the car rolls forward (rpmW < 0 again). Note: the reviewer's proposed test `rpmW*Math.sign(ratio) < 0` is wrong for reverse, because rpmW already carries the ratio sign. The correct test is `rpmW < 0`."
+ },
+ {
+  "real": true,
+  "sev": "high",
+  "file": "web/src/net/client.js",
+  "line": 109,
+  "title": "NetClient.confirmed (and desync flag) are never reset between races, so from the 2nd race on, predicted hashes are sent and false desync warnings follow",
+  "fix": "In main.js enterRace(), before launch(...): `if (app.net) { app.net.confirmed = -1; app.net.desync = false; }`. The resync path is separate and is not affected. The server broadcasts 'start' before it starts the new tick timer, and WebSocket ordering is kept, so no stale tick can arrive after the reset.",
+  "reason": "Confirmed. The NetClient is kept across races: r-back only sends 'back', and the next 'start' goes to enterRace → launch(…, app.net, …). `confirmed = Math.max(this.confirmed, m.c)` (client.js:109) therefore keeps race 1's final value (about F_end−32). Race 2's ticks start negative. Nothing resets `confirmed` or `desync`: I searched main.js for both, and enterRace, launch and the Game constructor do not touch them. In race 2, checkHash (main.js:253-261) sends hash(hf) as soon as session.frame > hf, before late remote inputs arrive. The e2e log shows how often inputs arrive late: 2431 rollbacks in about 6000 frames, with an average depth of about 3.9 frames. I ran a Node model with the real Session, 3 players, keyboard-like inputs changing every 20-40 frames on average, and 2-6 frames of network delay. With the correct watermark (F−32) there were 0 desync broadcasts. With a stale watermark there were 3-4 per 2-4 minute race (frames 1680, 2160, 3960, 5520…). Each one shows the '⚠ 세 화면의 계산이 어긋났습니다' toast. `net.desync` then stays true, so the HUD shows '⚠ 화면 어긋남 감지' in every later race and __lastResults.desync is true. The e2e and chaos tests run only one race per room, so they miss this."
+ },
+ {
+  "real": true,
+  "sev": "medium",
+  "file": "web/src/net/client.js",
+  "line": 56,
+  "title": "A duplicated tab (Chrome 'Duplicate' copies sessionStorage and so the token) starts an endless replace/reconnect loop that also uses up free quota",
+  "fix": "In client.js onclose, treat 4000 as final: `if (ev.code === 4000) { this.closed = true; this.status('다른 탭에서 이 방에 들어가 이 탭 연결을 끊었습니다', false); return; }`. Optionally detect a duplicated tab (for example with BroadcastChannel) and regenerate the sessionStorage token.",
+  "reason": "Confirmed by wiring the real NetClient to the real Room through a mock WebSocket. Two clients share the same token. In 10 s: 21 connections opened, 20 server closes with code 4000, 42 storage.put calls, and 11 and 10 welcome screens on the two tabs. The loop never ends. Mechanism: hello finds the player by tok and closes the other socket with 4000 (room.js l.213). The client's onclose only treats 4001/4002/4003 as final (client.js l.56, not l.66 as cited), and `tries` was reset to 0 in onopen (l.30), so it reconnects after 400 ms and replaces the other tab. Each hello does save() (2 puts) and, in a race, sends the full log and forces resync(). In a real setup (slower handshake, background-tab timer throttling) the rate is roughly 1–2 connections/s and 2–4 row writes/s, enough to pass the free 100k rows/day in about 7–14 h if the tabs are left open. It needs a deliberate Duplicate plus clicking join (the room code is prefilled), so likelihood is moderate. A legitimate single tab never receives 4000 on its current socket (an old socket is ignored through `this.ws !== ws`), so treating 4000 as final is safe."
+ },
+ {
+  "real": true,
+  "sev": "medium",
+  "file": "web/src/sim/car.js",
+  "line": 208,
+  "title": "Holding the brake while sliding backward switches to reverse after 0.3 s and releases the brakes",
+  "fix": "car.js:208 → `if (inp.brk > 0.3 && inp.thr < 0.1 && vf < 0.8 && vf > -1.0) {`. Leave line 213 unchanged. Verified on a scratch copy: with the brake held from -79 km/h, the wheel brakes stay on, the car stops in about 2 to 3 s, and only then does R engage.",
+  "reason": "Confirmed. `if (inp.brk > 0.3 && inp.thr < 0.1 && vf < 0.8)` has no lower bound on vf. The comment on line 206 says reverse should engage only when the car is nearly stopped ('거의 멈춘 상태에서'), but any backward speed qualifies. After 0.3 s gear becomes -1, and line 192 then maps the brake key to throttle and the throttle key to brake. Measured on the current build from -79 km/h with the brake key held: gear goes to -1 at 0.33 s, s.brk drops from 1.0 to 0.0 and s.thr rises to 1.0. yuseong then holds -50 km/h (its reverse top speed) for the full 5 s, and kongal drifts from -71 to -43 km/h with no wheel braking. So a player who brakes after a spin is driven backward instead of stopped. The reviewer's side claim about R to 1 (line 213) is not a defect: switching to 1st while rolling forward in R with throttle pressed is the correct behavior."
+ },
+ {
+  "real": true,
+  "sev": "medium",
+  "file": "web/src/sim/race.js",
+  "line": 121,
+  "title": "The 90 s finish window is shorter than the gap between car classes, so a light-car driver is cut off as 'did not finish' in a normal 3-lap race",
+  "fix": "race.js:121 → `else if (gs.first >= 0 && gs.frame >= gs.first + Math.max(FINISH_WAIT, Math.round((gs.first - GO_FRAME) * 0.6))) { gs.over = 1; gs.overAt = gs.frame; }`. This is integer-based and deterministic, and MAX_FRAMES stays the hard cap. FINISH_WAIT is not used in the UI. Verified on a scratch copy: kongal finishes in all 7 runs (gaps of 91 to 100 s against a wait of 125 to 136 s), and the leaders' times are unchanged.",
+  "reason": "Confirmed with the current build, not only the older laps.md. `else if (gs.first >= 0 && gs.frame >= gs.first + FINISH_WAIT)` with FINISH_WAIT = 90*FPS (line 18). The comment on line 18 assumes the light car vs supercar gap over 3 laps is about 75 s. I ran 3 laps with 3 bots at skill 0.9, the same skill as ?bot=1 mode. Circuit: yuseong finishes at 209.0 s and kongal is cut off as DNF at 2.91 laps. With cheondung at 210.4 s, kongal is DNF at 2.98 laps. Mountain: kongal is DNF at 2.89 laps (vs yuseong) and 2.93 laps (vs cheondung). Only city passes. The real gaps are 91 to 100 s, even against the supercar. Human drivers are slower, which widens the absolute gap. The server also allows up to 5 laps (room.js:185), which makes it worse. main.js:515 then shows '완주 못함 (2랩)'. This defeats the stated intent of the timer and the requirement that all three players finish."
+ },
+ {
+  "real": true,
+  "sev": "medium",
+  "file": "web/src/net/client.js",
+  "line": 56,
+  "title": "Duplicate tab (same sessionStorage token) causes an endless 'replaced' reconnect loop that burns the free-tier quota",
+  "fix": "In client.js onclose, before the reconnect logic: `if (ev.code === 4000) { this.closed = true; this.status('다른 탭에서 같은 자리로 들어와 이 창은 연결을 끊었습니다', false); return; }`. Normal reconnects are not affected, because a replaced socket in the same tab is already excluded by the `this.ws !== ws` check. Also move `this.tries = 0` from onopen into the 'welcome' case, so a socket that closes right after opening still backs off.",
+  "reason": "I could not refute this, and running the real code reproduced it. In Chrome, 'Duplicate tab' copies sessionStorage, so both tabs send the same race3d.token (main.js:42-45). When the second tab joins, hello (room.js:213) closes the first tab's socket with code 4000. That socket is still the first tab's current `this.ws`, so the `this.ws !== ws` guard at client.js:53 does not stop it. Code 4000 is not in the terminal list at client.js:56, so the tab reconnects. onopen resets `tries = 0` (client.js:30), so the wait stays at 400 ms. Its hello then replaces the other tab, and the two keep swapping forever. I simulated this in Node with the real Room class and the real NetClient, using mock sockets. With a duplicate tab joined, there were 22 extra hellos (about 2.2 per second) and 46 storage puts in 10 s, and `tries` never went above 1. Every welcome in the lobby also calls openLobby, which runs stopBackground() and then startBackground() and rebuilds the track RaceView in both tabs, including the hidden one. Left running for a workday, this goes past the free limits of 100k Worker requests and 100k rows written per day. The loop cannot start from a normal refresh or reconnect, because the replaced socket is already stale there. The only trigger is two live tabs with the same token that both joined the room, which is uncommon, so I rate it medium rather than high."
+ },
+ {
+  "real": true,
+  "sev": "medium",
+  "file": "web/src/main.js",
+  "line": 571,
+  "title": "Welcome without a race (race ended while offline) or an error('version') leaves the old Game running as a zombie over the lobby/menu",
+  "fix": "In the welcome handler, after the resync early-return and before openLobby: `if (g) { g.stop(); app.game = null; app.inRace = false; }`. In the error handler, inside the full/version/badroom branch before show('menu'): `if (app.game) { app.game.stop(); app.game = null; }`.",
+  "reason": "Confirmed. The welcome handler resyncs only when `msg.race && msg.race.startAt === g.startAt` (main.js:567). Otherwise it calls openLobby (571), and when msg.race is missing, nothing stops app.game. startBackground returns early because app.game is set. The Game rAF loop, the HUD and the engine audio keep running. .screen has no background and z-index 10, while .hud has z-index 5, so the race HUD shows around the lobby card. The lobby handler skips updateLobby while app.game is set (578), so the player list, the Ready label and `l-start.disabled` freeze. The server ignores this client's inputs (room.js:280, r.ended). Its pending inputs are dropped after 120 frames, and the other cars keep their last inputs. As a result nobody may finish, and the zombie can run until FINISH_WAIT or MAX_FRAMES (up to 20 min) before finish() suddenly shows garbage results. There are two realistic triggers: a network drop of several seconds across the race end, or a Durable Object restart mid-race. The race is not persisted (constructor race=null), so after a restart every client gets a welcome without a race, and the new host's Start button stays disabled. The error branch (604) also calls show('menu') without stopping app.game. A new race does clean up, because enterRace stops the old game."
+ },
+ {
+  "real": true,
+  "sev": "medium",
+  "file": "web/src/main.js",
+  "line": 219,
+  "title": "Final results are taken 3.5 s of wall-clock after gs.over, while the sim keeps running, so the screens can show different standings",
+  "fix": "Freeze the values that decide the standings once the race is over. race.js:163 `if (!this.gs.over && ds > -40 && ds < 40) st.prog += ds;` and race.js:175 `while (!this.gs.over && st.lap < this.laps && st.prog >= ...)`. progress() runs before the over check, so the overAt frame itself is still counted. Bump VERSION, since this changes the sim. In Game.finish(), add `if (this.net && this.net.confirmed < this.session.sim.gs.overAt) { setTimeout(() => this.finish(), 250); return; }` so results are built only from confirmed inputs.",
+  "reason": "Confirmed. Nothing stops the sim at gs.over: race.js:114-123 only sets the flag, and Session.advanceTo keeps stepping. progress() also keeps running (race.js:163 adds prog, race.js:175-190 counts laps with no over guard) and can set st.fin after the race is over. results() (main.js:272-277) reads the live standings(), st.fin and st.lap whenever the 3.5 s wall-clock timer fires. I checked this in Node with the project's Sim: I forced FINISH_WAIT to expire while the slow car was DNF (overAt 8191, lap 1, fin 0). The sim kept going and set that car's st.fin at frame 12214, 4023 frames after over. Races where everyone finishes are not affected, because fin times are frozen once set. The mismatch happens on the FINISH_WAIT path. If one client first sees 'over' late, it builds results long after overAt. Example: the leader switches tabs during the 90 s wait, so rAF stops, and later catches up. After the first 'done' the server stops relaying, so each DNF car keeps its last input on that client. That screen then shows a different lap count, a different DNF order, or even 'finished' compared with the other two. Without a hidden tab the clients differ by only ±1-2 frames plus predicted remote inputs, so a mismatch needs a line crossing or a near-tie right at that moment. That is rare, which is why I rate this medium and not high."
+ },
+ {
+  "real": true,
+  "sev": "medium",
+  "file": "web/src/main.js",
+  "line": 443,
+  "title": "Pause menu 'quit' in multiplayer leaves a phantom car on track that keeps its last input and blocks the race from ending",
+  "fix": "In the p-quit handler, before app.game.stop(): `const g = app.game; if (g && g.net && g.local >= 0) g.net.send({ t: 'in', e: [[++g.seq, g.session.frame + INPUT_DELAY, NEUTRAL | (1 << 21)]] });`. The server already accepts any v < 1<<22 and relays it. Every sim then marks that car dc, so it becomes a ghost, brakes to a stop and counts as done. Also set `app.inRace = false; app.early = [];` in the multiplayer branch.",
+  "reason": "Confirmed. In multiplayer, Esc still opens the pause menu (controls.js → onAction('menu') → togglePause). Only p-restart is hidden; the p-quit button ('레이스 나가기') is shown. p-quit (main.js:443-448) only calls game.stop(), and stop() (main.js:288-297) sends nothing. The socket stays open, so room.js never runs leave() and never injects DC_INPUT. On every other client the slot keeps its last confirmed input. That is usually NEUTRAL, because the player lets go of the keys to click, so the car coasts to a stop on the track. isGhost() is false (ghostT 0, dc 0, fin 0), so the car is a solid obstacle. race.js:118 keeps allDone false, so the race ends only through FINISH_WAIT, 90 s after the first finisher. The player who quit cannot get back into the race from the lobby, because the start button is disabled while a race runs. The app.early growth is real but minor: it stops when the race ends and is cleared by the next enterRace."
+ },
+ {
+  "real": true,
+  "sev": "low",
+  "file": "server/src/room.js",
+  "line": 186,
+  "title": "The host can spam 'set' to use up the account-wide free SQLite write quota, after which no room on the account can accept a join",
+  "fix": "In case 'set': record t0=this.settings.track and l0=this.settings.laps, and `break` without saving when neither changed. Throttle 'set' per connection (ignore it if the previous one was less than about 250 ms ago). Wrap `await this.save()` in hello() in try/catch so a storage failure cannot block welcome.",
+  "reason": "Confirmed: a host sending an unchanged {t:'set',laps:3} at 60 msgs/s for 60 s passed the rate limiter with zero rejections and no close, and caused 7,200 storage.put calls (about 120 row writes/s). That uses up 100k rows/day in about 14 minutes. After that, `await this.save()` in hello (l.231) throws before welcome is sent, so joins fail everywhere on the account. save() runs even when nothing changed (l.182-188). allow() only ever builds strikes above 60/s (l.143-158). The only in-product loop is test-only: ?auto=..&laps=abc or ?track=<invalid> makes main.js l.583-585 resend 'set' on every lobby push. Normal UI sends one 'set' per click. So this needs a malicious or modified host (a DevTools one-liner via window.__app works). The impact is account-wide, but it is unlikely among the three friends."
+ },
+ {
+  "real": true,
+  "sev": "low",
+  "file": "server/src/room.js",
+  "line": 223,
+  "title": "A second 'hi' on the same socket leaves a ghost player that shows as connected, is never removed, fills the room and blocks start",
+  "fix": "At the top of hello(), after the version check, add `if (this.sockets.has(ws)) return;`. A socket may identify only once, reconnects always use a new socket, and the constructor rebuilds `sockets` from attachments after a wake.",
+  "reason": "Confirmed: sending hi with tok x1, x2 and x3 on one socket creates p1, p2 and p3, all conn:true, and p1 becomes host. When the socket closes, only p3 (the last one in the sockets map) is marked disconnected. p1 and p2 stay conn:true forever and prune() never removes them (l.133 needs !p.conn). Real players kkm and 동우 can then join, but kkm's 'start' gets err 'host' because the ghost p1 is host, so the room can never start until eviction, after which the ghosts come back through the finding-2 mechanism. hello() has no check that the socket already has an id. The legitimate client sends 'hi' only once per socket (client.js l.31), so this needs a crafted message and the room code: griefing only."
+ },
+ {
+  "real": true,
+  "sev": "low",
+  "file": "server/src/room.js",
+  "line": 313,
+  "title": "Any racer can end the race for everyone at any time and forge the room lap record (the window.__app console makes it one line)",
+  "fix": "Store reports per slot (r.done.set(slot,res)). End the race only when every still-connected racer has reported, or when tick() sees 15 s passed since the first report. Ignore reports before serverFrame() >= GO_FRAME + laps × a plausible minimum lap time. Update the room record only from a best value that at least two reports agree on (all reports if only one racer is connected).",
+  "reason": "Confirmed: 20 s into a race, racer B sends {t:'done',r:[[1,0,601]]}. The race ends (phase lobby), the record circuit={best:601,name:'dw'} is stored permanently, and a later 'in' from A is no longer relayed (input() returns on r.ended), so the remaining racers' inputs stop being confirmed. done() accepts the first report from any slot holder (l.315-316), and endRace trusts `best` whenever it is over 600 (l.331-333). window.__app.net.send is exposed (main.js l.669). I found no realistic legitimate-client trigger: gs.over is frame-deterministic, and a misprediction is corrected within a few frames before finish() fires 3.5 s later, apart from contrived near-line reset cases or a genuine desync. So it needs a cheating racer."
+ },
+ {
+  "real": true,
+  "sev": "low",
+  "file": "server/src/room.js",
+  "line": 285,
+  "title": "The input log can be flooded (32 entries x 60 msgs/s) to force-end the race in about 100 s and make rejoin messages huge",
+  "fix": "In input(), cap accepted entries per slot per stamped frame (for example, skip an entry when that slot already has 4 or more at f2, tracked with a per-slot frame/count pair). When the log limit is reached, stop accepting that slot's entries instead of calling endRace(null) for everyone.",
+  "reason": "Confirmed: a racer sending 60 msgs/s, each with 32 valid entries, had zero messages rate-dropped and was never closed. r.log passed 200,000 after 105 s and endRace(null) ended the race for everyone (l.297). By then a rejoin welcome would carry about 2.5–4 MB of log JSON (l.235), which the client replays through addConfirmed and resim. Legitimate clients send at most about 30 msgs/s with 1–2 entries (main.js l.177), so this is malicious only, and ending the race is already easier through 'done' (previous finding)."
+ },
+ {
+  "real": true,
+  "sev": "low",
+  "file": "server/src/room.js",
+  "line": 132,
+  "title": "Closing a tab and reopening the link during a race (new token) gives 'full' to the second person who does it, with no retry",
+  "fix": "When counting toward MAX_PLAYERS, exclude disconnected racers still held for the current race, and cap the start roster at MAX_PLAYERS. At minimum, send a distinct 'busy' error (for example '레이스가 끝나면 다시 들어올 수 있습니다') with a non-final close code, and let the client retry after the race instead of treating it as a hard 'full'.",
+  "reason": "Confirmed: with 3 racers, 동우 and gf close their tabs. 60 s later 동우 reopens with a new token, gets welcome, and becomes a spectator (4 entries, because the disconnected racers are kept by the inRace exemption at l.132-133). gf reopens and gets {code:'full'} with close 4001. The client treats that as final and returns to the menu with the misleading hint '다른 방 코드를 쓰세요' (main.js l.604, client.js l.56). F5 keeps the token and is not affected. This needs two racers to close and reopen in new tabs, or one person to reopen twice within 45 s, during a race: an edge case."
+ },
+ {
+  "real": true,
+  "sev": "low",
+  "file": "web/src/sim/bot.js",
+  "line": 143,
+  "title": "In ?bot=1 mode, botInput changes the live sim state outside step(), so the local state hash differs from remote clients",
+  "fix": "Keep the harness bot's counter out of the sim state. In main.js sampleInput: `if (this.bot) { const st = sim.cars[this.local].st, keep = st.stuckT; st.stuckT = this._stuckT || 0; v = botInput(sim, this.local, 0.9); this._stuckT = st.stuckT; st.stuckT = keep; }`. Alternatively, give botInput a `writeState=false` parameter and use a private counter. The calls inside step() for sim bots and finished cars stay as they are.",
+  "reason": "Confirmed, but it only affects the test harness. main.js:158 `if (this.bot) v = botInput(sim, this.local, 0.9);` runs in sampleInput() on the live state before advanceTo(). bot.js:143-144 write st.stuckT. stuckT is declared in makeState (car.js:103) and hashed by race.js:238-240, which loops over every st key. Remote clients and the Node replay in e2e3.mjs never write stuckT for a human slot, and later snapshots (cloneSt) carry the local value forward, so a rollback does not clear it. Repro: I fed two Sims the same input log, and one of them also called botInput before each step, as main.js does. A bot-style reset at frame 1198 made the frame-1200 hash differ (stuckT 1/60 vs 0). After a reset the car stays under 1 m/s for about 24 frames, so each bot reset has roughly a 20% chance of landing on a 120-frame hash point. A bot that is truly stuck (2.5 s = 150 frames) always crosses one. The server then broadcasts 'desync' (room.js:309), and e2e3, chaos and remote_player all use bot=1, so they can fail '어긋남 경고 없음' and the hash checks for a false reason. The reset input itself goes through the server, so reset timing is not affected, and real players never run this path."
+ },
+ {
+  "real": true,
+  "sev": "low",
+  "file": "web/src/main.js",
+  "line": 641,
+  "title": "Solo race keeps running (with the last input held) and engine audio keeps droning while the tab is hidden",
+  "fix": "In the visibilitychange listener, add: `if (document.hidden) { try { audio.ctx && audio.ctx.suspend(); } catch {} if (app.game && !app.game.net && !app.game.paused) app.game.togglePause(); } else { try { audio.ctx && audio.ctx.resume(); } catch {} }`. Keep the existing multiplayer NEUTRAL-input branch.",
+  "reason": "Only partly true. The 'last input held → car hits the wall' part is wrong. Controls clears all keys on window blur (controls.js:26-29), which fires on tab switch or minimize. Game.loop also calls sampleInput() before advanceTo() (main.js:192 vs 197), and solo sampleInput records the new input at `session.frame`, which is the frame where the sim stopped when rAF paused (main.js:166). The catch-up therefore runs with NEUTRAL for the player, not W+D. Two parts are real. (1) The solo clock is wall-time based (main.js:151) and is not paused on hide (the visibilitychange handler covers only `app.game.net`), so on return the bots have kept racing while the player's car coasted to a stop. A long absence can end in a lost race. (2) Nothing suspends the AudioContext. When the tab is hidden, rAF stops and audio.update is no longer called, but the oscillators and noise sources keep playing at the last setTargetAtTime targets (engine.js:77-93). That leaves a constant engine drone for as long as the tab is hidden, in both solo and multiplayer. In an office this is noticeable, but nothing crashes, so I rate it low."
+ },
+ {
+  "real": true,
+  "sev": "low",
+  "file": "web/src/net/session.js",
+  "line": 87,
+  "title": "Menu/lobby background Session keeps snapshots and hashes forever (~50 MB per hour of idle tab)",
+  "fix": "In bgLoop after advanceTo: `const s = bgView.s; if (s.snaps.size > 420) { for (const k of s.snaps.keys()) if (k < s.frame - 360) s.snaps.delete(k); } if (s.hashes.size > 100) s.hashes.clear();`. The background never rolls back, so this is safe. Optionally clamp the catch-up: `if (tf - s.frame > 120) bgView.t0 = now - (s.frame - GO_FRAME) * (1000 / FPS);`.",
+  "reason": "The growth is real, but slower than claimed. Sim.step always does `gs.frame = f + 1`, even after `over` (race.js:112). The background Session therefore keeps advancing, and saveState keeps every 60th snapshot forever (session.js:86-87). No rollback ever happens in the background session, so those snapshots are useless. I measured it in Node with the exact bg cfg (circuit, cheondung and baram bots, bg race over at frame 6150). After 10 min: 959 snapshots and +8.2 MB heap. After 60 min: 3959 snapshots and +33.7 MB heap. That is about 30 MB per hour, not 50, so roughly 250 MB over an 8-hour idle day. There is also the catch-up: after a long hidden period, bgLoop fast-forwards at 30 frames per rAF (main.js:634), so the menu background plays at 30× speed for about 2 minutes per hidden hour while those snapshots are created. Any navigation (openLobby or launch) calls stopBackground and frees everything, so races are unaffected. Only long idle stays in one screen are affected."
+ },
+ {
+  "real": true,
+  "sev": "low",
+  "file": "web/src/render/scene.js",
+  "line": 165,
+  "title": "No handling of WebGL context loss: the PMREM environment map is not regenerated after restore",
+  "fix": "In Gfx.setEnvironment, add `this.envDef = def;`. In the Gfx constructor after creating the renderer, add `canvas.addEventListener('webglcontextrestored', () => { if (this.envDef) this.setEnvironment(this.envDef); });`. three.js's own restore listener was registered first, so it runs first and the PMREM rebuild uses the fresh context.",
+  "reason": "Confirmed in vendored three r186. onContextRestore → initGLContext() replaces `properties = new WebGLProperties()` and all managers (three.module.js:16479-16521). envRT.texture is a render-target texture, so setTexture2D never re-uploads it (isRenderTargetTexture skips uploadTexture). Its `__webglTexture` is undefined, so state.bindTexture binds the empty texture. Everything else is fine after restore: normal textures are re-uploaded because their version is above 0, and the shadow and composer targets are redrawn every frame. scene.environment, however, samples black. Paint and glass lose their reflections and IBL fill light (environmentIntensity 0.55) is gone until the next RaceView calls setEnvironment, which is the next race or lobby background. The only call sites are raceview.js:17 and garage.js. No webglcontextrestored listener exists outside vendor. The trigger (GPU reset, driver timeout, sleep/resume) is rare and the effect is cosmetic, not a crash."
+ },
+ {
+  "real": true,
+  "sev": "low",
+  "file": "server/src/room.js",
+  "line": 313,
+  "title": "finish() can fire on a mispredicted gs.over, and the server's first 'done' then drops every later input from every player",
+  "fix": "main.js:221 → `setTimeout(() => { if (this.session.sim.gs.over) this.finish(); else this.overShown = false; }, 3500);` Also add the confirmed >= overAt wait from finding 1. Server hardening: in done(), record which slots have finished. Call endRace only when every connected slot player has sent 'done', or a fixed time (for example 10 s) after the first 'done', and keep input() accepting inputs until then.",
+  "reason": "The mechanism is confirmed. main.js:219-221 sets overShown the first time it sees gs.over and schedules finish() with no later re-check. A rollback can clear over, because Session.rollbackIfNeeded calls Sim.restore, which does Object.assign(gs, snap.gs) from a snapshot taken before overAt. finish() (main.js:280-286) always sends 'done'. room.js:313-316 ends the race on the first 'done' from any slot, and input() (room.js:280) then drops every input. After that, B's pending inputs are never confirmed, and dropStale (session.js:102-111) snaps B's own car back to its last confirmed input every 2 s. The trigger is narrow, though. The misprediction has to flip the last car's crossing, and that car then has to stay short of the line for more than 3.5 s. The reviewer's own example usually corrects itself: braking a few frames before the line cannot stop the car in time, and after R the car is placed about 3 m back and crosses again within 1-2 s. By then A's delayed finish() shows B as finished, and B's inputs after the race ends no longer matter. Two concrete paths remain. (1) B's socket stalls for up to 0.5 s (within LATE, so frame stamps are kept) while B crashes within about 20 m of the line. A predicts the crossing, rolls back, and B needs more than 3.5 s to recover. (2) B's input after a brief disconnect and reconnect lands a few frames before C crosses on A's screen. A still sees B as dc, so allDone is true and over is set, then rolled back. Both are rare, but the result is severe: B loses control of the car and the screens end the race differently."
+ },
+ {
+  "real": true,
+  "sev": "low",
+  "file": "web/src/main.js",
+  "line": 158,
+  "title": "Test bot mode (?bot=1) writes sim state (st.stuckT) outside Sim.step, so the e2e hash check is not trustworthy",
+  "fix": "Keep the test bot's timer out of sim state. bot.js: `export function botInput(sim, k, skill = 0.95, mem = sim.cars[k].st)` and use `mem.stuckT` on lines 143-144. main.js:158: `v = botInput(sim, this.local, 0.9, this._botMem ||= { stuckT: 0 });`. The in-sim callers keep the default and are unchanged.",
+  "reason": "Confirmed, but it only affects test mode. With ?bot=1, sampleInput (main.js:158) calls botInput on the live sim once per rAF. bot.js:143-144 writes st.stuckT on the local car whenever frame > 300 and speed < 1 m/s. stuckT is part of st (car.js:103), so it is copied into snapshots (cloneSt copies every key) and included in the hash (race.js:238-241). Other clients never run botInput for that slot before it finishes, so their stuckT stays 0. If a test bot is stuck below 1 m/s across a 120-frame checkpoint (any stop of 2 s or more guarantees this), the owner reports a different hash. The server then broadcasts desync, and e2e3/chaos fail their '어긋남 경고 없음' and sent-hash checks with a false alarm. After the car finishes, these extra writes also change when the in-step cooldown bot resets the car, but only on the owner's screen. That moves the ghost car's position there as well. The bug can only add false positives, never hide a real desync, and real players never use ?bot=1."
+ },
+ {
+  "real": true,
+  "sev": "low",
+  "file": "server/src/room.js",
+  "line": 233,
+  "title": "A player can rejoin a race mid-way on a different game version (refresh after a deploy), so their replay diverges and triggers false desync alarms for everyone",
+  "fix": "In start(), store `ver: ps[0].ver` in this.race. In hello(), send race and log only when `this.race && !this.race.ended && p.ver === this.race.ver`. Otherwise send an error such as `{t:'err', code:'racever', text:'레이스가 끝난 뒤 새로고침(F5) 해 주세요'}` and leave the slot disconnected. In hash(), add `if (s === undefined || this.players.get(id)?.ver !== r.ver) return;` to ignore reports from spectators and from other versions.",
+  "reason": "Confirmed gap in the version check. VERSION (web/src/version.js) is raised by hand whenever the sim changes, but it is compared only in start() (room.js:248-252). hello() checks only PROTOCOL, which stays fixed at 3, stores p.ver, and sends race and log to anyone who reconnects during a live race (room.js:233-237). hash() (room.js:300-311) accepts reports from any id, spectators included. Scenario: a GitHub Pages deploy with a raised VERSION happens during a race, and a player refreshes. If the module cache has expired (max-age 600, and 'main.js?v=1' never changes), the page loads the new code. The token puts the player back in the same slot, and the log is replayed with the new physics. That player now drives in a world the other two do not see, and their hash reports make the server broadcast 'desync' to everyone. Low severity: it needs a deploy during a live race, although this project does deploy while it is being played."
+ },
+ {
+  "real": true,
+  "sev": "low",
+  "file": "web/src/net/client.js",
+  "line": 56,
+  "title": "Duplicated tab (sessionStorage copied) makes two tabs fight over one slot through an endless 'replaced' reconnect loop",
+  "fix": "client.js:56 → `if (ev.code === 4000) { this.status('다른 탭에서 같은 자리로 접속해 이 탭은 끊었습니다', false); return; } if (ev.code === 4001 || ev.code === 4002 || ev.code === 4003) return;`. Optionally, on the server, use only `this.sockets.get(ws)` for messages other than 'hi' (the constructor already rebuilds this.sockets from attachments after hibernation).",
+  "reason": "Confirmed. The check is at client.js:56, not :233 as cited. The token is kept in sessionStorage (main.js:42-46), and Chrome's 'Duplicate tab' copies sessionStorage. Once the duplicate also joins the room (the room code is pre-filled, and ?auto= joins automatically), both tabs send the same token. hello() closes the other tab's socket with code 4000 (room.js:213). client.js:56 treats only 4001/4002/4003 as final, and onopen resets tries to 0. So each tab reconnects after 400 ms (at least 1 s in a background tab) and replaces the other, with no end. Each swap is a new Durable Object request plus save() and pushLobby, so the loop uses up the free-tier daily request limit for as long as both tabs are open. During a race the visible tab loses inputs in every reconnect gap: flush() clears sendBuf even when send fails, and pending inputs are then dropped after 2 s. A second visible tab also sends NEUTRAL again after each resync. The car stutters on all three screens. The attachment-id fallback at room.js:168 only matters during the short closing window. Low severity because it needs the user to duplicate the tab and join again."
+ },
+ {
+  "real": false,
+  "sev": "none",
+  "file": "web/src/render/scene.js",
+  "line": 104,
+  "title": "Every setQuality() leaks the old composer's passes (UnrealBloom render targets, ShaderPass/OutputPass/FXAA materials)",
+  "fix": "",
+  "reason": "It is true that EffectComposer.dispose (vendor EffectComposer.js:354-360) does not dispose the passes, but no real leak follows. The startup double call throws away a composer that was never rendered, and three.js allocates render targets lazily, so no GPU memory was used. After a switch, the old passes are unreachable: this.bloom, grade and fxaa are reassigned. three.js keeps GL handles only in WeakMaps (WebGLProperties, and WebGLTextures `_sources`/`_videoTextures`; the only Set is `_htmlTextures`). Per the WebGL spec, the GL objects are deleted when their wrappers are garbage-collected. Shader programs are shared by cache key, so recreating identical ShaderPass/FXAA materials adds no programs. The only thing actually retained is one old bloom pass held by `this.bloom` while on 'low' (about 15 MB at 1080p), and it does not grow. Switches are rare: user toggles, or at most two autoScale steps down. I see no concrete path to a visible failure. Adding `for (const p of this.composer.passes) p.dispose?.()` is optional tidying, not a defect fix."
+ },
+ {
+  "real": false,
+  "sev": "none",
+  "file": "server/src/room.js",
+  "line": 307,
+  "title": "Hash comparison map is flushed by catch-up reporters, so divergence is silently missed",
+  "fix": "No fix needed. Optional: evict entries by frame number (f < serverFrame - 80*120) instead of by insertion order.",
+  "reason": "The stated example evicts nothing. At 2.5 min the map holds about 75 checkpoint entries (one per 120 frames), below the limit of 80, so every catch-up report still finds its entry and is compared. In longer races a large catch-up burst can evict live entries. The only effect is that the rejoiner's replayed old frames are not compared, and at most one live checkpoint pair is lost if the burst lands between two players' reports. A real divergence in this chaotic sim never heals, so it is reported at the next 2 s checkpoint, which the live players and the caught-up rejoiner all report normally. Nothing is silently missed. The 'slot' field in the desync broadcast is ignored by the client (client.js:111 passes only m.f), so who counts as the 'truth' changes nothing."
+ }
+]

@@ -13,7 +13,7 @@ function facadeMaterial() {
   const m = new THREE.MeshStandardMaterial({ color: 0xffffff, roughness: 0.75, metalness: 0.15 });
   m.onBeforeCompile = sh => {
     sh.vertexShader = sh.vertexShader
-      .replace('#include <common>', '#include <common>\nvarying vec3 vWp; varying vec3 vWn; varying float vSeed;')
+      .replace('#include <common>', '#include <common>\nvarying vec3 vWp; varying vec3 vWn; flat varying float vSeed;')
       .replace('#include <worldpos_vertex>', `#include <worldpos_vertex>
         vec4 wpI = modelMatrix * instanceMatrix * vec4(transformed, 1.0);
         vWp = wpI.xyz;
@@ -22,7 +22,7 @@ function facadeMaterial() {
         // 씨앗은 보간하지 않고(flat) 작은 정수로 — 큰 값을 보간하면 fract 에서 오차가 증폭돼 지글거린다
         vSeed = mod(floor(ctr.x * 0.37) * 7.0 + floor(ctr.z * 0.41) * 13.0, 97.0);`);
     sh.fragmentShader = sh.fragmentShader
-      .replace('#include <common>', '#include <common>\nvarying vec3 vWp; varying vec3 vWn; varying float vSeed;\nfloat h21(vec2 p){ return fract(sin(dot(p, vec2(127.1, 311.7))) * 43758.5453); }')
+      .replace('#include <common>', '#include <common>\nvarying vec3 vWp; varying vec3 vWn; flat varying float vSeed;\nfloat h21(vec2 p){ return fract(sin(dot(p, vec2(127.1, 311.7))) * 43758.5453); }')
       .replace('#include <emissivemap_fragment>', `#include <emissivemap_fragment>
         if (abs(vWn.y) < 0.5) {
           // 벽면: 가로축 = 벽을 따라가는 좌표

@@ -182,7 +182,7 @@ export class Hud {
       const ne = this.nameEls[k];
       if (k === me.slot || !view) { ne.style.display = 'none'; continue; }
       const p = view.screenPos(k, this.sp);
-      if (!p.vis || p.dist > 250) { ne.style.display = 'none'; continue; }
+      if (!p.vis || p.dist > 250 || p.dist < 6) { ne.style.display = 'none'; continue; }
       ne.style.display = 'block';
       setText(ne, names[k] || sim.cars[k].name || '');
       ne.style.transform = `translate(${p.x.toFixed(0)}px, ${p.y.toFixed(0)}px) translate(-50%, -100%)`;

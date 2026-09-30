@@ -76,7 +76,7 @@ export class RaceView {
       }
       m.userData.setBrake(car.st.brk);
       const ghost = sim.isGhost(car);
-      if (ghost !== v.ghost) { m.userData.setGhost(ghost); v.ghost = ghost; }
+      if (ghost !== v.ghost) { m.userData.setGhost(ghost || !!v.see); v.ghost = ghost; }
       // 연기·스키드마크
       this.fx.car(k, car, m, dt);
     }
@@ -89,6 +89,7 @@ export class RaceView {
     }
     this.fx.update(dt);
     this.updateCamera(followSlot, dt, look);
+    this.clearView(followSlot);
     this.gfx.followShadow(this.cars[followSlot]?.mesh.position || tmpV.set(0, 0, 0));
     // 출발 신호등
     const g = this.track.userData.lights.gantry;
@@ -96,6 +97,28 @@ export class RaceView {
       const f = this.session.frame;
       const on = f < 60 ? 0 : f < 240 ? Math.min(5, Math.floor((f - 60) / 36) + 1) : 0;
       g.forEach((mat, i) => { mat.emissiveIntensity = i < on ? 6 : 0; });
+    }
+  }
+
+  /** 카메라와 내 차 사이에 낀 가까운 차는 반투명 (뒤차가 화면을 가리지 않게) */
+  clearView(k) {
+    const me = this.cars[k];
+    if (!me) return;
+    const cam = this.gfx.camera.position;
+    const toMe = tmpV.copy(me.mesh.position).sub(cam);
+    const dMe = toMe.length();
+    toMe.normalize();
+    for (let j = 0; j < this.cars.length; j++) {
+      const v = this.cars[j];
+      if (j === k) continue;
+      const rel = tmpV2.copy(v.mesh.position).sub(cam);
+      const along = rel.dot(toMe);
+      const side = Math.sqrt(Math.max(0, rel.lengthSq() - along * along));
+      const block = along > -1 && along < dMe && side < 2.4;
+      if (block !== !!v.see) {
+        v.see = block;
+        if (!v.ghost) v.mesh.userData.setGhost(block);
+      }
     }
   }
 

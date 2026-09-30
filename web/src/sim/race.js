@@ -118,7 +118,8 @@ export class Sim {
         else if (!c.st.dc) allDone = false;
       }
       if (anyFin && allDone) { gs.over = 1; gs.overAt = gs.frame; }
-      else if (gs.first >= 0 && gs.frame >= gs.first + FINISH_WAIT) { gs.over = 1; gs.overAt = gs.frame; }
+      // 1등 도착 후 대기: 90초와 (1등 기록의 60%) 중 긴 쪽 — 차급 차이가 커도 느린 차가 완주하게
+      else if (gs.first >= 0 && gs.frame >= gs.first + Math.max(FINISH_WAIT, Math.round((gs.first - GO_FRAME) * 0.6))) { gs.over = 1; gs.overAt = gs.frame; }
       else if (gs.frame >= MAX_FRAMES) { gs.over = 1; gs.overAt = gs.frame; }
     }
   }
@@ -160,7 +161,8 @@ export class Sim {
     let ds = L.s - st.sPrev;
     if (ds > T.L / 2) ds -= T.L; else if (ds < -T.L / 2) ds += T.L;
     const prev = st.prog;
-    if (ds > -40 && ds < 40) st.prog += ds;
+    // 레이스가 끝나면 순위를 정하는 값은 더 바뀌지 않는다 (결과를 몇 초 뒤에 읽어도 같게)
+    if (!this.gs.over && ds > -40 && ds < 40) st.prog += ds;
     st.sPrev = L.s;
     // 역주행 감지 (화면 경고용이지만 결정적 값이라 st 에 둬도 된다)
     const fx = 2 * (st.qx * st.qz + st.qw * st.qy), fz = 1 - 2 * (st.qx * st.qx + st.qy * st.qy);
@@ -172,7 +174,7 @@ export class Sim {
     if (upY < 0.25 && f >= GO_FRAME) { st.flipT += DTF; if (st.flipT > 3) { this.resetCar(c); st.flipT = 0; } }
     else st.flipT = 0;
     // 랩
-    while (st.lap < this.laps && st.prog >= (st.lap + 1) * T.L && f >= GO_FRAME) {
+    while (!this.gs.over && st.lap < this.laps && st.prog >= (st.lap + 1) * T.L && f >= GO_FRAME) {
       const target = (st.lap + 1) * T.L;
       const frac = st.prog > prev ? (target - prev) / (st.prog - prev) : 1;
       const tc = f + Math.min(1, Math.max(0, frac));

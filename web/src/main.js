@@ -155,7 +155,7 @@ class Game {
     if (this.local < 0) return;
     const sim = this.session.sim;
     let v;
-    if (this.bot) v = botInput(sim, this.local, 0.9);
+    if (this.bot) v = botInput(sim, this.local, 0.9, this._botMem ||= { stuckT: 0 });   // 시뮬 밖 기억(해시에 안 섞이게)
     else {
       const i = controls.read();
       this.look = i.look;
@@ -218,7 +218,7 @@ class Game {
     // 끝
     if (this.session.sim.gs.over && !this.overShown) {
       this.overShown = true;
-      setTimeout(() => this.finish(), 3500);
+      setTimeout(() => this.finishWhenFinal(), 3500);
     }
   }
 
@@ -275,6 +275,17 @@ class Game {
       const c = sim.cars[k];
       return { pos: i + 1, slot: k, name: this.names[k] || c.name, car: c.spec.id, fin: c.st.fin ? c.st.fin - GO_FRAME : 0, best: c.st.best, laps: c.st.lap, dc: c.st.dc };
     });
+  }
+
+  /** 끝났다는 판단이 되감기로 뒤집힐 수 있다 → 확정된 뒤에만 결과를 낸다 */
+  finishWhenFinal() {
+    if (!this.running) return;
+    const gs = this.session.sim.gs;
+    if (!gs.over) { this.overShown = false; return; }
+    if (this.net && (this.net.confirmed < gs.overAt || this.session.pending.length)) {
+      if ((this._waitFinal = (this._waitFinal || 0) + 1) < 40) { setTimeout(() => this.finishWhenFinal(), 250); return; }
+    }
+    this.finish();
   }
 
   finish() {
@@ -442,6 +453,10 @@ $('p-resume').onclick = () => app.game && app.game.togglePause();
 $('p-restart').onclick = () => { if (app.game && !app.net) { const g = app.game; g.stop(); app.game = null; startSolo(); } };
 $('p-quit').onclick = () => {
   $('pause').classList.add('hidden');
+  const g = app.game;
+  // 멀티에서 나가면 내 차를 "끊김"으로 알린다 → 다른 화면에서 유령이 되어 비키고, 완주 판정을 막지 않는다
+  if (g && g.net && g.local >= 0) g.net.send({ t: 'in', e: [[++g.seq, g.session.frame + INPUT_DELAY, NEUTRAL | (1 << 21)]] });
+  if (g && g.net) { app.inRace = false; app.early = []; }
   if (app.game) { app.game.stop(); app.game = null; }
   if (app.solo) openLobby(null, app.name);
   else { show('lobby'); startBackground(); updateLobby(); }
@@ -568,6 +583,8 @@ async function joinRoom(code, name) {
         g.resync(msg.log || []);
         return;
       }
+      // 끊긴 사이 레이스가 끝났으면 돌던 화면은 멈춘다 (좀비 게임이 대기실 위에서 계속 돌지 않게)
+      if (g) { g.stop(); app.game = null; app.inRace = false; }
       openLobby(code, name);
       $('l-conn').textContent = '연결됨'; $('l-conn').className = 'conn ok';
       if (msg.race) enterRace(msg.race, msg.log || []);
@@ -601,7 +618,11 @@ async function joinRoom(code, name) {
     },
     error(code2, text) {
       $('m-msg').textContent = text; $('m-msg').className = 'msg err';
-      if (code2 === 'full' || code2 === 'version' || code2 === 'badroom') { net.close(); app.net = null; show('menu'); }
+      if (code2 === 'full' || code2 === 'version' || code2 === 'badroom' || code2 === 'replaced') {
+        if (app.game) { app.game.stop(); app.game = null; }
+        app.inRace = false;
+        net.close(); app.net = null; show('menu'); startBackground();
+      }
       toast(text, 4000);
     },
     desync(f) { toast('⚠ 세 화면의 계산이 어긋났습니다 (프레임 ' + f + ')', 4000); },
@@ -611,6 +632,8 @@ async function joinRoom(code, name) {
 }
 
 function enterRace(race, log) {
+  // 두 번째 레이스부터 옛 확정 프레임이 남아 있으면 확정 전 해시를 보내 거짓 경고가 난다 (독립검증)
+  if (app.net) { app.net.confirmed = -1; app.net.desync = false; }
   app.inRace = true;
   app.raced = true;
   app.early = [];
@@ -630,13 +653,22 @@ startBackground();
   requestAnimationFrame(bgLoop);
   if (!bgView || app.game || window.__garage) return;
   const now = performance.now();
-  const tf = (now - bgView.t0) / (1000 / FPS) + GO_FRAME;
-  bgView.s.advanceTo(Math.floor(tf) + 1, 30);
+  let tf = (now - bgView.t0) / (1000 / FPS) + GO_FRAME;
+  const bs = bgView.s;
+  if (tf - bs.frame > 120) { bgView.t0 = now - (bs.frame - GO_FRAME) * (1000 / FPS); tf = bs.frame; }   // 탭을 떠났다 오면 따라잡지 말고 이어서
+  bs.advanceTo(Math.floor(tf) + 1, 30);
+  // 배경 레이스는 되감을 일이 없으니 저장본·해시를 쌓아 두지 않는다 (켜 둔 탭 메모리 증가 방지)
+  if (bs.snaps.size > 420) for (const k of bs.snaps.keys()) if (k < bs.frame - 360) bs.snaps.delete(k);
+  if (bs.hashes.size > 100) bs.hashes.clear();
+  if (bs.sim.gs.over) { stopBackground(); startBackground(); }
   bgView.v.update(tf - Math.floor(tf), 1 / 60, 0, false);
   gfx.render();
 })();
 
 document.addEventListener('visibilitychange', () => {
+  // 혼자 연습은 탭을 떠나면 일시정지, 소리는 멈춘다
+  try { if (audio.ctx) document.hidden ? audio.ctx.suspend() : audio.ctx.resume(); } catch { /* */ }
+  if (document.hidden && app.game && !app.game.net && !app.game.paused) app.game.togglePause();
   // 멀티 중 탭을 떠나면 차가 멋대로 달리지 않게 입력을 중립으로
   if (document.hidden && app.game && app.game.net && app.game.local >= 0) {
     app.game.lastSent = -1;

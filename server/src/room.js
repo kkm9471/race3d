@@ -35,6 +35,7 @@ function cleanName(s) {
   return t || '손님';
 }
 const isInt = v => Number.isInteger(v);
+const att = ws => { try { return ws.deserializeAttachment() || {}; } catch { return {}; } };
 
 export default {
   async fetch(req, env) {
@@ -60,7 +61,8 @@ export class Room {
     this.code = '';
     this.settings = { track: 'circuit', laps: 3, host: null, nextId: 1, records: {} };
     this.players = new Map();          // id → { id, name, car, ready, assist, tok, conn, ver, leftAt, order }
-    this.sockets = new Map();          // ws → id
+    // 소켓 식별은 연결마다 붙는 첨부정보(attachment)의 고유번호 c 로 한다.
+    // 실제 Cloudflare 에서는 같은 연결이라도 메시지마다 소켓 객체가 같다는 보장이 없다(로컬 모의 서버와 다름 — 실측).
     this.race = null;                  // { startAt, cfg, log, last, hashes, slotOf, ended }
     this.phase = 'lobby';
     this.tickTimer = null;
@@ -69,10 +71,7 @@ export class Room {
     // 잠들었다 깨어난 경우: 붙어 있는 소켓에서 사람 정보를 되살린다
     for (const ws of this.ctx.getWebSockets()) {
       const a = ws.deserializeAttachment();
-      if (a && a.id) {
-        this.sockets.set(ws, a.id);
-        this.players.set(a.id, { ...a.p, conn: true });
-      }
+      if (a && a.id) this.players.set(a.id, { ...a.p, conn: true });
     }
     try { this.ctx.setWebSocketAutoResponse(new WebSocketRequestResponsePair('ka', 'ka!')); } catch { /* 구버전 런타임 */ }
   }
@@ -87,13 +86,21 @@ export class Room {
     const order = await this.ctx.storage.get('players');
     if (Array.isArray(order)) {
       // 잠들기 전 대기실에 있던 사람(연결은 끊겼을 수 있음) — 자리만 복구
-      for (const p of order) if (!this.players.has(p.id)) this.players.set(p.id, { ...p, conn: false, leftAt: Date.now() });
+      // 저장된 leftAt 을 그대로 쓴다 (깨어날 때마다 새 유예시간을 주면 떠난 사람이 영영 자리를 차지한다 — 독립검증)
+      for (const p of order) if (!this.players.has(p.id)) this.players.set(p.id, { ...p, conn: false, leftAt: p.leftAt || 0 });
     }
+    // 잠들기 전 방장이 떠났을 수 있다 → 실제 연결된 사람 기준으로 다시 정한다
+    this.prune();
   }
 
   async save() {
     await this.ctx.storage.put('settings', this.settings);
-    await this.ctx.storage.put('players', [...this.players.values()].map(p => ({ id: p.id, name: p.name, car: p.car, ready: false, assist: p.assist, tok: p.tok, order: p.order, ver: p.ver })));
+    await this.ctx.storage.put('players', [...this.players.values()].map(p => ({ id: p.id, name: p.name, car: p.car, ready: false, assist: p.assist, tok: p.tok, order: p.order, ver: p.ver, leftAt: p.conn ? 0 : (p.leftAt || Date.now()) })));
+  }
+
+  async trySave() {
+    // 저장 실패(무료 한도 소진 등)가 입장·진행을 막지 않게
+    try { await this.save(); } catch { /* 다음 저장 때 다시 */ }
   }
 
   async fetch(req) {
@@ -103,7 +110,7 @@ export class Room {
     const pair = new WebSocketPair();
     const [client, server] = Object.values(pair);
     this.ctx.acceptWebSocket(server);
-    server.serializeAttachment({ id: null });
+    server.serializeAttachment({ id: null, c: crypto.randomUUID() });
     return new Response(null, { status: 101, webSocket: client });
   }
 
@@ -142,8 +149,9 @@ export class Room {
 
   allow(ws) {
     const now = Date.now();
-    let b = this.rate.get(ws);
-    if (!b) { b = { tokens: BURST, t: now, strikes: 0 }; this.rate.set(ws, b); }
+    const key = att(ws).c || 'x';
+    let b = this.rate.get(key);
+    if (!b) { b = { tokens: BURST, t: now, strikes: 0 }; this.rate.set(key, b); }
     const el = (now - b.t) / 1000;
     b.tokens = Math.min(BURST, b.tokens + el * RATE);
     b.strikes = Math.max(0, b.strikes - el * 20);      // 잠깐 몰아 보낸 건 곧 잊는다
@@ -165,7 +173,7 @@ export class Room {
     let m;
     try { m = JSON.parse(data); } catch { return; }
     if (!m || typeof m !== 'object' || typeof m.t !== 'string') return;
-    const id = this.sockets.get(ws) || (ws.deserializeAttachment() || {}).id;
+    const id = att(ws).id;
     if (m.t === 'ping') { this.send(ws, { t: 'pong', c: typeof m.c === 'number' ? m.c : 0, s: Date.now() }); return; }
     if (m.t === 'hi') return this.hello(ws, m);
     if (!id) return;
@@ -179,27 +187,34 @@ export class Room {
       case 'ready':
         if (this.phase === 'lobby') { p.ready = !!m.on; this.attach(ws, p); this.pushLobby(); }
         break;
-      case 'set':
+      case 'set': {
         if (id !== this.settings.host || this.phase !== 'lobby') break;
+        const now = Date.now();
+        if (now - (p.lastSet || 0) < 250) break;          // 저장 한도를 갉아먹지 않게
+        p.lastSet = now;
+        const t0 = this.settings.track, l0 = this.settings.laps;
         if (TRACKS.includes(m.track)) this.settings.track = m.track;
         if (isInt(m.laps) && m.laps >= 1 && m.laps <= 5) this.settings.laps = m.laps;
-        await this.save();
+        if (t0 === this.settings.track && l0 === this.settings.laps) break;
+        await this.trySave();
         this.pushLobby();
         break;
+      }
       case 'start': await this.start(ws, id); break;
       case 'in': this.input(id, m.e); break;
       case 'hash': this.hash(id, m); break;
       case 'done': await this.done(id, m.r); break;
       case 'back': p.ready = false; this.attach(ws, p); this.pushLobby(); break;
-      case 'bye': p.conn = false; p.leftAt = 0; this.leave(ws, id, true); break;
+      case 'bye': p.conn = false; p.leftAt = 0; await this.leave(ws, id, true); break;
     }
   }
 
   attach(ws, p) {
-    ws.serializeAttachment({ id: p.id, p: { id: p.id, name: p.name, car: p.car, ready: p.ready, assist: p.assist, tok: p.tok, order: p.order, ver: p.ver } });
+    ws.serializeAttachment({ id: p.id, c: att(ws).c, p: { id: p.id, name: p.name, car: p.car, ready: p.ready, assist: p.assist, tok: p.tok, order: p.order, ver: p.ver } });
   }
 
   async hello(ws, m) {
+    if (att(ws).id) return;                  // 한 연결은 한 번만 입장 (두 번째 hi 가 유령 자리를 만들지 않게)
     if (m.v !== PROTOCOL) {
       this.send(ws, { t: 'err', code: 'version', text: '게임이 새 버전으로 바뀌었습니다. 새로고침(F5) 해 주세요.' });
       try { ws.close(4002, 'version'); } catch { /* */ }
@@ -210,11 +225,18 @@ export class Room {
     let p = tok ? [...this.players.values()].find(q => q.tok === tok) : null;
     if (p) {
       // 새로고침·재접속: 같은 자리로. 예전 소켓은 끊는다.
-      for (const [w, pid] of this.sockets) if (pid === p.id && w !== ws) { this.sockets.delete(w); try { w.close(4000, 'replaced'); } catch { /* */ } }
+      const me = att(ws).c;
+      for (const w of this.ctx.getWebSockets()) {
+        const a = att(w);
+        if (a.id === p.id && a.c !== me) { try { w.serializeAttachment({ id: null, c: a.c, gone: 1 }); w.close(4000, 'replaced'); } catch { /* */ } }
+      }
       p.conn = true; p.leftAt = 0;
       p.name = cleanName(m.name);
     } else {
-      const count = this.players.size;
+      // 연결된 사람 + 대기실에서 잠깐 끊긴 사람(새로고침 대비)만 센다. 진행 중 레이스의 끊긴 선수 자리는 빼서
+      // 탭을 닫았다 새로 연 사람도 관전으로는 들어올 수 있게 한다
+      const racing = this.race && !this.race.ended ? this.race.slotOf : null;
+      const count = [...this.players.values()].filter(q => q.conn || !(racing && racing.has(q.id))).length;
       if (count >= MAX_PLAYERS) {
         this.send(ws, { t: 'err', code: 'full', text: `방이 가득 찼습니다 (최대 ${MAX_PLAYERS}명). 다른 방 코드를 쓰세요.` });
         try { ws.close(4001, 'full'); } catch { /* */ }
@@ -226,14 +248,18 @@ export class Room {
       if (!this.settings.host || !this.players.get(this.settings.host)?.conn) this.settings.host = id;
     }
     p.ver = typeof m.ver === 'string' ? m.ver.slice(0, 30) : '';
-    this.sockets.set(ws, p.id);
     this.attach(ws, p);
-    await this.save();
+    await this.trySave();
     const welcome = { t: 'welcome', you: p.id, lobby: this.lobbyView(), now: Date.now() };
     if (this.race && !this.race.ended) {
-      welcome.race = { startAt: this.race.startAt, cfg: this.race.cfg };
-      welcome.log = this.race.log;
-      // 레이스 중에 돌아온 사람: 끊김 표시 해제는 그 사람이 다음 입력을 보내면 저절로 된다
+      if (p.ver === this.race.ver) {
+        welcome.race = { startAt: this.race.startAt, cfg: this.race.cfg };
+        welcome.log = this.race.log;
+        // 레이스 중에 돌아온 사람: 끊김 표시 해제는 그 사람이 다음 입력을 보내면 저절로 된다
+      } else {
+        // 판이 다르면 같은 계산을 못 한다 → 이번 레이스는 대기실에서 기다리게
+        this.send(ws, { t: 'err', code: 'racever', text: '게임이 새 버전입니다. 지금 레이스가 끝나면 함께 탈 수 있습니다.' });
+      }
     }
     this.send(ws, welcome);
     this.pushLobby();
@@ -257,6 +283,7 @@ export class Room {
     this.race = {
       startAt: Date.now() + 2500, cfg, log: [], last: cfg.players.map(() => 0),
       hashes: new Map(), slotOf: new Map(cfg.players.map((p, i) => [p.id, i])), ended: false,
+      ver: ps[0].ver, done: new Map(), firstDone: 0, perFrame: cfg.players.map(() => [-1, 0]), logCap: cfg.players.map(() => 0),
     };
     this.phase = 'race';
     for (const p of ps) p.ready = false;
@@ -272,7 +299,8 @@ export class Room {
     const F = this.serverFrame();
     this.broadcast({ t: 'tick', c: F - LATE - 2 });
     const anyone = [...r.slotOf.keys()].some(pid => this.players.get(pid)?.conn);
-    if (Date.now() - r.startAt > RACE_MAX_MS || (!anyone && Date.now() - r.startAt > 10000)) this.endRace(null);
+    if (Date.now() - r.startAt > RACE_MAX_MS || (!anyone && Date.now() - r.startAt > 10000)) this.endRace();
+    else if (r.firstDone && Date.now() - r.firstDone > 15000) this.endRace();
   }
 
   input(id, e) {
@@ -286,43 +314,57 @@ export class Room {
       if (!Array.isArray(it)) continue;
       const [q, f, v] = it;
       if (!isInt(f) || !isInt(v) || v < 0 || v >= (1 << 22)) continue;
+      if (r.logCap[s] > 60000) break;                 // 한 사람이 기록을 부풀리면 그 사람 입력만 멈춘다
       let f2 = Math.max(f, F - LATE, r.last[s]);
       f2 = Math.min(f2, F + EARLY);
       if (f2 < r.last[s]) f2 = r.last[s];
+      // 같은 프레임에 4개 넘게는 받지 않는다 (정상이면 1개)
+      const pf = r.perFrame[s];
+      if (pf[0] === f2) { if (++pf[1] > 4) continue; } else { pf[0] = f2; pf[1] = 1; }
       r.last[s] = f2;
       r.log.push([s, f2, v]);
+      r.logCap[s]++;
       out.push(isInt(q) ? [f2, v, q] : [f2, v]);
     }
     if (out.length) this.broadcast({ t: 'in', p: s, e: out });
-    if (r.log.length > 200000) this.endRace(null);    // 비정상적으로 긴 기록 방지
   }
 
   hash(id, m) {
     const r = this.race;
     if (!r || !isInt(m.f) || !isInt(m.h)) return;
     const s = r.slotOf.get(id);
+    if (s === undefined || this.players.get(id)?.ver !== r.ver) return;    // 관전자·다른 판의 보고는 믿지 않는다
     const prev = r.hashes.get(m.f);
     if (!prev) {
       r.hashes.set(m.f, { h: m.h, n: 1 });
-      if (r.hashes.size > 80) r.hashes.delete(r.hashes.keys().next().value);
+      if (r.hashes.size > 120) for (const k of r.hashes.keys()) { if (k < m.f - 100 * 120) r.hashes.delete(k); }
     } else if (prev.h !== m.h) {
       if (!prev.bad) { prev.bad = true; this.broadcast({ t: 'desync', f: m.f, slot: s }); }
     } else prev.n++;
   }
 
+  /** 레이스 결과 보고. 한 사람의 보고로 모두의 레이스를 끝내지 않는다(독립검증: 강제 종료·기록 위조).
+   *  연결된 선수가 모두 보고하거나, 첫 보고 뒤 15초가 지나면 끝낸다. 너무 이른 보고(말이 안 되는 시간)는 무시. */
   async done(id, res) {
     const r = this.race;
-    if (!r || r.ended || !r.slotOf.has(id)) return;
-    this.endRace(Array.isArray(res) ? res : null);
-    await this.save();
+    if (!r || r.ended || !r.slotOf.has(id) || !Array.isArray(res)) return;
+    if (this.serverFrame() < 240 + r.cfg.laps * 15 * 60) return;          // 랩당 15초 미만은 불가능
+    r.done.set(id, JSON.stringify(res.slice(0, MAX_PLAYERS)));
+    if (!r.firstDone) r.firstDone = Date.now();
+    const racers = [...r.slotOf.keys()].filter(pid => this.players.get(pid)?.conn);
+    if (racers.every(pid => r.done.has(pid))) { this.endRace(); await this.trySave(); }
   }
 
-  endRace(res) {
+  endRace() {
     const r = this.race;
     if (!r || r.ended) return;
     r.ended = true;
     clearInterval(this.tickTimer); this.tickTimer = null;
-    // 방 최고 랩 기록 (트랙별)
+    // 방 최고 랩: 보고가 둘 이상이면 서로 같은 내용일 때만(세 화면 계산은 같아야 하므로), 하나뿐이면 그대로
+    const reports = [...r.done.values()];
+    const agreed = reports.length === 1 ? reports[0] : reports.find((x, i) => reports.indexOf(x) !== i);
+    let res = null;
+    if (agreed) { try { res = JSON.parse(agreed); } catch { /* */ } }
     if (res) {
       for (const it of res.slice(0, MAX_PLAYERS)) {
         if (!Array.isArray(it)) continue;
@@ -338,11 +380,12 @@ export class Room {
   }
 
   leave(ws, id, now) {
-    this.sockets.delete(ws);
-    this.rate.delete(ws);
+    const me = att(ws).c;
+    this.rate.delete(me);
     const p = this.players.get(id);
     if (!p) return;
-    const still = [...this.sockets.values()].includes(id);
+    // 같은 사람이 다른 연결(새로고침)로 이미 들어와 있으면 떠난 게 아니다
+    const still = this.ctx.getWebSockets().some(w => { const a = att(w); return a.id === id && a.c !== me && !a.gone; });
     if (still) return;
     p.conn = false; p.leftAt = now ? 0 : Date.now();
     p.ready = false;
@@ -357,16 +400,20 @@ export class Room {
     }
     this.prune();
     this.pushLobby();
+    // 잠들었다 깨도 떠난 사실·새 방장이 남도록 저장 (독립검증: 방장이 옛 값으로 돌아가 출발 불가)
+    return this.trySave();
   }
 
   async webSocketClose(ws) {
-    const id = this.sockets.get(ws) || (ws.deserializeAttachment() || {}).id;
-    if (id) this.leave(ws, id, false);
+    await this.load();
+    const id = att(ws).id;
+    if (id) await this.leave(ws, id, false);
     try { ws.close(1000, 'bye'); } catch { /* */ }
   }
 
   async webSocketError(ws) {
-    const id = this.sockets.get(ws) || (ws.deserializeAttachment() || {}).id;
-    if (id) this.leave(ws, id, false);
+    await this.load();
+    const id = att(ws).id;
+    if (id) await this.leave(ws, id, false);
   }
 }

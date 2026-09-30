@@ -81,7 +81,9 @@ export function prepareBot(T, spec) {
 }
 
 /** 자리 k 의 차를 봇이 운전할 때의 입력 */
-export function botInput(sim, k, skill = 0.95) {
+// mem: 막힘 타이머를 둘 곳. 시뮬 안(봇 자리·완주 후)은 st, 시험용 자동운전(?bot=1)은 시뮬 밖 객체를 넘긴다
+// (시뮬 밖에서 st 를 건드리면 그 화면만 해시가 달라진다 — 독립검증 지적)
+export function botInput(sim, k, skill = 0.95, mem = sim.cars[k].st) {
   const c = sim.cars[k], st = c.st, T = sim.T, n = T.n;
   const { o } = racingLine(T);
   const prof = c.botData.v;
@@ -140,8 +142,8 @@ export function botInput(sim, k, skill = 0.95) {
   let rst = 0;
   const along = fx * T.tx[i] + fz * T.tz[i];
   if (sim.gs.frame > 300) {
-    if (sp < 1.0) st.stuckT = (st.stuckT || 0) + 1 / 60; else st.stuckT = 0;
-    if (st.stuckT > 2.5 || along < -0.2 || st.flipT > 1) { rst = 1; st.stuckT = 0; }
+    if (sp < 1.0) mem.stuckT = (mem.stuckT || 0) + 1 / 60; else mem.stuckT = 0;
+    if (mem.stuckT > 2.5 || along < -0.2 || st.flipT > 1) { rst = 1; mem.stuckT = 0; }
   }
   return pack({ steer, thr, brk, kb: 0, rst: rst && !st.lastRst ? 1 : 0 });
 }

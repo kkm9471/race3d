@@ -69,6 +69,9 @@ export class Gfx {
     this.sky.material.uniforms.mieDirectionalG.value = 0.82;
     this.scene.add(this.sky);
     this.pmrem = new THREE.PMREMGenerator(this.renderer);
+    // 그래픽 드라이버가 재설정되면(WebGL 컨텍스트 복구) 하늘 반사맵을 다시 굽는다
+    canvas.addEventListener('webglcontextlost', e => e.preventDefault());
+    canvas.addEventListener('webglcontextrestored', () => { if (this.envDef) this.setEnvironment(this.envDef); });
     this.envRT = null;
     this.scaleDyn = 1;       // 동적 해상도 (fps 가 모자라면 낮춘다)
     this.setQuality(qualityKey);
@@ -139,6 +142,7 @@ export class Gfx {
 
   /** 트랙마다 태양 위치·안개 */
   setEnvironment(def) {
+    this.envDef = def;
     const sun = def.sun || { elev: 30, azim: 200 };
     const phi = THREE.MathUtils.degToRad(90 - sun.elev), th = THREE.MathUtils.degToRad(sun.azim);
     this.sunDir.setFromSphericalCoords(1, phi, th);

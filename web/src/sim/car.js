@@ -205,7 +205,8 @@ export class Car {
 
     // 후진: 거의 멈춘 상태에서 브레이크를 누르고 있으면 R, 가속을 누르면 다시 1단
     if (s.gear > 0) {
-      if (inp.brk > 0.3 && inp.thr < 0.1 && vf < 0.8) {
+      // 거의 멈췄을 때만 후진으로 (뒤로 미끄러지는 중에 바뀌면 브레이크가 풀려 버린다 — 독립검증 지적)
+      if (inp.brk > 0.3 && inp.thr < 0.1 && vf < 0.8 && vf > -1.0) {
         s.revT += dtF;
         if (s.revT > 0.3) { s.gear = -1; s.nextGear = -1; s.shiftT = 0; s.revT = 0; }
       } else s.revT = 0;
@@ -300,7 +301,8 @@ export class Car {
       if (perThr * thr > cap && perThr > 0) thr = Math.max(0, cap / perThr);
     }
     let Te, rpm;
-    if (Math.abs(rpmW) < e.launch && (g === 1 || g === -1)) {
+    // 바퀴가 기어 반대로 도는 중(스핀 뒤 뒤로 굴러감)이면 엔진이 끌려가지 않는다 → 반클러치로 본다
+    if ((Math.abs(rpmW) < e.launch || rpmW < 0) && (g === 1 || g === -1)) {
       // 출발: 클러치가 미끄러지며 붙는다 (엔진 회전은 발진 회전수 쪽으로)
       // 반쯤 물린 클러치도 엔진 관성은 바퀴에 전달한다(없으면 바퀴가 순간적으로 헛돌며 떨린다)
       rpm = Math.max(Math.abs(rpmW), e.idle + (e.launch - e.idle) * thr);
@@ -310,7 +312,8 @@ export class Car {
     } else {
       rpm = Math.abs(rpmW);
       this._coupled = true;
-      const brakeT = P.maxTq * (0.05 + 0.13 * rpm / e.redline);   // 엔진 브레이크
+      // 엔진 브레이크는 항상 실제 회전을 늦추는 쪽으로 (역회전이면 부호 반대), 크기 상한 있음
+      const brakeT = P.maxTq * (0.05 + 0.13 * Math.min(rpm, e.redline) / e.redline) * (rpmW < 0 ? -1 : 1);
       if (rpm >= e.redline) Te = -brakeT;                      // 리미터
       else Te = lerpTable(e.rpm, e.tq, rpm) * thr - brakeT * (1 - thr);
     }

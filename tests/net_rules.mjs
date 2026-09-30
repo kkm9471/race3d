@@ -64,6 +64,12 @@ for (const g of ['not json', '{', '[]', 'null', JSON.stringify({ t: 'in', e: [[1
 A.send({ t: 'ping', c: 1 });
 ok(!!(await A.wait(m => m.t === 'pong')), '쓰레기 메시지 뒤에도 응답함');
 
+// 2-1) 같은 소켓으로 두 번 입장해도 사람이 늘지 않는다
+A.send({ t: 'hi', v: PROTOCOL, ver: 'test', name: '또', tok: 'other', car: 'baram' });
+await sleep(400);
+A.send({ t: 'ping', c: 9 }); await A.wait(m => m.t === 'pong' && m.c === 9);
+ok(!A.msgs.some(m => m.t === 'lobby' && m.lobby.players.length > 2), '같은 소켓 두 번째 입장 무시');
+
 // 3) 버전 불일치
 {
   const V = await new C(R, '옛판').open(); V.send({ t: 'hi', v: 1, name: 'x', tok: 'old' });
@@ -100,6 +106,7 @@ ok(!!(await B.wait(m => m.t === 'err' && m.code === 'host')), '방장 아닌 사
 A.send({ t: 'start' });
 ok(!!(await A.wait(m => m.t === 'err' && m.code === 'ready')), '준비 안 된 사람 있으면 → 거부');
 B.send({ t: 'ready', on: true }); Cc.send({ t: 'ready', on: true });
+A.send({ t: 'set', laps: 1 });               // 결과 보고는 "랩당 15초" 이후에만 받으므로 1랩으로
 await sleep(300);
 A.msgs.length = 0; B.msgs.length = 0; Cc.msgs.length = 0;
 A.send({ t: 'start' });
@@ -112,7 +119,7 @@ await sleep(Math.max(0, startAt - Date.now()) + 1000);   // 출발 후 1초 (약
 const F = () => Math.floor((Date.now() - startAt) / (1000 / 60));
 A.send({ t: 'in', e: [[1, 0, 1234]] });                   // 한참 옛날 프레임
 const in1 = await B.wait(m => m.t === 'in' && m.p === 0);
-ok(in1 && in1.e[0][0] >= F() - 20, `옛날 프레임 입력 → 서버가 최근(현재-12)으로 고쳐 찍음 (${in1 && in1.e[0][0]}, 지금 ${F()})`);
+ok(in1 && in1.e[0][0] >= F() - 38, `옛날 프레임 입력 → 서버가 최근(현재-30)으로 고쳐 찍음 (${in1 && in1.e[0][0]}, 지금 ${F()})`);
 B.msgs.length = 0;
 A.send({ t: 'in', e: [[2, F() + 5000, 2222]] });
 const in2 = await B.wait(m => m.t === 'in' && m.p === 0);
@@ -147,9 +154,15 @@ Cc.close();
 const dc = await B.wait(m => m.t === 'in' && m.p === 2 && (m.e[0][1] & (1 << 21)));
 ok(!!dc, '레이스 중 끊긴 사람 → 끊김 입력(차 멈춤·유령)');
 
-// 12) 결과 → 대기실로, 방 기록
+// 12) 결과 → 대기실로, 방 기록 (너무 이른 보고는 무시, 연결된 선수가 모두 같은 결과를 보고하면 종료)
 A.send({ t: 'done', r: [[0, 9000, 3000], [1, 9500, 3100], [2, 0, 0]] });
-const lb = await B.wait(m => m.t === 'lobby' && m.lobby.phase === 'lobby' && m.lobby.records && m.lobby.records.circuit);
+await sleep(500);
+ok(!(A.last('lobby') && A.last('lobby').lobby.phase === 'lobby' && A.last('lobby').lobby.records?.circuit), '출발 직후 결과 보고는 무시');
+await sleep(Math.max(0, startAt + 22500 - Date.now()));   // 시험 PC와 서버 시계 차이(~1초) 여유
+A.send({ t: 'done', r: [[0, 9000, 3000], [1, 9500, 3100], [2, 0, 0]] });
+B.send({ t: 'done', r: [[0, 9000, 3000], [1, 9500, 3100], [2, 0, 0]] });
+const lb = await B.wait(m => m.t === 'lobby' && m.lobby.phase === 'lobby' && m.lobby.records && m.lobby.records.circuit, 6000);
+if (!lb) console.log('   마지막 대기실:', JSON.stringify(B.last('lobby')?.lobby).slice(0, 400), ' A 마지막:', JSON.stringify(A.last('lobby')?.lobby?.phase), 'B err:', JSON.stringify(B.last('err')));
 ok(lb && lb.lobby.records.circuit.best === 3000, `결과 → 대기실, 방 최고 랩 기록 ${lb && JSON.stringify(lb.lobby.records.circuit)}`);
 
 A.close(); B.close();

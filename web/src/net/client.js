@@ -27,7 +27,6 @@ export class NetClient {
     this.ws = ws;
     this.status(this.tries ? `다시 연결하는 중… (${this.tries})` : '연결 중…', false);
     ws.onopen = () => {
-      this.tries = 0;
       this.send({ t: 'hi', v: PROTOCOL, ver: VERSION, name: this.name, tok: this.token, car: this.car, assist: this.assist });
       this.samples = [];
       for (let i = 0; i < 6; i++) setTimeout(() => this.ping(), 60 + i * 120);
@@ -54,6 +53,13 @@ export class NetClient {
       this.ws = null;
       if (this.closed) return;
       if (ev.code === 4001 || ev.code === 4002 || ev.code === 4003) return;   // 서버가 일부러 끊음(가득 참·판 다름·잘못된 방)
+      if (ev.code === 4000) {
+        // 같은 자리로 다른 탭이 들어옴(탭 복제 등) — 다시 붙으면 둘이 서로 끊어 대는 무한 반복이 된다
+        this.closed = true;
+        this.status('다른 탭에서 같은 자리로 들어와 이 창은 연결을 끊었습니다', false);
+        this.on.error && this.on.error('replaced', '다른 탭에서 같은 자리로 들어와 이 창은 연결을 끊었습니다.');
+        return;
+      }
       this.tries++;
       const wait = Math.min(8000, 400 * Math.pow(2, Math.min(5, this.tries - 1)));
       this.status(`연결 끊김 — ${Math.round(wait / 1000) || 1}초 뒤 다시 연결`, false);
@@ -93,6 +99,7 @@ export class NetClient {
         break;
       }
       case 'welcome':
+        this.tries = 0;          // 입장까지 성공해야 재시도 간격을 되돌린다(열리자마자 끊기는 경우 폭주 방지)
         if (typeof m.now === 'number' && !this.synced) this.offset = m.now - performance.now();
         this.status('연결됨', true);
         this.on.welcome && this.on.welcome(m);

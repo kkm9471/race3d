@@ -107,3 +107,10 @@ button.small { padding: 5px 10px; font-size: 13px; }
   .hud-center { font-size: 70px; } .hud-speed-num { font-size: 48px; } .hud-map { width: 140px; height: 140px; }
   .hud-board { top: 140px; } .hud-help { display: none; }
 }
+
+/* 대기실: 버튼 줄은 항상 보이게(아래 고정), 차 설명은 고른 차에만 */
+#lobby .card { display: flex; flex-direction: column; }
+#lobby .row.end { position: sticky; bottom: -22px; background: linear-gradient(180deg, rgba(16,20,28,0), rgba(16,20,28,0.97) 30%); padding: 14px 0 6px; margin-bottom: -6px; z-index: 2; }
+.carbtn .s + .bars + .s { display: none; }
+.carbtn.sel .s + .bars + .s { display: block; color: var(--text); }
+.cars { grid-template-columns: repeat(auto-fill, minmax(158px, 1fr)); }
