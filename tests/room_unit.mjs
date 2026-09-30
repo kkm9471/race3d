@@ -148,6 +148,25 @@ const hi = (room, s, name, tok) => room.webSocketMessage(s, JSON.stringify({ t: 
   const p0 = st.puts;
   for (let i = 0; i < 50; i++) { now += 300; await room.webSocketMessage(a, JSON.stringify({ t: 'set', laps: 3, track: 'circuit' })); }
   ok(st.puts === p0, `같은 설정 50번 → 저장 ${st.puts - p0}번`);
+  // 빠르게 연달아 바꿔도 둘 다 반영(저장은 모아서)
+  a.out.length = 0;
+  await room.webSocketMessage(a, JSON.stringify({ t: 'set', track: 'city' }));
+  await room.webSocketMessage(a, JSON.stringify({ t: 'set', laps: 2 }));
+  const lb = a.last('lobby').lobby;
+  ok(lb.track === 'city' && lb.laps === 2, `연달아 바꾼 트랙·랩 둘 다 반영 (${lb.track}, ${lb.laps})`);
+  clearTimeout(room._saveT);
+}
+
+// 8) 서버 허용 목록이 게임 데이터와 같은가 (트랙·차를 추가하고 서버를 빼먹는 실수 방지)
+{
+  console.log('[허용 목록 대조]');
+  const { TRACK_DEFS } = await import('../web/src/sim/tracks.js');
+  const { CARS } = await import('../web/src/sim/cars.js');
+  const src = (await import('node:fs')).readFileSync(new URL('../server/src/room.js', import.meta.url), 'utf8');
+  const tr = JSON.parse(src.match(/const TRACKS = (\[[^\]]*\])/)[1].replace(/'/g, '"'));
+  const cs = JSON.parse(src.match(/const CARS = (\[[^\]]*\])/)[1].replace(/'/g, '"'));
+  ok(JSON.stringify(tr) === JSON.stringify(TRACK_DEFS.map(t => t.id)), `서버 트랙 ${tr.join(',')} = 게임 트랙`);
+  ok(JSON.stringify(cs) === JSON.stringify(CARS.map(c => c.id)), `서버 차 ${cs.length}종 = 게임 차`);
 }
 
 Date.now = realNow;

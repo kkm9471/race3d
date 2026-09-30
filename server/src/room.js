@@ -23,7 +23,7 @@ const MAX_MSG = 8192;
 const RATE = 60, BURST = 150;
 const LOBBY_GRACE_MS = 45000;          // 대기실에서 끊긴 사람 자리 유지 (새로고침 대비)
 const RACE_MAX_MS = 25 * 60 * 1000;
-const TRACKS = ['circuit', 'mountain'];
+const TRACKS = ['circuit', 'mountain', 'city'];   // web/src/sim/tracks.js 와 같아야 한다 (tests/room_unit.mjs 가 대조)
 const CARS = ['kongal', 'masil', 'beongae', 'deundeun', 'jimkkun', 'baram', 'cheondung', 'yuseong', 'heukmeonji', 'chueok'];
 // 입력 정수 (web/src/sim/input.js 와 같은 규칙)
 const NEUTRAL = 128 | (1 << 20);
@@ -96,6 +96,12 @@ export class Room {
   async save() {
     await this.ctx.storage.put('settings', this.settings);
     await this.ctx.storage.put('players', [...this.players.values()].map(p => ({ id: p.id, name: p.name, car: p.car, ready: false, assist: p.assist, tok: p.tok, order: p.order, ver: p.ver, leftAt: p.conn ? 0 : (p.leftAt || Date.now()) })));
+  }
+
+  saveSoon() {
+    if (this._saveT) return;
+    const wait = Math.max(0, 5000 - (Date.now() - (this._lastSave || 0)));
+    this._saveT = setTimeout(async () => { this._saveT = null; this._lastSave = Date.now(); await this.trySave(); }, wait);
   }
 
   async trySave() {
@@ -189,15 +195,13 @@ export class Room {
         break;
       case 'set': {
         if (id !== this.settings.host || this.phase !== 'lobby') break;
-        const now = Date.now();
-        if (now - (p.lastSet || 0) < 250) break;          // 저장 한도를 갉아먹지 않게
-        p.lastSet = now;
         const t0 = this.settings.track, l0 = this.settings.laps;
         if (TRACKS.includes(m.track)) this.settings.track = m.track;
         if (isInt(m.laps) && m.laps >= 1 && m.laps <= 5) this.settings.laps = m.laps;
         if (t0 === this.settings.track && l0 === this.settings.laps) break;
-        await this.trySave();
+        // 바뀐 설정은 바로 반영하고, 저장만 5초에 한 번으로 모은다 (연타로 저장 한도를 갉아먹지 않게, 빠른 연속 변경도 잃지 않게)
         this.pushLobby();
+        this.saveSoon();
         break;
       }
       case 'start': await this.start(ws, id); break;

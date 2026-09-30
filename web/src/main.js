@@ -19,6 +19,7 @@ import { FPS, GO_FRAME, getTrack } from './sim/race.js';
 import { botInput } from './sim/bot.js';
 import { PAINT, PAINT_NAME } from './render/carmesh.js';
 import { VERSION } from './version.js';
+import { MEASURED } from './sim/measured.js';
 
 const Q = new URLSearchParams(location.search);
 const $ = id => document.getElementById(id);
@@ -107,7 +108,7 @@ class Game {
     this.catchingUp = false;
     this._raf = requestAnimationFrame(t => this.loop(t));
     this.lastT = performance.now();
-    if (net) { net.fast = true; for (let i = 0; i < 4; i++) setTimeout(() => net.ping(), i * 150); }
+    if (net) { net.fast = true; this.sent0 = net.sent; for (let i = 0; i < 4; i++) setTimeout(() => net.ping(), i * 150); }
     this.slow = 0;
     controls.onAction = a => this.action(a);
     if (Q.get('cam')) this.view.camMode = +Q.get('cam');
@@ -159,6 +160,8 @@ class Game {
     else {
       const i = controls.read();
       this.look = i.look;
+      // 게임패드 아날로그 값은 조금 굵게 잘라 보낸다 (매 프레임 미세하게 바뀌면 메시지가 폭증 → 무료 한도)
+      if (!i.kb) { i.steer = Math.round(i.steer * 40) / 40; i.thr = Math.round(i.thr * 16) / 16; i.brk = Math.round(i.brk * 16) / 16; }
       v = pack(i);
     }
     if (v === this.lastSent) return;
@@ -174,7 +177,7 @@ class Game {
 
   flush(now) {
     if (!this.net || !this.sendBuf.length) return;
-    if (now - (this._lastFlush || 0) < 30 && this.sendBuf.length < 8) return;   // 초당 30번 이하로 묶어 보낸다
+    if (now - (this._lastFlush || 0) < 45 && this.sendBuf.length < 8) return;   // 초당 22번 이하로 묶어 보낸다
     this.net.send({ t: 'in', e: this.sendBuf });
     this.sendBuf = [];
     this._lastFlush = now;
@@ -359,7 +362,8 @@ function renderCars() {
     const t = document.createElement('div'); t.className = 't'; t.textContent = c.name;
     const cl = document.createElement('span'); cl.className = 'c'; cl.textContent = c.cls; t.appendChild(cl);
     const d = document.createElement('div'); d.className = 's';
-    d.textContent = `${s.ps}마력 · ${s.kg}kg · ${c.drive} · 0→100 ${c.target.acc100[0].toFixed(1)}초`;
+    const me = MEASURED[c.id];      // 물리 시험으로 잰 값 (목표 범위가 아니라 실제 이 게임에서의 값)
+    d.textContent = `${s.ps}마력 · ${s.kg}kg · ${c.drive} · 0→100 ${me ? me.acc100.toFixed(1) : '?'}초 · 최고 ${me ? me.vmax : '?'}km/h`;
     const bars = document.createElement('div'); bars.className = 'bars';
     const bar = (label, v) => { const l = document.createElement('span'); l.textContent = label; const bb = document.createElement('div'); bb.className = 'b'; const i = document.createElement('i'); i.style.width = Math.round(Math.max(0.05, Math.min(1, v)) * 100) + '%'; bb.appendChild(i); bars.append(l, bb); };
     bar('힘', s.pwr / maxPw);
@@ -494,7 +498,8 @@ function launch(cfg, localSlot, net, startAt, names, log = []) {
           app.game = null;
           window.__lastResults = { res, hash: g.session.sim.hash(), frame: g.session.sim.gs.frame, stats: { ...g.session.stats(), rtt: g.net?.rtt, offset: g.net?.offset },
             ev: g.session.ev, cfg, local: localSlot, sent: window.__sentHashes || {}, desync: !!(g.net && g.net.desync),
-            final: Object.fromEntries(g.session.hashes), sentInfo: g.sentInfo || {} };
+            final: Object.fromEntries(g.session.hashes), sentInfo: g.sentInfo || {},
+            netSent: g.net ? g.net.sent - (g.sent0 || 0) : 0, raceSec: g.session.frame / FPS };
           showResults(res, cfg, localSlot);
         },
       });
@@ -598,8 +603,10 @@ async function joinRoom(code, name) {
       if (Q.get('ready') === '1' && !app.raced && me && !me.ready && l.phase === 'lobby' && !app.game && !app.autoReadySent) { app.autoReadySent = true; net.send({ t: 'ready', on: true }); setTimeout(() => { app.autoReadySent = false; }, 1500); }
       // 시험 자동화: ?track=&laps= 이면 방장이 그렇게 맞춘다
       if (l.host === app.myId && l.phase === 'lobby' && !app.raced) {
-        if (Q.get('track') && l.track !== Q.get('track')) net.send({ t: 'set', track: Q.get('track') });
-        if (Q.get('laps') && l.laps !== +Q.get('laps')) net.send({ t: 'set', laps: +Q.get('laps') });
+        const want = {};
+        if (Q.get('track') && l.track !== Q.get('track')) want.track = Q.get('track');
+        if (Q.get('laps') && l.laps !== +Q.get('laps')) want.laps = +Q.get('laps');
+        if (Object.keys(want).length) net.send({ t: 'set', ...want });
       }
       const need = +(Q.get('autostart') || 0);
       if (need && !app.raced && l.host === app.myId && l.phase === 'lobby' && !app.game) {

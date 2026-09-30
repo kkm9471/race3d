@@ -71,7 +71,7 @@ while (Date.now() < deadline) {
 ok(done, `세 브라우저 모두 결과 화면까지 (${((Date.now() - t0) / 1000).toFixed(0)}초)`);
 const R = await Promise.all(pages.map(p => p.evaluate(() => {
   const L = window.__lastResults;
-  return L ? { res: L.res, frame: L.frame, stats: L.stats, ev: L.ev, cfg: L.cfg, local: L.local, sent: L.sent, desync: L.desync, final: L.final, sentInfo: L.sentInfo } : null;
+  return L ? { res: L.res, frame: L.frame, stats: L.stats, ev: L.ev, cfg: L.cfg, local: L.local, sent: L.sent, desync: L.desync, final: L.final, sentInfo: L.sentInfo, netSent: L.netSent, raceSec: L.raceSec } : null;
 })));
 for (const [i, p] of pages.entries()) await p.screenshot({ path: `${out}/e2e_result_${i}.png` });
 if (R.every(Boolean)) fs.writeFileSync('tests/out/e2e_last.json', JSON.stringify(R.map(r => ({ res: r.res, sent: r.sent, stats: r.stats }))));
@@ -110,6 +110,9 @@ if (R.every(Boolean)) {
   const nodeSame = keys.filter(k => nodeHash[k] === R[0].sent[k]).length;
   ok(nodeSame === keys.length, `Node 재계산 해시도 일치 ${nodeSame}/${keys.length} (차끼리 충돌 ${carHits}회, 벽 ${wallHits}회 포함)`);
   ok(carHits > 0, `레이스 중 실제로 차끼리 부딪힘 (${carHits}회) — 충돌이 있어도 세 화면 같음`);
+  const totalMsgs = R.reduce((a, r) => a + (r.netSent || 0), 0), secs = Math.max(...R.map(r => r.raceSec || 1));
+  const t0l = `   서버로 보낸 메시지: 합계 ${totalMsgs}개 / ${secs.toFixed(0)}초 = 초당 ${(totalMsgs / secs).toFixed(1)}개 → 과금 요청 ${(totalMsgs / 20).toFixed(0)}건(20:1) → 무료 10만/일 기준 이런 레이스 하루 ${Math.floor(100000 / (totalMsgs / 20))}판`;
+  console.log(t0l); lines.push(t0l);
   for (const [i, r] of R.entries()) {
     const t = `   브라우저${i + 1}(${who[i].name}): 되감기 ${r.stats.rollbacks}번, 최대 ${r.stats.maxRollback}프레임, 재계산 ${r.stats.resim}프레임`;
     console.log(t); lines.push(t);
