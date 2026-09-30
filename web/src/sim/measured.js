@@ -9,13 +9,13 @@ export const MEASURED = {
  "masil": {
   "acc100": 11.1,
   "vmax": 198,
-  "brake100": 41.3,
+  "brake100": 40.1,
   "latG": 0.83
  },
  "beongae": {
-  "acc100": 6.2,
+  "acc100": 6.1,
   "vmax": 249,
-  "brake100": 37.7,
+  "brake100": 36.5,
   "latG": 0.98
  },
  "deundeun": {
