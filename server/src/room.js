@@ -87,7 +87,7 @@ export class Room {
     if (Array.isArray(order)) {
       // 잠들기 전 대기실에 있던 사람(연결은 끊겼을 수 있음) — 자리만 복구
       // 저장된 leftAt 을 그대로 쓴다 (깨어날 때마다 새 유예시간을 주면 떠난 사람이 영영 자리를 차지한다 — 독립검증)
-      for (const p of order) if (!this.players.has(p.id)) this.players.set(p.id, { ...p, conn: false, leftAt: p.leftAt || 0 });
+      for (const p of order) if (!this.players.has(p.id)) this.players.set(p.id, { ...p, conn: false, leftAt: p.leftAt || Date.now() });
     }
     // 잠들기 전 방장이 떠났을 수 있다 → 실제 연결된 사람 기준으로 다시 정한다
     this.prune();
@@ -220,7 +220,7 @@ export class Room {
   async hello(ws, m) {
     if (att(ws).id) return;                  // 한 연결은 한 번만 입장 (두 번째 hi 가 유령 자리를 만들지 않게)
     if (m.v !== PROTOCOL) {
-      this.send(ws, { t: 'err', code: 'version', text: '게임이 새 버전으로 바뀌었습니다. 새로고침(F5) 해 주세요.' });
+      this.send(ws, { t: 'err', code: 'version', text: '게임이 새 버전으로 바뀌었습니다. Ctrl+Shift+R(강력 새로고침)을 눌러 주세요.' });
       try { ws.close(4002, 'version'); } catch { /* */ }
       return;
     }
@@ -262,7 +262,7 @@ export class Room {
         // 레이스 중에 돌아온 사람: 끊김 표시 해제는 그 사람이 다음 입력을 보내면 저절로 된다
       } else {
         // 판이 다르면 같은 계산을 못 한다 → 이번 레이스는 대기실에서 기다리게
-        this.send(ws, { t: 'err', code: 'racever', text: '게임이 새 버전입니다. 지금 레이스가 끝나면 함께 탈 수 있습니다.' });
+        this.send(ws, { t: 'err', code: 'racever', text: '버전이 달라 이번 레이스는 함께 못 탑니다. Ctrl+Shift+R(강력 새로고침)을 누르면 다음 레이스부터 같이 탈 수 있습니다.' });
       }
     }
     this.send(ws, welcome);
@@ -272,12 +272,12 @@ export class Room {
   async start(ws, id) {
     if (id !== this.settings.host) return this.send(ws, { t: 'err', code: 'host', text: '방장만 출발할 수 있습니다.' });
     if (this.phase !== 'lobby') return;
-    const ps = [...this.players.values()].filter(p => p.conn).sort((a, b) => a.order - b.order);
+    const ps = [...this.players.values()].filter(p => p.conn).sort((a, b) => a.order - b.order).slice(0, MAX_PLAYERS);
     if (!ps.length) return;
     if (!ps.every(p => p.ready || p.id === id)) return this.send(ws, { t: 'err', code: 'ready', text: '아직 준비 안 된 사람이 있습니다.' });
     const vers = new Set(ps.map(p => p.ver));
     if (vers.size > 1) {
-      this.broadcast({ t: 'err', code: 'mixed', text: '서로 다른 버전이 섞여 있습니다. 모두 새로고침(F5) 해 주세요.' });
+      this.broadcast({ t: 'err', code: 'mixed', text: '서로 다른 버전이 섞여 있습니다. 모두 Ctrl+Shift+R(강력 새로고침)을 눌러 주세요.' });
       return;
     }
     const cfg = {
@@ -287,14 +287,20 @@ export class Room {
     this.race = {
       startAt: Date.now() + 2500, cfg, log: [], last: cfg.players.map(() => 0),
       hashes: new Map(), slotOf: new Map(cfg.players.map((p, i) => [p.id, i])), ended: false,
-      ver: ps[0].ver, done: new Map(), firstDone: 0, perFrame: cfg.players.map(() => [-1, 0]), logCap: cfg.players.map(() => 0),
+      ver: ps[0].ver, done: new Map(), firstDone: 0, perFrame: cfg.players.map(() => [-1, 0]), logCap: cfg.players.map(() => 0), quit: new Set(),
     };
     this.phase = 'race';
     for (const p of ps) p.ready = false;
+    for (const w of this.ctx.getWebSockets()) { const a = att(w); const q = a.id && this.players.get(a.id); if (q) this.attach(w, q); }
     this.broadcast({ t: 'start', race: { startAt: this.race.startAt, cfg } });
     this.pushLobby();
     clearInterval(this.tickTimer);
     this.tickTimer = setInterval(() => this.tick(), TICK_MS);
+  }
+
+  /** 아직 달리는 선수 = 연결돼 있고, 메뉴에서 "레이스 나가기"(끊김 입력)를 보내지 않은 사람 */
+  activeRacers(r) {
+    return [...r.slotOf.keys()].filter(pid => this.players.get(pid)?.conn && !r.quit.has(pid));
   }
 
   tick() {
@@ -302,9 +308,12 @@ export class Room {
     if (!r || r.ended) { clearInterval(this.tickTimer); this.tickTimer = null; return; }
     const F = this.serverFrame();
     this.broadcast({ t: 'tick', c: F - LATE - 2 });
-    const anyone = [...r.slotOf.keys()].some(pid => this.players.get(pid)?.conn);
-    if (Date.now() - r.startAt > RACE_MAX_MS || (!anyone && Date.now() - r.startAt > 10000)) this.endRace();
-    else if (r.firstDone && Date.now() - r.firstDone > 15000) this.endRace();
+    const active = this.activeRacers(r);
+    const el = Date.now() - r.startAt;
+    // 모두 나갔으면 바로 끝 (독립검증 2차: 전원 "나가기"면 방이 25분 묶였다)
+    if (el > RACE_MAX_MS || (!active.length && el > 10000)) this.endRace();
+    // 결과 보고 뒤: 과반이 보고했으면 15초, 한 명뿐이면 90초 기다렸다 끝낸다 (한 사람이 모두의 레이스를 끝내지 못하게)
+    else if (r.firstDone && Date.now() - r.firstDone > (r.done.size * 2 > active.length ? 15000 : 90000)) this.endRace();
   }
 
   input(id, e) {
@@ -322,12 +331,12 @@ export class Room {
       let f2 = Math.max(f, F - LATE, r.last[s]);
       f2 = Math.min(f2, F + EARLY);
       if (f2 < r.last[s]) f2 = r.last[s];
-      // 같은 프레임에 4개 넘게는 받지 않는다 (정상이면 1개)
+      // 한 사람의 같은 프레임 입력은 기록에 하나만 — 최신값으로 덮어쓴다 (폭주 제한 겸, 클라이언트도 마지막 값이 이긴다)
       const pf = r.perFrame[s];
-      if (pf[0] === f2) { if (++pf[1] > 4) continue; } else { pf[0] = f2; pf[1] = 1; }
+      if (v & (1 << 21)) r.quit.add(id); else r.quit.delete(id);
       r.last[s] = f2;
-      r.log.push([s, f2, v]);
-      r.logCap[s]++;
+      if (pf[0] === f2) r.log[pf[1]][2] = v;
+      else { r.log.push([s, f2, v]); pf[0] = f2; pf[1] = r.log.length - 1; r.logCap[s]++; }
       out.push(isInt(q) ? [f2, v, q] : [f2, v]);
     }
     if (out.length) this.broadcast({ t: 'in', p: s, e: out });
@@ -355,8 +364,7 @@ export class Room {
     if (this.serverFrame() < 240 + r.cfg.laps * 15 * 60) return;          // 랩당 15초 미만은 불가능
     r.done.set(id, JSON.stringify(res.slice(0, MAX_PLAYERS)));
     if (!r.firstDone) r.firstDone = Date.now();
-    const racers = [...r.slotOf.keys()].filter(pid => this.players.get(pid)?.conn);
-    if (racers.every(pid => r.done.has(pid))) { this.endRace(); await this.trySave(); }
+    if (this.activeRacers(r).every(pid => r.done.has(pid))) this.endRace();
   }
 
   endRace() {
@@ -366,7 +374,7 @@ export class Room {
     clearInterval(this.tickTimer); this.tickTimer = null;
     // 방 최고 랩: 보고가 둘 이상이면 서로 같은 내용일 때만(세 화면 계산은 같아야 하므로), 하나뿐이면 그대로
     const reports = [...r.done.values()];
-    const agreed = reports.length === 1 ? reports[0] : reports.find((x, i) => reports.indexOf(x) !== i);
+    const agreed = reports.length === 1 && this.activeRacers(r).length <= 1 ? reports[0] : reports.find((x, i) => reports.indexOf(x) !== i);
     let res = null;
     if (agreed) { try { res = JSON.parse(agreed); } catch { /* */ } }
     if (res) {
@@ -381,6 +389,7 @@ export class Room {
     }
     this.phase = 'lobby';
     this.pushLobby();
+    this.saveSoon();              // 기록은 어느 경로로 끝나든 저장 (타이머 경로에서 빠져 있었다)
   }
 
   leave(ws, id, now) {
@@ -399,7 +408,8 @@ export class Room {
       const F = this.serverFrame();
       const f2 = Math.max(F, r.last[s]);
       r.last[s] = f2;
-      r.log.push([s, f2, DC_INPUT]);
+      if (r.perFrame[s][0] === f2) r.log[r.perFrame[s][1]][2] = DC_INPUT;
+      else { r.log.push([s, f2, DC_INPUT]); r.perFrame[s] = [f2, r.log.length - 1]; }
       this.broadcast({ t: 'in', p: s, e: [[f2, DC_INPUT]] });
     }
     this.prune();
