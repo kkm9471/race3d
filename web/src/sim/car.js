@@ -97,8 +97,8 @@ function makeState() {
     px: 0, py: 0, pz: 0, qw: 1, qx: 0, qy: 0, qz: 0,
     vx: 0, vy: 0, vz: 0, wx: 0, wy: 0, wz: 0,
     steer: 0, thr: 0, brk: 0, hb: 0,
-    gear: 1, shiftT: 0, nextGear: 1, rpm: 800, revT: 0, tcs: 1,
-    hint: -1, ghostT: 0, dc: 0, lastRst: 0, rstCD: 0, flipT: 0,
+    gear: 1, shiftT: 0, nextGear: 1, rpm: 800, revT: 0, tcs: 1.1,
+    hint: -1, ghostT: 0, dc: 0, lastRst: 0, rstCD: 0, flipT: 0, stuckT: 0,
     w: [0, 1, 2, 3].map(() => ({ om: 0, x: 0, abs: 1, hint: -1 })),
   };
 }
@@ -136,12 +136,39 @@ export class Car {
     s.px = x; s.py = y; s.pz = z;
     s.vx = s.vy = s.vz = 0; s.wx = s.wy = s.wz = 0;
     s.gear = 1; s.shiftT = 0; s.nextGear = 1; s.rpm = this.P.spec.engine.idle;
-    s.steer = 0; s.thr = 0; s.brk = 0; s.hb = 0; s.tcs = 1; s.revT = 0; s.flipT = 0;
+    s.steer = 0; s.thr = 0; s.brk = 0; s.hb = 0; s.tcs = 1.1; s.revT = 0; s.flipT = 0;
     for (let i = 0; i < 4; i++) {
       const w = s.w[i];
       w.om = 0; w.abs = 1;
       w.x = this.P.wheels[i].xs;
     }
+  }
+
+  /** 시험용: 앞으로 v(m/s)로 달리는 상태로 만든다 (바퀴 회전·기어 포함) */
+  setSpeed(v) {
+    const s = this.st, P = this.P;
+    const fx = 2 * (s.qx * s.qz + s.qw * s.qy), fy = 2 * (s.qy * s.qz - s.qw * s.qx), fz = 1 - 2 * (s.qx * s.qx + s.qy * s.qy);
+    s.vx = fx * v; s.vy = fy * v; s.vz = fz * v;
+    for (let i = 0; i < 4; i++) s.w[i].om = v / P.R;
+    const red = P.spec.engine.redline;
+    let g = 1;
+    while (g < P.nGears && (v / P.R) * P.ratios[g - 1] * 30 / Math.PI > red * 0.8) g++;
+    s.gear = g; s.nextGear = g; s.shiftT = 0;
+    s.rpm = (v / P.R) * P.ratios[g - 1] * 30 / Math.PI;
+  }
+
+  /** 조향 한계(보조): 그 속도에서 접지 한계까지 도는 데 필요한 각 + 타이어 최대 슬립각의 1.3배.
+   *  차가 옆으로 미끄러지는 중이면(드리프트) 그 각만큼 더 허용해 카운터를 칠 수 있게 한다. */
+  steerLimit() {
+    const s = this.st, P = this.P, spec = P.spec;
+    const { qw, qx, qy, qz } = s;
+    const r00 = 1 - 2 * (qy * qy + qz * qz), r10 = 2 * (qx * qy + qw * qz), r20 = 2 * (qx * qz - qw * qy);
+    const r02 = 2 * (qx * qz + qw * qy), r12 = 2 * (qy * qz - qw * qx), r22 = 1 - 2 * (qx * qx + qy * qy);
+    const vlong = s.vx * r02 + s.vy * r12 + s.vz * r22;
+    const vlat = s.vx * r00 + s.vy * r10 + s.vz * r20;
+    const beta = datan(Math.abs(vlat) / Math.max(Math.abs(vlong), 1));
+    const need = spec.wb * spec.tire.mu * G / Math.max(vlong * vlong, 1) + 1.9 * datan(spec.tire.ap);
+    return Math.min(P.lock, need + beta);
   }
 
   /** 프레임(1/60초)마다 한 번: 입력 → 조향·페달·변속 */
@@ -231,11 +258,11 @@ export class Car {
     const ratio = g > 0 ? P.ratios[g - 1] : g < 0 ? -P.revRatio : 0;
     const wd = this.drivenOmega();
     const rpmW = wd * ratio * 30 / Math.PI;
-    let thr = s.thr * (this.tcsOn ? s.tcs : 1);
+    let thr = s.thr;
     // 전자식 최고속도 제한
     if (P.vmax > 0) {
       const sp = Math.sqrt(s.vx * s.vx + s.vz * s.vz);
-      if (sp > P.vmax) thr = 0; else if (sp > P.vmax - 2) thr *= (P.vmax - sp) / 2;
+      if (sp > P.vmax) thr = 0; else if (sp > P.vmax - 0.4) thr *= (P.vmax - sp) / 0.4;
     }
     if (s.dc) thr = 0;
     if (this.locked) {
@@ -254,12 +281,29 @@ export class Car {
       s.rpm += (Math.max(e.idle, target) - s.rpm) * 0.25;
       return;
     }
+    // 트랙션 컨트롤: 구동바퀴가 지금 하중으로 낼 수 있는 힘 × 보정계수(tcs, 미끄럼으로 학습)만큼만 토크를 준다
+    if (this.tcsOn && thr > 0) {
+      // 오픈 디퍼렌셜 차축은 가벼운 쪽 바퀴가 한계 (양쪽에 같은 토크가 가므로)
+      const fz = this._fz, k = spec.tire.mu * spec.tire.muX * spec.R;
+      const ax = (a, b, type) => type === 'lsd'
+        ? (Math.max(fz[a], 0) + Math.max(fz[b], 0)) * k
+        : 2 * Math.min(Math.max(fz[a], 0), Math.max(fz[b], 0)) * k * 1.3;
+      let cap = 0;
+      if (P.driven[0]) cap += ax(0, 1, spec.diff.front) * (spec.drive === 'AWD' ? 1 : 1);
+      if (P.driven[2]) cap += ax(2, 3, spec.diff.rear);
+      cap *= s.tcs;
+      const rpmNow = Math.max(Math.abs(rpmW), e.idle + (e.launch - e.idle) * thr);
+      const perThr = lerpTable(e.rpm, e.tq, rpmNow) * Math.abs(ratio) * spec.eff;
+      if (perThr * thr > cap && perThr > 0) thr = Math.max(0, cap / perThr);
+    }
     let Te, rpm;
     if (Math.abs(rpmW) < e.launch && (g === 1 || g === -1)) {
       // 출발: 클러치가 미끄러지며 붙는다 (엔진 회전은 발진 회전수 쪽으로)
+      // 반쯤 물린 클러치도 엔진 관성은 바퀴에 전달한다(없으면 바퀴가 순간적으로 헛돌며 떨린다)
       rpm = Math.max(Math.abs(rpmW), e.idle + (e.launch - e.idle) * thr);
       Te = lerpTable(e.rpm, e.tq, rpm) * thr;
       if (thr < 0.02) Te = 0;          // 가속 안 밟으면 클러치 떼고 굴러간다(시동 꺼짐 흉내 X)
+      else this._coupled = true;
     } else {
       rpm = Math.abs(rpmW);
       this._coupled = true;
@@ -291,10 +335,14 @@ export class Car {
     if (T === 0) return;
     const drive = this._drive, spec = this.P.spec;
     let bias = 0;
+    const w = this.st.w;
     if (type === 'lsd') {
-      const w = this.st.w;
       const lock = spec.diff.lock + spec.diff.ratio * Math.abs(T);
       bias = clamp((w[iL].om - w[iR].om) * 180, -lock, lock);
+    } else if (this.tcsOn) {
+      // 트랙션컨트롤이 헛도는 바퀴를 브레이크로 잡는다(전자식 LSD) — 끄면 오픈 디퍼렌셜 그대로
+      const lock = 30 + 0.3 * Math.abs(T);
+      bias = clamp((w[iL].om - w[iR].om) * 120, -lock, lock);
     }
     drive[iL] += T / 2 - bias;
     drive[iR] += T / 2 + bias;
@@ -394,18 +442,32 @@ export class Car {
     this.drivetrain();
     const drive = this._drive, Ieff = this._Ieff;
 
-    // 브레이크
+    // 브레이크 — EBD: 제동 중 하중이 앞으로 쏠리면 뒤 제동력을 줄인다(뒤가 먼저 잠겨 차가 도는 것을 막음)
     const bT = spec.brake.T * s.brk;
+    const fzF = Math.max(fz[0], 0) + Math.max(fz[1], 0), fzR = Math.max(fz[2], 0) + Math.max(fz[3], 0);
+    const ideal = fzF + fzR > 1 ? fzF / (fzF + fzR) : spec.brake.bias;
+    const biasF = clamp(Math.max(spec.brake.bias, ideal + 0.05), 0.4, 0.92);
     const hbT = s.hb ? spec.brake.hb : 0;
-    // 조향 한계(보조): 그 속도에서 접지 한계까지 도는 데 필요한 각 + 타이어 최대 슬립각의 1.3배.
-    // 차가 옆으로 미끄러지는 중이면(드리프트) 그 각만큼 더 허용해 카운터를 칠 수 있게 한다.
-    const vlat = vx * r00 + vy * r10 + vz * r20;
-    const vlo = Math.max(Math.abs(vlong), 1);
-    const beta = datan(Math.abs(vlat) / vlo);
-    const need = spec.wb * spec.tire.mu * G / Math.max(vlong * vlong, 1) + 1.3 * datan(spec.tire.ap);
-    const maxSteer = Math.min(P.lock, need + beta);
+    const maxSteer = this.steerLimit();
     const delta = -s.steer * maxSteer;         // 입력 +1 = 오른쪽, δ>0 = 왼쪽
     this.out.maxSteer = maxSteer;
+
+    // 차체자세제어(ESC, 주행 보조가 켜져 있을 때): 차가 조향보다 많이 돌면(오버스티어)
+    // 바깥 앞바퀴에 브레이크를 걸어 돌아가는 것을 막는다. 사이드브레이크 중에는 끈다(드리프트 허용).
+    let escWheel = -1, escT = 0;
+    if (this.tcsOn && !s.hb && Math.abs(vlong) > 5) {
+      const yaw = ox * r01 + oy * r11 + oz * r21;
+      const lim = spec.tire.mu * G / Math.abs(vlong);
+      let ref = vlong * delta / spec.wb;
+      if (ref > lim) ref = lim; else if (ref < -lim) ref = -lim;
+      const over = Math.abs(yaw) - Math.abs(ref) - 0.06;
+      if (over > 0 && (yaw * ref >= 0 || Math.abs(ref) < 0.05)) {
+        escWheel = yaw > 0 ? 1 : 0;              // 왼쪽으로 돌고 있으면 오른쪽 앞(1)
+        escT = Math.min(over * 6000, spec.brake.T * 0.35);
+        s.thr *= 1 - Math.min(0.7, over * 3);
+      }
+    }
+    this.out.esc = escWheel >= 0 ? 1 : 0;
 
     let tcsSlip = 0;
     for (let i = 0; i < 4; i++) {
@@ -425,7 +487,7 @@ export class Car {
       if (comp[i] <= 0 || Fn <= 0) {
         // 공중: 구동·브레이크만
         let om = w.om + dt * drive[i] / Iw;
-        const bb = dt * (bT * (W.front ? spec.brake.bias : 1 - spec.brake.bias) / 2 + (W.front ? 0 : hbT / 2)) / Iw;
+        const bb = dt * (bT * (W.front ? biasF : 1 - biasF) / 2 + (W.front ? 0 : hbT / 2)) / Iw;
         if (Math.abs(om) <= bb) om = 0; else om -= Math.sign(om) * bb;
         w.om = om;
         continue;
@@ -447,10 +509,13 @@ export class Car {
       const tire = spec.tire;
       const kappa = (w.om * R - vl) / vref;
       const tanA = vt / vref;
-      const sx = kappa / tire.kp, sy = tanA / tire.ap;
+      // 하중이 클수록 최대 슬립각이 커진다(실제 타이어) → 코너링 강성이 하중에 정비례하지 않고 둔하게 는다.
+      // 이게 없으면 제동으로 하중이 앞으로 쏠릴 때 뒤가 지나치게 가벼워져 차가 저절로 돈다.
+      const lr = Fn / W.Fz0;
+      const apE = tire.ap * clamp(Math.sqrt(Math.sqrt(lr)), 0.7, 1.3);   // 하중^0.25
+      const sx = kappa / tire.kp, sy = tanA / apE;
       const ss = Math.sqrt(sx * sx + sy * sy);
       // 하중 민감도: 많이 눌린 바퀴는 비율상 덜 붙는다
-      const lr = Fn / W.Fz0;
       const ls = clamp(1 - 0.10 * (lr - 1), 0.75, 1.15);
       const mu = tire.mu * P.grip[surfA[i]] * ls;
       const Fmax = mu * Fn;
@@ -478,10 +543,12 @@ export class Car {
       const K = Fmax * slope * tire.muX * R / (tire.kp * vref);
       let om = w.om + dt * (drive[i] - Fl * R) / Iw / (1 + dt * R * K / Iw);
       // 브레이크 (ABS 는 바퀴가 잠기려 하면 풀었다 잡는다)
-      let bw = bT * (W.front ? spec.brake.bias : 1 - spec.brake.bias) / 2;
+      let bw = bT * (W.front ? biasF : 1 - biasF) / 2 + (i === escWheel ? escT : 0);
       if (this.absOn && bw > 0) {
-        if (kappa < -tire.kp * 1.1 && vl > 2) w.abs = Math.max(0.15, w.abs - dt * 25);
-        else w.abs = Math.min(1, w.abs + dt * 10);
+        // 최대 접지 미끄럼률(kp) 근처를 유지하도록 브레이크 압력을 조절
+        const over = (-kappa - tire.kp * 0.95) / tire.kp;
+        if (over > 0 && vl > 1.5) w.abs = Math.max(0.05, w.abs - dt * 40 * over);
+        else w.abs = Math.min(1, w.abs + dt * 6);
         bw *= w.abs;
       } else w.abs = 1;
       if (!W.front) bw += hbT / 2;
@@ -502,8 +569,9 @@ export class Car {
     }
     // 트랙션 컨트롤
     if (this.tcsOn) {
-      if (tcsSlip > spec.tire.kp * 1.5) s.tcs = Math.max(0.1, s.tcs - dt * 6);
-      else s.tcs = Math.min(1, s.tcs + dt * 2.5);
+      // 구동바퀴 미끄럼률을 최대 접지점의 1.25배 안으로 (넘으면 스로틀을 줄인다)
+      const err = (spec.tire.kp * 1.15 - tcsSlip) / spec.tire.kp;
+      s.tcs = clamp(s.tcs + dt * 3 * clamp(err, -3, 1), 0.5, 1.5);
     }
 
     // ── 차체가 땅에 닿음(뒤집힘·바닥 긁힘) ──

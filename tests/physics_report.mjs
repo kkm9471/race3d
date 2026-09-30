@@ -61,13 +61,13 @@ function accelTest(spec) {
   return { t60, t100, t200, q400, vmax, maxSpin, drift: Math.abs(c.st.px) };
 }
 
-function brakeTest(spec, abs) {
+function brakeTest(spec, abs, pedal = 1) {
   const { c, w } = newCar(spec, { abs });
   const full = pack({ thr: 1, kb: 0 });
   // 100 km/h 조금 넘게 올린다
   for (let f = 0; f < FPS * 60 && kmh(c) < 101; f++) frame(c, w, full);
   // 100 km/h 를 지나는 순간부터 거리 측정
-  const br = pack({ brk: 1, kb: 0 });
+  const br = pack({ brk: pedal, kb: 0 });
   const z0 = c.st.pz, x0 = c.st.px;
   let t = 0, locked = 0, yaw0 = Math.atan2(2 * (c.st.qw * c.st.qy), 1 - 2 * c.st.qy * c.st.qy);
   const v0 = kmh(c);
@@ -81,55 +81,50 @@ function brakeTest(spec, abs) {
   return { dist: d * (100 / v0) ** 2, time: t, lockedFrames: locked };
 }
 
-/** 반지름 R 원을 도는 최대 속도 → 횡가속도(g). 원 위를 따라가도록 조향, 속도를 천천히 올린다 */
-function skidpad(spec, R = 40) {
-  const { c, w } = newCar(spec);
-  // 원 중심 (-R, 0) 에서 왼쪽으로 도는 원. 차는 (0,0)에서 +Z 방향 → 반시계(왼쪽) 선회
-  const cx = R, cz = 0;   // +X 가 왼쪽이므로 중심은 +X 쪽
-  let vt = 20 / 3.6, best = 0, lost = 0, t = 0;
-  const hist = [];
-  for (let f = 0; f < FPS * 240; f++) {
+/** 스키드패드: 반지름 R 원을 일정 속도로 20초 유지할 수 있는 최대 횡가속도(g).
+ *  실제 자동차 잡지 시험처럼 속도를 한 단계씩 올려 가며 "원 위에 머무는지"만 본다. */
+export function circleHold(spec, vkmh, R = 40, secs = 20, opts) {
+  const { c, w } = newCar(spec, opts);
+  const cx = R, cz = 0;          // +X 가 왼쪽 → 왼쪽으로 도는 원
+  c.setSpeed(vkmh / 3.6);
+  const vt = vkmh / 3.6;
+  let ok = 0, sumAy = 0, n = 0, integ = 0;
+  for (let f = 0; f < FPS * secs; f++) {
     const s = c.st;
-    // 원 위 앞쪽 목표점 (pure pursuit)
-    const ang = Math.atan2(s.pz - cz, s.px - cx);
-    const look = 6 + c.out.speed * 0.35;
-    const a2 = ang - look / R;     // 반시계 진행 (위에서 볼 때 방향 확인은 실측으로)
-    const tx = cx + R * Math.cos(a2), tz = cz + R * Math.sin(a2);
-    const a3 = ang + look / R;
-    const tx2 = cx + R * Math.cos(a3), tz2 = cz + R * Math.sin(a3);
-    // 진행 방향 쪽 목표 고르기
     const ax = c.axes([]);
     const fwdx = ax[6], fwdz = ax[8], lx = ax[0], lz = ax[2];
-    const d1 = (tx - s.px) * fwdx + (tz - s.pz) * fwdz, d2 = (tx2 - s.px) * fwdx + (tz2 - s.pz) * fwdz;
-    const [gx, gz] = d1 > d2 ? [tx, tz] : [tx2, tz2];
-    const lat = (gx - s.px) * lx + (gz - s.pz) * lz, fw = (gx - s.px) * fwdx + (gz - s.pz) * fwdz;
-    const curv = 2 * lat / (lat * lat + fw * fw);
-    const delta = Math.atan(spec.wb * curv);
-    let st = -delta / (c.out.maxSteer || 0.5);
-    st = Math.max(-1, Math.min(1, st));
-    // 속도 제어
-    vt += 0.12 / FPS;    // 초당 0.12 m/s 씩 목표를 올린다
-    const v = c.out.fwd;
-    let thr = Math.max(0, Math.min(1, (vt - v) * 0.6 + 0.25));
-    let brk = v > vt + 1 ? 0.3 : 0;
-    frame(c, w, pack({ steer: st, thr, brk, kb: 0 }));
-    t += DTF;
-    const r = Math.hypot(c.st.px - cx, c.st.pz - cz);
-    const err = r - R;
-    if (t > 8) {
-      if (Math.abs(err) < 1.5) {
-        const ay = v * v / r / 9.81;
-        hist.push(ay);
-        if (hist.length > 90) hist.shift();
-        // 1.5초 동안 원 위에 머문 속도만 인정
-        if (hist.length === 90) best = Math.max(best, Math.min(...hist));
-        lost = 0;
-      } else {
-        hist.length = 0;
-        lost += DTF;
-        if (lost > 3) break;
-      }
+    const ang = Math.atan2(s.pz - cz, s.px - cx);
+    const look = 5 + c.out.speed * 0.3;
+    let best = null;
+    for (const sg of [-1, 1]) {
+      const a2 = ang + sg * look / R;
+      const tx = cx + R * Math.cos(a2), tz = cz + R * Math.sin(a2);
+      const d = (tx - s.px) * fwdx + (tz - s.pz) * fwdz;
+      if (!best || d > best[2]) best = [tx, tz, d];
     }
+    const lat = (best[0] - s.px) * lx + (best[1] - s.pz) * lz, fw = (best[0] - s.px) * fwdx + (best[1] - s.pz) * fwdz;
+    const curv = 2 * lat / (lat * lat + fw * fw);
+    let st = -Math.atan(spec.wb * curv) / (c.out.maxSteer || 0.5);
+    st = Math.max(-1, Math.min(1, st));
+    const v = c.out.fwd;
+    integ += (vt - v) / FPS;
+    const thr = Math.max(0, Math.min(1, (vt - v) * 0.8 + integ * 0.3 + 0.15));
+    frame(c, w, pack({ steer: st, thr, brk: 0, kb: 0 }));
+    if (f > FPS * (secs - 6)) {
+      const r = Math.hypot(c.st.px - cx, c.st.pz - cz);
+      if (Math.abs(r - R) < 2 && c.out.fwd > vt - 1.5) ok++;
+      sumAy += c.out.fwd * c.out.fwd / r / 9.81; n++;
+    }
+  }
+  return { hold: ok >= n * 0.98, ay: sumAy / n };
+}
+
+function skidpad(spec, R = 40) {
+  let best = 0;
+  for (let v = 40; v < 160; v += 2) {
+    const r = circleHold(spec, v, R);
+    if (!r.hold) break;
+    best = r.ay;
   }
   return { latG: best };
 }
@@ -139,7 +134,14 @@ export function runAll(ids) {
   for (const spec of CARS) {
     if (ids.length && !ids.includes(spec.id)) continue;
     const a = accelTest(spec);
-    const b = brakeTest(spec, spec.brake.abs);
+    let b = brakeTest(spec, spec.brake.abs);
+    if (!spec.brake.abs) {
+      // ABS 없는 차는 사람이 잠기기 직전까지만 밟는다(문턱 제동) — 가장 짧은 값을 쓴다
+      for (const p of [0.5, 0.55, 0.6, 0.65, 0.7, 0.75, 0.8, 0.9]) {
+        const t = brakeTest(spec, false, p);
+        if (t.dist < b.dist) b = { ...t, pedal: p };
+      }
+    }
     const bn = brakeTest(spec, false);
     const k = skidpad(spec);
     rows.push({ spec, a, b, bn, k });
