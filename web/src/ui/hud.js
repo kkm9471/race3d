@@ -10,6 +10,7 @@ export function fmtTime(frames) {
   return `${m}:${r.toFixed(3).padStart(6, '0')}`;
 }
 
+const setText = (e, t) => { if (e._t !== t) { e.textContent = t; e._t = t; } };
 const el = (tag, cls, parent) => { const e = document.createElement(tag); if (cls) e.className = cls; if (parent) parent.appendChild(e); return e; };
 
 export class Hud {
@@ -88,19 +89,23 @@ export class Hud {
     const st = me.st;
     const order = sim.standings();
     const myPos = order.indexOf(me.slot) + 1;
-    this.pos.textContent = `${myPos}/${sim.cars.length}`;
+    setText(this.pos, `${myPos}/${sim.cars.length}`);
     const lapNow = Math.min(sim.laps, st.lap + 1);
-    this.lap.textContent = st.fin ? '완주' : `랩 ${lapNow}/${sim.laps}`;
+    setText(this.lap, st.fin ? '완주' : `랩 ${lapNow}/${sim.laps}`);
     const cur = f >= GO_FRAME && !st.fin ? f - st.lapStart : 0;
-    this.times.innerHTML = '';
-    const line = (label, v, cls) => { const d = el('div', cls || '', this.times); const a = el('span', 'k', d); a.textContent = label; const b = el('span', 'v', d); b.textContent = v; };
-    line('현재', fmtTime(cur));
-    line('지난', fmtTime(st.last));
-    line('최고', fmtTime(st.best), 'best');
+    // 글자 칸은 한 번만 만들고, 바뀐 글자만 고친다 (매 프레임 새로 만들면 느린 PC에서 끊긴다)
+    if (!this.timeEls) {
+      this.timeEls = [['현재', ''], ['지난', ''], ['최고', 'best']].map(([label, cls]) => {
+        const d = el('div', cls, this.times); el('span', 'k', d).textContent = label; return el('span', 'v', d);
+      });
+    }
+    setText(this.timeEls[0], fmtTime(cur));
+    setText(this.timeEls[1], fmtTime(st.last));
+    setText(this.timeEls[2], fmtTime(st.best));
     // 속도·기어·회전
     const kmh = Math.round(Math.abs(me.out.fwd) * 3.6);
-    this.speed.textContent = String(kmh);
-    this.gear.textContent = st.gear < 0 ? 'R' : st.shiftT > 0 ? '·' : String(st.gear);
+    setText(this.speed, String(kmh));
+    setText(this.gear, st.gear < 0 ? 'R' : st.shiftT > 0 ? '·' : String(st.gear));
     const e = me.spec.engine;
     const r = Math.max(0, Math.min(1, st.rpm / (e.redline * 1.05)));
     this.rpmFill.style.width = (r * 100).toFixed(1) + '%';
@@ -109,23 +114,31 @@ export class Hud {
     const as = [];
     if (me.absOn) as.push('ABS');
     if (me.tcsOn) as.push('TCS');
-    this.assist.textContent = as.join(' ') || '보조 끔';
+    setText(this.assist, as.join(' ') || '보조 끔');
     this.assist.classList.toggle('esc', !!me.out.esc);
-    // 순위표
-    this.board.innerHTML = '';
+    // 순위표 (줄은 한 번만 만든다)
+    if (!this.rows || this.rows.length !== order.length) {
+      this.board.innerHTML = '';
+      this.rows = order.map(() => {
+        const d = el('div', 'row', this.board);
+        return { d, dot: el('span', 'dot', d), n: el('span', 'n', d), g: el('span', 'g', d), cls: '' };
+      });
+    }
     const leader = sim.cars[order[0]].st;
     order.forEach((k, i) => {
-      const c = sim.cars[k];
-      const d = el('div', 'row' + (k === me.slot ? ' me' : '') + (c.st.dc ? ' dc' : ''), this.board);
-      const dot = el('span', 'dot', d); dot.style.background = '#' + PAINT[k % PAINT.length].toString(16).padStart(6, '0');
-      el('span', 'n', d).textContent = `${i + 1}. ${names[k] || c.name || '?'}`;
+      const c = sim.cars[k], r = this.rows[i];
+      const cls = 'row' + (k === me.slot ? ' me' : '') + (c.st.dc ? ' dc' : '');
+      if (r.cls !== cls) { r.d.className = cls; r.cls = cls; }
+      const col = '#' + PAINT[k % PAINT.length].toString(16).padStart(6, '0');
+      if (r.col !== col) { r.dot.style.background = col; r.col = col; }
+      setText(r.n, `${i + 1}. ${names[k] || c.name || '?'}`);
       let gap = '';
       if (c.st.fin) gap = fmtTime(c.st.fin - GO_FRAME);
       else if (i > 0) {
         const dd = leader.prog - c.st.prog;
         gap = dd > sim.T.L ? `+${Math.floor(dd / sim.T.L)}랩` : `+${Math.max(0, dd).toFixed(0)}m`;
       }
-      el('span', 'g', d).textContent = gap;
+      setText(r.g, gap);
     });
     // 가운데 메시지
     const now = performance.now();
@@ -151,7 +164,7 @@ export class Hud {
       const left = Math.max(0, Math.ceil((sim.gs.first + 90 * FPS - f) / FPS));
       sub = `1위가 들어왔습니다 · ${left}초 안에 완주하세요`;
     }
-    this.sub.textContent = sub;
+    setText(this.sub, sub);
     // 미니맵
     const g = this.mapC.getContext('2d');
     g.clearRect(0, 0, 220, 220);
@@ -171,10 +184,10 @@ export class Hud {
       const p = view.screenPos(k, this.sp);
       if (!p.vis || p.dist > 250) { ne.style.display = 'none'; continue; }
       ne.style.display = 'block';
-      ne.textContent = names[k] || sim.cars[k].name || '';
+      setText(ne, names[k] || sim.cars[k].name || '');
       ne.style.transform = `translate(${p.x.toFixed(0)}px, ${p.y.toFixed(0)}px) translate(-50%, -100%)`;
       ne.style.opacity = String(Math.max(0.35, 1 - p.dist / 250));
     }
-    this.net.textContent = netInfo || '';
+    setText(this.net, netInfo || '');
   }
 }

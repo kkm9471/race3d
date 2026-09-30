@@ -222,9 +222,19 @@ class Game {
     }
   }
 
-  /** 60fps 가 안 나오면 해상도를 조금씩 낮추고, 여유가 생기면 되돌린다 */
+  /** 60fps 가 안 나오면 해상도를 조금씩 낮추고, 여유가 생기면 되돌린다.
+   *  해상도를 최저(60%)까지 낮춰도 모자라면 그래픽 품질을 한 단계 내린다. */
   autoScale(dt) {
     if (Q.get('noscale') === '1') return;
+    this.slowSec = (this.slowSec || 0) + (dt > 1 / 45 ? dt : -dt * 0.5);
+    if (this.slowSec < 0) this.slowSec = 0;
+    if (this.slowSec > 4 && gfx.scaleDyn <= 0.61 && gfx.qKey !== 'low') {
+      const next = gfx.qKey === 'high' ? 'medium' : 'low';
+      gfx.setQuality(next); gfx.scaleDyn = 0.8; gfx.resize();
+      $('m-q').value = next; $('p-q').value = next;
+      toast(`화면이 느려서 그래픽을 "${gfx.q.name}"(으)로 낮췄습니다`, 3500);
+      this.slowSec = 0;
+    }
     this.slow = this.slow * 0.97 + (dt > 1 / 50 ? 1 : 0) * 0.03;
     if (this.slow > 0.5 && gfx.scaleDyn > 0.6) { gfx.scaleDyn = Math.max(0.6, gfx.scaleDyn - 0.1); gfx.resize(); this.slow = 0; }
     else if (this.slow < 0.02 && gfx.scaleDyn < 1 && Math.random() < 0.002) { gfx.scaleDyn = Math.min(1, gfx.scaleDyn + 0.1); gfx.resize(); }
