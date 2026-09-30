@@ -78,6 +78,39 @@ export const TRACK_DEFS = [
     style: 'mountain',
     sun: { elev: 22, azim: 120 },   // 아침
   },
+  {
+    id: 'city', name: '별빛 시내', kind: '도심', desc: '해 질 녘 시내 거리. 벽이 바로 옆, 직각 교차로 코너와 대로.',
+    segs: [
+      ['S', 380],          // 0 대로 (출발)
+      ['A', 22, -90],      // 1
+      ['S', 180],          // 2
+      ['A', 20, -90],      // 3
+      ['S', 120],          // 4
+      ['A', 20, 90],       // 5 왼쪽
+      ['S', 140],          // 6
+      ['A', 22, -90],      // 7
+      ['S', 300],          // 8 (길이 자동)
+      ['A', 25, -90],      // 9
+      ['S', 160],          // 10
+      ['A', 30, 45],       // 11 S자
+      ['A', 30, -45],      // 12
+      ['S', 200],          // 13 (길이 자동)
+      ['A', 22, -90],      // 14 마지막 코너
+      ['S', 100],          // 15
+    ],
+    close: [8, 13],
+    smooth: 14,
+    startAt: 200,
+    width: 11,
+    elev: [[0, 0], [0.2, 1.5], [0.45, 3], [0.7, 1], [0.9, 0.5]],
+    bankK: 0, bankMax: 0, crossfall: 0,
+    curbW: 0.6, curbK: 1 / 30,
+    runBase: 1.3, runOut: 0.6, runK: 20, gravel: false, runSurf: SURF.ASPHALT,
+    runSlope: 0.0,
+    style: 'city',
+    sun: { elev: 4, azim: 285 },    // 해 질 녘
+    fog: 0.0011, fogColor: 0xb89a88,
+  },
 ];
 
 export const TRACK_BY_ID = Object.fromEntries(TRACK_DEFS.map(t => [t.id, t]));

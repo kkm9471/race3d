@@ -6,6 +6,7 @@
 import * as THREE from 'three';
 import * as TX from './textures.js';
 import { mergeGeometries } from 'three/addons/utils/BufferGeometryUtils.js';
+import { buildCity } from './city.js';
 
 function hash2(x, z) {
   const s = Math.sin(x * 12.9898 + z * 78.233) * 43758.5453;
@@ -168,6 +169,20 @@ export function buildTrackScene(T, world, q, def) {
     }
   }
 
+  // 도심: 도로 밖 아스팔트 런오프 = 보도(콘크리트)
+  if (def.style === 'city') {
+    for (const side of [1, -1]) {
+      const g = ribbon(T, ii => {
+        const e = T.hw[ii] + (side > 0 ? T.curbL[ii] : T.curbR[ii]);
+        const w = side > 0 ? T.wallL[ii] : T.wallR[ii];
+        return side > 0 ? [e, w + 0.3] : [-w - 0.3, -e];
+      }, (ii, d) => H(ii, d) + 0.015, (ii, d, x, z) => [x / 3, z / 3]);
+      const m = new THREE.Mesh(g, mats.concrete);
+      m.receiveShadow = true;
+      group.add(m);
+    }
+  }
+
   // ── 출발선 체커 ──
   {
     const i = 0;
@@ -228,16 +243,18 @@ export function buildTrackScene(T, world, q, def) {
       const m = new THREE.Mesh(g, mats.concrete);
       m.receiveShadow = true; m.castShadow = q.detail >= 2;
       group.add(m);
-      // 벽 아래쪽 빨강/흰 띠 (서킷 분위기)
+      // 벽 아래쪽 빨강/흰 띠 (서킷 분위기 — 도심은 맨 콘크리트)
       const sParts = [];
       for (const [a, b] of segs.concrete) {
         sParts.push(ribbon(T, i => [side * (wOff(i) - 0.01), side * (wOff(i) - 0.01)],
           (i, d, k) => H(i, side * wOff(i)) + (k === 0 ? 0.05 : 0.45), (i, d, x, z, aa, k) => [k, sOf(i) / 4], { closed: false, from: a, to: b }));
       }
-      const sg = mergeGeometries(sParts);
-      if (side < 0) flipIndex(sg);
-      const sm = new THREE.Mesh(sg, mats.curb);
-      group.add(sm);
+      if (def.style !== 'city') {
+        const sg = mergeGeometries(sParts);
+        if (side < 0) flipIndex(sg);
+        const sm = new THREE.Mesh(sg, mats.curb);
+        group.add(sm);
+      }
     }
     // 암벽 (산길 안쪽): 벽 위치에서 위로 솟는 절벽
     const rParts = [];
@@ -289,6 +306,7 @@ export function buildTrackScene(T, world, q, def) {
 
   // ── 지형 ──
   const terrain = buildTerrain(T, world, def, terrainH, q);
+  if (def.style === 'city') { mats.terrain.map = TX.concrete(aniso); mats.terrain.map.repeat.set(0.5, 0.5); }
   terrain.material = mats.terrain;
   group.add(terrain);
 
@@ -301,6 +319,7 @@ export function buildTrackScene(T, world, q, def) {
   // ── 서킷 시설: 관중석·피트·게이트·광고판 ──
   const lights = { gantry: null };
   if (def.style === 'circuit') buildCircuitProps(T, world, group, disposables, lights, q);
+  else if (def.style === 'city') { buildCity(T, H, group, disposables, q); buildBanner(T, group, '별빛 시내 · 출발', '#1c2a52'); }
   else buildMountainProps(T, world, group, disposables, q);
 
   group.userData.dispose = () => {
@@ -334,6 +353,7 @@ function makeTerrainFn(T, def) {
       return peak - 20 + fbm(x / 180, z / 180, 5) * 60 - 25;
     };
   }
+  if (def.style === 'city') return () => -0.4;
   return (x, z) => {
     const d = Math.hypot(x - cx, z - cz);
     return -2 + fbm(x / 300, z / 300, 4) * 14 - 7 + Math.max(0, d - 900) * 0.04;
@@ -388,7 +408,8 @@ function buildTerrain(T, world, def, natural, q) {
     uv[p * 2] = x / 10; uv[p * 2 + 1] = z / 10;
     const n = fbm(x / 60, z / 60, 3);
     green.copy(c1).lerp(c2, n);
-    if (def.style === 'mountain') { const hi = Math.min(1, Math.max(0, (h - 60) / 90)); green.lerp(c4, hi * 0.6); }
+    if (def.style === 'city') green.setRGB(0.36 + n * 0.08, 0.36 + n * 0.08, 0.37 + n * 0.08);
+    else if (def.style === 'mountain') { const hi = Math.min(1, Math.max(0, (h - 60) / 90)); green.lerp(c4, hi * 0.6); }
     else green.lerp(c3, Math.max(0, fbm(x / 140 + 5, z / 140, 3) - 0.55) * 1.2);
     col[p * 3] = green.r; col[p * 3 + 1] = green.g; col[p * 3 + 2] = green.b;
   }
@@ -417,7 +438,8 @@ function buildTerrain(T, world, def, natural, q) {
 
 function buildFarMountains(T, def) {
   const b = T.bounds, cx = (b.x0 + b.x1) / 2, cz = (b.z0 + b.z1) / 2;
-  const seg = 180, rings = [[2400, 0x7f93a6, def.style === 'mountain' ? 520 : 260], [3600, 0x94a6b8, def.style === 'mountain' ? 800 : 420]];
+  const amp = def.style === 'mountain' ? [520, 800] : def.style === 'city' ? [120, 300] : [260, 420];
+  const seg = 180, rings = [[2400, 0x7f93a6, amp[0]], [3600, 0x94a6b8, amp[1]]];
   const grp = new THREE.Group();
   for (const [R, colr, amp] of rings) {
     const pos = [], idx = [];
@@ -441,7 +463,7 @@ function buildFarMountains(T, def) {
 
 function buildTrees(T, def, natural, q) {
   const grp = new THREE.Group();
-  const count = Math.round((def.style === 'mountain' ? 5200 : 1800) * q.trees);
+  const count = Math.round((def.style === 'mountain' ? 5200 : def.style === 'city' ? 0 : 1800) * q.trees);
   const b = T.bounds, pad = def.style === 'mountain' ? 700 : 500;
   const trunkG = new THREE.CylinderGeometry(0.18, 0.28, 3, 5);
   trunkG.translate(0, 1.5, 0);
@@ -649,6 +671,21 @@ function buildCircuitProps(T, world, group, disposables, lights, q) {
     board.position.set(bx, H(i, side * w) + 1.85, bz);
     board.rotation.y = Math.atan2(T.tx[i], T.tz[i]) + (side > 0 ? -Math.PI / 2 : Math.PI / 2);
     group.add(board);
+  }
+}
+
+function buildBanner(T, group, text, bg) {
+  const i = 0;
+  const banner = new THREE.Mesh(new THREE.PlaneGeometry(T.wallL[i] + T.wallR[i], 1.2),
+    new THREE.MeshBasicMaterial({ map: TX.sign(text, bg, '#fff4e0', 1024, 96), side: THREE.DoubleSide }));
+  banner.position.set(T.x[i] + T.lx[i] * (T.wallL[i] - T.wallR[i]) / 2, T.y[i] + 5.2, T.z[i] + T.lz[i] * (T.wallL[i] - T.wallR[i]) / 2);
+  banner.rotation.y = Math.atan2(T.tx[i], T.tz[i]);
+  group.add(banner);
+  for (const sd of [1, -1]) {
+    const pole = new THREE.Mesh(new THREE.CylinderGeometry(0.08, 0.08, 5.8, 6), new THREE.MeshStandardMaterial({ color: 0x555555 }));
+    const w = sd > 0 ? T.wallL[i] : T.wallR[i];
+    pole.position.set(T.x[i] + T.lx[i] * sd * w, T.y[i] + 2.9, T.z[i] + T.lz[i] * sd * w);
+    group.add(pole);
   }
 }
 
