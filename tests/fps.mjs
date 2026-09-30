@@ -32,6 +32,8 @@ const r = await p.evaluate(() => {
     simAvg: sims.reduce((s, x) => s + x, 0) / sims.length, simP99: pct(sims, 0.99),
     cpuAvg: cpuT.reduce((s, x) => s + x, 0) / cpuT.length, cpuP99: pct(cpuT, 0.99),
     gpu: window.__gpu, q: window.__qKey, scale: window.__scale,
+    // 끊긴 프레임: [몇 번째, 프레임 ms, 그 프레임 JS ms, 시뮬 ms] — JS 가 짧으면 GPU·드라이버 쪽
+    spikes: L.map((x, i) => [i, +x.dt.toFixed(1), +(x.cpu || 0).toFixed(1), +x.sim.toFixed(1)]).filter(x => x[1] > 33.4).slice(0, 20),
   };
 });
 const shotName = `tests/shots/fps_${q}_${track}_cpu${cpu}.png`;

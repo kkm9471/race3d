@@ -72,6 +72,8 @@ const qAuto = detectQuality(gfx.renderer);       // GPU 이름도 여기서 기�
 const qSaved = Q.get('q') || store.get('quality', '') || qAuto;
 gfx.setQuality(qSaved);
 $('m-q').value = gfx.qKey; $('p-q').value = gfx.qKey;
+// 손가락 터치만 되는 기기(휴대폰·태블릿)는 조작할 수 없다고 먼저 알려 준다 (터치 조작은 만들지 않았다)
+if (matchMedia('(pointer: coarse)').matches && !matchMedia('(any-pointer: fine)').matches) $('m-mobile').classList.remove('hidden');
 window.addEventListener('resize', () => gfx.resize());
 const controls = new Controls();
 const audio = new EngineAudio();

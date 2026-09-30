@@ -21,6 +21,15 @@ export const QUALITY = {
   high: { name: '높음', scale: 1.0, maxDpr: 1.5, shadow: 4096, post: true, msaa: 4, bloom: true, trees: 1.0, fogMul: 0.8, detail: 2 },
 };
 
+// 번짐(bloom) 전에 밝기 상한: 하늘의 태양 원반은 다른 것보다 수천 배 밝아서 그대로 번지면
+// 해를 마주 보는 구간에서 화면 절반이 하얗게 덮여 앞차가 안 보였다 (색조는 유지하고 크기만 줄임)
+const ClampShader = {
+  uniforms: { tDiffuse: { value: null }, maxV: { value: 5.0 } },
+  vertexShader: 'varying vec2 vUv; void main() { vUv = uv; gl_Position = projectionMatrix * modelViewMatrix * vec4(position, 1.0); }',
+  fragmentShader: 'uniform sampler2D tDiffuse; uniform float maxV; varying vec2 vUv;\n' +
+    'void main() { vec4 c = texture2D(tDiffuse, vUv); float m = max(max(c.r, c.g), c.b); gl_FragColor = vec4(c.rgb * min(1.0, maxV / max(m, 1e-4)), c.a); }',
+};
+
 // 색보정: 대비·채도·따뜻한 톤·비네트 (sRGB 공간에서)
 const GradeShader = {
   uniforms: {
@@ -111,6 +120,7 @@ export class Gfx {
     const c = new EffectComposer(this.renderer, rt);
     c.addPass(new RenderPass(this.scene, this.camera));
     if (q.bloom) {
+      c.addPass(new ShaderPass(ClampShader));
       this.bloom = new UnrealBloomPass(new THREE.Vector2(256, 256), 0.14, 0.35, 1.0);
       c.addPass(this.bloom);
     }
