@@ -114,6 +114,21 @@ class Game {
     window.__game = this;
   }
 
+  /** 재접속: 서버 기록이 정답. 서버에 못 닿은 내 입력은 버리고, 지금 입력을 다시 보낸다 */
+  resync(log) {
+    const s = this.session;
+    let low = Infinity;
+    for (const p of s.pending) low = Math.min(low, p.f);
+    s.pending = [];
+    if (low < s.frame) s.dirty = Math.min(s.dirty, low);
+    for (const [p, f, v] of log) s.addConfirmed(p, f, v);
+    this.lastSent = -1;
+    this.sendBuf = [];
+    this.seq += 1000;
+    this.net.fast = true;
+    toast('다시 연결됐습니다', 1500);
+  }
+
   action(a) {
     if (a === 'camera') { this.view.camMode = (this.view.camMode + 1) % 3; toast(['추적 시점', '먼 추적 시점', '보닛 시점'][this.view.camMode], 1000); }
     if (a === 'mute') toast(audio.toggle() ? '소리 켬' : '소리 끔', 1000);
@@ -167,6 +182,7 @@ class Game {
   loop(now) {
     if (!this.running) return;
     this._raf = requestAnimationFrame(t => this.loop(t));
+    const cpu0 = performance.now();
     const dt = Math.min(0.1, (now - this.lastT) / 1000);
     this.lastT = now;
     const tf = this.clockFrames(now);
@@ -189,7 +205,8 @@ class Game {
     // 성능 기록
     this.frameTimes.push(dt * 1000);
     if (this.frameTimes.length > 120) this.frameTimes.shift();
-    this.fpsLog.push({ t: now, dt: dt * 1000, sim: simMs, f: this.session.frame });
+    this.fpsLog.push({ t: now, dt: dt * 1000, sim: simMs, cpu: performance.now() - cpu0, f: this.session.frame });
+    window.__qKey = gfx.qKey; window.__scale = gfx.scaleDyn;
     if (this.fpsLog.length > 20000) this.fpsLog.shift();
     this.autoScale(dt);
     if (Q.get('fps') === '1') {
@@ -532,6 +549,12 @@ async function joinRoom(code, name) {
     welcome(msg) {
       app.myId = msg.you;
       app.lobby = msg.lobby;
+      // 같은 레이스 도중 잠깐 끊겼다 붙은 경우: 화면을 다시 만들지 않고 입력 기록만 맞춘다
+      const g = app.game;
+      if (g && g.net && msg.race && msg.race.startAt === g.startAt) {
+        g.resync(msg.log || []);
+        return;
+      }
       openLobby(code, name);
       $('l-conn').textContent = '연결됨'; $('l-conn').className = 'conn ok';
       if (msg.race) enterRace(msg.race, msg.log || []);

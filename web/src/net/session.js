@@ -98,6 +98,18 @@ export class Session {
     this.states.delete(f - 8);
   }
 
+  /** 서버 확인을 2초 넘게 못 받은 내 입력은 서버에 못 닿은 것 → 버린다(서버 기록이 정답) */
+  dropStale() {
+    if (!this.pending.length) return;
+    const lim = this.frame - 120;
+    const keep = [];
+    for (const p of this.pending) {
+      if (p.f < lim) { this.dirty = Math.min(this.dirty, p.f); this.stale = (this.stale || 0) + 1; }
+      else keep.push(p);
+    }
+    this.pending = keep;
+  }
+
   /** 되돌려야 하면 되돌린다. 저장본이 없을 만큼 옛날이면 처음부터 다시 */
   rollbackIfNeeded() {
     if (this.dirty >= this.frame) { this.dirty = Infinity; return 0; }
@@ -115,6 +127,7 @@ export class Session {
 
   /** target 프레임까지 진행 (한 번에 최대 maxSteps) */
   advanceTo(target, maxSteps = 240) {
+    this.dropStale();
     const redo = this.rollbackIfNeeded();
     const start = this.frame;
     let steps = 0;

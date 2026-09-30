@@ -117,7 +117,7 @@ export class Car {
     this.out = {
       speed: 0, fwd: 0, rpm: 0, gear: 1,
       wheels: [0, 1, 2, 3].map(() => ({
-        x: 0, y: 0, z: 0, contact: 0, slip: 0, surf: 0, Fz: 0, steer: 0, comp: 0,
+        x: 0, y: 0, z: 0, contact: 0, slip: 0, surf: 0, Fz: 0, steer: 0, comp: 0, sa: 0, sr: 0,
         cx: 0, cy: 0, cz: 0,
       })),
       bodyHit: 0,
@@ -537,7 +537,7 @@ export class Car {
       const mC = Fn / G;
       const lim = mC * Math.abs(vt) / dt * 0.6;
       if (Ft > lim) Ft = lim; else if (Ft < -lim) Ft = -lim;
-      o.slip = ss;
+      o.slip = ss; o.sa = tanA; o.sr = kappa;
       // 바퀴 회전 (타이어 힘은 반암시적으로 — 딱딱한 스프링이라 그냥 적분하면 튄다)
       let slope;
       if (ss < 1e-6) slope = 2;
