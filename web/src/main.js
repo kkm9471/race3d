@@ -657,5 +657,6 @@ if (Q.get('garage') === '1') {
 }
 
 window.__app = app;
+window.__gfx = gfx;
 window.__version = VERSION;
 console.log('한판 레이스', VERSION, 'protocol', PROTOCOL);

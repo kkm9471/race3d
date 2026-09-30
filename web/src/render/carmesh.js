@@ -207,13 +207,20 @@ export function buildCar(spec, P, paintHex, quality = 1) {
   const darkMetal = new THREE.MeshStandardMaterial({ color: 0x2a2c30, roughness: 0.45, metalness: 0.7 });
   const headM = new THREE.MeshStandardMaterial({ color: 0xf4f6ff, emissive: 0xfff4e0, emissiveIntensity: 0.4, roughness: 0.1 });
   const tailM = new THREE.MeshStandardMaterial({ color: 0x5a0508, emissive: 0xff1810, emissiveIntensity: 0.35, roughness: 0.2 });
+  // 그림자는 양면으로 계산한다 (기본값 "뒷면만"으로는 이 차체가 그림자를 안 드리웠다 — 실측)
+  for (const m of [paint, glass, trim]) m.shadowSide = THREE.DoubleSide;
   const body = new THREE.Mesh(geo, [paint, glass, trim]);
   body.castShadow = true; body.receiveShadow = true;
   const car = new THREE.Group();
   car.add(body);
 
-  // ── 등 ──
-  const frontY = fBelt(0.97) - cg - 0.10, rearY = fBelt(0.03) - cg - 0.06;
+  // ── 등 ── (그 위치의 실제 단면 폭 안쪽에 붙인다: 앞뒤 끝은 둥글게 줄어들어서 고정 폭이면 삐져나온다)
+  const sect = zf => {
+    const endK = Math.min(1, Math.min(zf, 1 - zf) / 0.02), shrink = 0.55 + 0.45 * Math.sqrt(endK);
+    return { half: hw * fXb(zf) * shrink, belt: fBelt(zf), yb: fYb(zf), top: fTop(zf), z: zRear + zf * len };
+  };
+  const hf = sect(1 - 0.04 / len), hr = sect(0.04 / len);
+  const frontY = hf.belt - cg - 0.09, rearY = hr.belt - cg - 0.07;
   const lampW = B.extras.includes('roundlamps') ? 0 : 1;
   if (B.extras.includes('roundlamps')) {
     for (const sx of [1, -1]) {
@@ -227,32 +234,34 @@ export function buildCar(spec, P, paintHex, quality = 1) {
     }
   }
   if (lampW) {
-    const hl = new THREE.BoxGeometry(hw * 0.42, 0.07, 0.12);
+    const hl = new THREE.BoxGeometry(hw * 0.3, 0.09, 0.06);
     for (const sx of [1, -1]) {
       const l = new THREE.Mesh(hl, headM);
-      l.position.set(sx * hw * 0.58, frontY, zFront - 0.12);
-      l.rotation.y = sx * 0.25;
+      l.position.set(sx * hw * 0.56, frontY, zFront - 0.035);
+      l.rotation.y = sx * 0.12;
       car.add(l);
     }
   }
-  const tl = new THREE.BoxGeometry(hw * (spec.id === 'baram' || spec.id === 'cheondung' ? 1.5 : 0.5), 0.06, 0.08);
   const tails = [];
   if (spec.id === 'baram' || spec.id === 'cheondung' || spec.id === 'yuseong') {
-    const t = new THREE.Mesh(new THREE.BoxGeometry(W * 0.86, 0.05, 0.06), tailM);
-    t.position.set(0, rearY, zRear + 0.06);
+    const t = new THREE.Mesh(new THREE.BoxGeometry(hw * 1.4, 0.05, 0.06), tailM);
+    t.position.set(0, rearY, zRear + 0.035);
     car.add(t); tails.push(t);
   } else {
+    const tl2 = new THREE.BoxGeometry(hw * 0.3, 0.08, 0.06);
     for (const sx of [1, -1]) {
-      const t = new THREE.Mesh(tl, tailM);
-      t.position.set(sx * hw * 0.66, rearY, zRear + 0.07);
+      const t = new THREE.Mesh(tl2, tailM);
+      t.position.set(sx * hw * 0.56, rearY, zRear + 0.035);
+      t.rotation.y = -sx * 0.1;
       car.add(t); tails.push(t);
     }
   }
   // 그릴 / 번호판 자리 (빈 판)
   {
-    const gy = frontY - 0.14;
-    const g = new THREE.Mesh(new THREE.BoxGeometry(W * 0.46, 0.14, 0.05), trim);
-    g.position.set(0, gy, zFront - 0.03);
+    const gs = sect(1 - 0.05 / len);
+    const gy = frontY - 0.13;
+    const g = new THREE.Mesh(new THREE.BoxGeometry(hw * 0.7, 0.14, 0.05), trim);
+    g.position.set(0, gy, zFront - 0.02);
     car.add(g);
     const plate = new THREE.Mesh(new THREE.BoxGeometry(0.46, 0.11, 0.02), new THREE.MeshStandardMaterial({ color: 0xeaeaea, roughness: 0.5 }));
     plate.position.set(0, fYb(0.02) - cg + 0.22, zRear + 0.01);
@@ -380,7 +389,7 @@ export function buildCar(spec, P, paintHex, quality = 1) {
   const caliperCol = ex.includes('redcaliper') ? 0xc81e1e : ex.includes('yellowcaliper') ? 0xf0c020 : 0x3a3a3a;
   const rimM = ex.includes('goldrim') ? new THREE.MeshStandardMaterial({ color: 0xc9a23a, metalness: 0.9, roughness: 0.3 })
     : new THREE.MeshStandardMaterial({ color: ex.includes('chrome') ? 0xd8dadc : 0xb9bec4, metalness: 0.9, roughness: 0.28 });
-  const tireM = new THREE.MeshStandardMaterial({ color: 0x141414, roughness: 0.92 });
+  const tireM = new THREE.MeshStandardMaterial({ color: 0x141414, roughness: 0.92, shadowSide: THREE.DoubleSide });
   const discM = new THREE.MeshStandardMaterial({ color: 0x777b80, metalness: 0.8, roughness: 0.4 });
   const calM = new THREE.MeshStandardMaterial({ color: caliperCol, roughness: 0.5, metalness: 0.2 });
   for (let i = 0; i < 4; i++) {
