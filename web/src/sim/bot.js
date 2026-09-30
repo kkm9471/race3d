@@ -91,6 +91,7 @@ export function prepareBot(T, spec) {
 export function botInput(sim, k, skill = 0.95, mem = sim.cars[k].st) {
   const c = sim.cars[k], st = c.st, T = sim.T, n = T.n;
   const { o, k: kl } = racingLine(T);
+  const RL = o;                 // 레이싱라인 가로 위치 (아래 반복문 안의 o 는 다른 차)
   const prof = c.botData.v;
   const L = sim.world.locate(st.px, st.pz, st.hint);
   const i = L.i;
@@ -115,8 +116,17 @@ export function botInput(sim, k, skill = 0.95, mem = sim.cars[k].st) {
     const ahead = ox * fx + oz * fz, side = ox * lx + oz * lz;
     const len = (c.P.Lb + sim.cars[q].P.Lb) / 2;
     const away = st.off >= o.off ? 1 : -1;            // 상대에게서 멀어지는 가로 방향
-    if (ahead > len * 0.9 && ahead < 10 + Math.abs(v) * 0.8 && Math.abs(side) < 2.3) {
-      const ov = o.vx * fx + o.vz * fz, gap = ahead - len;
+    // 레이싱라인 위에 서 있거나 느린 차는 트랙을 따라 잰 거리로 제동 거리까지 내다보고 미리 줄인다
+    // (3차 독립검증: 감지 창 10+0.8v 가 제동 거리보다 짧아, 스핀해 선 사람 차를 최대 147km/h 로 들이받았다)
+    const dAl = ((o.hint - i + n) % n) * T.ds;
+    if (dAl > len && dAl < 10 + Math.abs(v) * 0.8 + v * v / (2 * c.botData.a) && Math.abs(o.off - RL[o.hint]) < 2.3) {
+      const ovT = Math.max(0, o.vx * T.tx[o.hint] + o.vz * T.tz[o.hint]);
+      // 다가가는 속도 하한 12m/s — 아예 서 버리면 되돌리기만 되풀이한다. 가까워지면 아래 추월 판단으로 비켜 간다
+      vt = Math.min(vt, ovT + Math.max(12, Math.sqrt(2 * c.botData.a * Math.max(0, dAl - len - 2 - Math.abs(v) * 0.12))));
+    }
+    const ov = o.vx * fx + o.vz * fz, cl = Math.max(0, v - ov);
+    if (ahead > len * 0.9 && ahead < 10 + Math.abs(v) * 0.8 + cl * cl / (2 * c.botData.a) && Math.abs(side) < 2.3) {
+      const gap = ahead - len;
       if (vt > ov + 1.5) want = o.off + away * 3.2;      // 더 빠르다 → 옆으로 빠져 추월
       // 옆으로 충분히 벌어지기 전에는 차간 거리를 지킨다
       if (Math.abs(side) < 1.9) vt = Math.min(vt, ov + (gap - (2 + Math.abs(v) * 0.12)) * 0.6);

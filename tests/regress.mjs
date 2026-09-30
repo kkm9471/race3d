@@ -126,5 +126,47 @@ for (const spec of CARS) {
   ok(touchF / FPS < 10 && rs <= 2 && unfinished === 0, `9판 합계 접촉 시간 ${(touchF / FPS).toFixed(1)}초(<10), 되돌리기 ${rs}(≤2), 미완주 ${unfinished}`);
 }
 
+// 9) '나'가 사람처럼 비켜 주지 않을 때(3차 독립검증: 8번은 나도 피하는 봇이라 이 경우를 못 봤다)
+//    AI 가 사람 차를 따라가며 밀거나 나란히 비비면 늘어난다. 2026-10-01 실측: 빠른 나 10.8초, 느린 나 31.6초(9판 합계)
+{
+  console.log('[비켜 주지 않는 사람 + AI 3대]');
+  const { carStats } = await import('../web/src/sim/cars.js');
+  const { GO_FRAME } = await import('../web/src/sim/race.js');
+  const { botInput } = await import('../web/src/sim/bot.js');
+  for (const [meSkill, lim] of [[0.95, 15], [0.86, 50]]) {
+    let touchF = 0, unfinished = 0;
+    for (const t of ['circuit', 'mountain', 'city']) for (const me of ['masil', 'baram', 'cheondung']) {
+      const meS = CARS.find(c => c.id === me);
+      const pool = CARS.filter(c => c.id !== me).sort((a, b) => Math.abs(carStats(a).pwr - carStats(meS).pwr) - Math.abs(carStats(b).pwr - carStats(meS).pwr));
+      const players = [{ car: me, name: 'me', abs: true, tcs: true }];
+      for (let i = 0; i < 3; i++) players.push({ car: pool[i].id, name: 'AI' + i, bot: true, botSkill: 0.86 + i * 0.03, abs: true, tcs: true });
+      const sim = new Sim({ track: t, laps: 2, players });
+      const mem = { stuckT: 0, ram: true };
+      while (!sim.gs.over && sim.gs.frame < FPS * 400) {
+        sim.step([botInput(sim, 0, meSkill, mem), 0, 0, 0]);
+        if (sim.events.some(e => e.t === 'car') && sim.gs.frame > GO_FRAME) touchF++;
+      }
+      unfinished += sim.cars.filter(c => !c.st.fin).length;
+    }
+    ok(touchF / FPS < lim && unfinished === 0, `나 실력 ${meSkill}: 9판 합계 접촉 ${(touchF / FPS).toFixed(1)}초(<${lim}), 미완주 ${unfinished}`);
+  }
+}
+
+// 10) ESC 가 평범한 조작을 방해하지 않는다 (3차 독립검증: 반대 조향 개입이 너무 넓었다)
+//     가벼운 차선 변경에서 보조 켬이 끔보다 3.2km/h 넘게 느려지지 않고, 앞바퀴굴림 사이드브레이크 드리프트 뒤
+//     카운터+가속으로 빠져나오는 속도가 수정 전(콩알 2.1·마실 24.2·번개 36.9km/h)으로 돌아가지 않는다
+{
+  console.log('[ESC 가 평범한 조작을 방해하지 않음]');
+  const { lane, hbRecover } = await import('./debug/_lane.mjs');
+  for (const spec of CARS) {
+    const loss = lane(spec, false) - lane(spec, true);
+    ok(loss < 3.2, `${spec.name}: 차선 변경 뒤 보조 켬 손해 ${loss.toFixed(1)}km/h`);
+  }
+  for (const [id, min] of [['kongal', 8], ['masil', 35], ['beongae', 45]]) {
+    const spec = CARS.find(s => s.id === id), v = hbRecover(spec, true);
+    ok(v >= min, `${spec.name}: 드리프트 뒤 카운터+가속 탈출 ${v.toFixed(1)}km/h (≥${min})`);
+  }
+}
+
 console.log(fail ? `\n실패 ${fail}개` : '\n전부 통과');
 process.exit(fail ? 1 : 0);

@@ -473,7 +473,9 @@ export class Car {
       // 뒷바퀴가 회전 방향으로 한계 넘게 미끄러지기 시작해도 개입 (회전 속도만 보면 제동 중 서서히 도는 걸 늦게 잡는다)
       const vlatR = vx * r00 + vy * r10 + vz * r20 + yaw * wh[2].z;
       if (vlatR * yaw < 0) over = Math.max(over, (Math.abs(vlatR) / Math.abs(vlong) - spec.tire.ap) * 4);
-      if (over > 0) {
+      // 반대로 꺾은 상태의 개입은 제동 중일 때만 (3차 독립검증: 평소 좌우 전환의 회전 지연이나 사이드브레이크
+      // 드리프트 뒤 카운터+가속에서도 켜져 가속을 끊고 앞바퀴굴림 차를 더 돌렸다)
+      if (over > 0 && (yaw * ref >= 0 || Math.abs(ref) < 0.05 || s.brk > 0.1)) {
         escWheel = yaw > 0 ? 1 : 0;              // 왼쪽으로 돌고 있으면 오른쪽 앞(1)
         escT = Math.min(over * 6000, spec.brake.T * 0.35);
         escRel = 1 - Math.min(0.8, over * 3);      // 나머지 바퀴 브레이크는 풀어 준다(앞이 이미 접지 한계면 한쪽만 더 잡아서는 회전을 못 막고, 뒤가 접지를 되찾는다)
