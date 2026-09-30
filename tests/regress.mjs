@@ -90,5 +90,19 @@ for (const spec of CARS) {
   ok(pairs === 0, `빌딩 ${bs.length}채 중 겹치는 쌍 ${pairs}`);
 }
 
+// 7) 봇이 혼자 달릴 때 세게 벽에 박거나 되돌리기(스핀·역주행)가 없다
+//    (휘는 제동 구간 마찰원, 내리막 제동, 코너 탈출 가속, 카운터스티어 중 ESC — 2026-10-01)
+{
+  console.log('[봇 혼자 주행 30조합]');
+  const { soloRun } = await import('./laps.mjs');
+  let big = 0, rs = 0; const bad = [];
+  for (const t of ['circuit', 'mountain', 'city']) for (const cs of CARS) {
+    const r = soloRun(t, cs.id, 2);
+    big += r.bigWall; rs += r.resets;
+    if (r.bigWall || r.resets) bad.push(`${t}/${cs.name} 강한 벽 ${r.bigWall} 되돌리기 ${r.resets}`);
+  }
+  ok(big === 0 && rs === 0, `강한 벽 충돌 ${big}, 되돌리기 ${rs} ${bad.join(', ')}`);
+}
+
 console.log(fail ? `\n실패 ${fail}개` : '\n전부 통과');
 process.exit(fail ? 1 : 0);

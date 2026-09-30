@@ -8,6 +8,7 @@
 import { datan, clamp } from './dmath.js';
 import { pack } from './input.js';
 import { G } from './car.js';
+import { carStats } from './cars.js';
 
 const lineCache = new Map();
 
@@ -69,15 +70,19 @@ export function prepareBot(T, spec) {
     v[i] = den > 1e-6 ? Math.min(vtop, Math.sqrt(mu * G / den)) : vtop;
   }
   // 뒤에서부터: 다음 지점 속도까지 제동으로 줄일 수 있어야 한다
+  // 돌면서 쓰는 접지만큼 제동에 쓸 몫이 준다(마찰원) — 안 그러면 휘는 제동 구간에서 바깥으로 밀려 나간다
   const ab = spec.tire.mu * 0.80 * G;
   for (let pass = 0; pass < 2; pass++) {
     for (let q = n - 1; q >= 0; q--) {
       const i = q, j = (q + 1) % n;
-      const vb = Math.sqrt(v[j] * v[j] + 2 * (ab + aero * v[j] * v[j] * spec.tire.mu) * T.ds);
+      const aT = ab + aero * v[j] * v[j] * spec.tire.mu, aL = v[j] * v[j] * Math.abs(k[j]) * 1.5;
+      const ax = Math.sqrt(Math.max(aT * aT - aL * aL, aT * aT * 0.0625));
+      // 내리막이면 중력이 앞으로 밀어 제동에 쓸 몫이 준다(오르막은 반대) — 산길 내리막 코너에서 스핀하던 원인
+      const vb = Math.sqrt(v[j] * v[j] + 2 * Math.max(ax + G * T.grade[j], ax * 0.3) * T.ds);
       if (vb < v[i]) v[i] = vb;
     }
   }
-  return { v };
+  return { v, a: ab, pw: carStats(spec).pwr * spec.eff };
 }
 
 /** 자리 k 의 차를 봇이 운전할 때의 입력 */
@@ -85,7 +90,7 @@ export function prepareBot(T, spec) {
 // (시뮬 밖에서 st 를 건드리면 그 화면만 해시가 달라진다 — 독립검증 지적)
 export function botInput(sim, k, skill = 0.95, mem = sim.cars[k].st) {
   const c = sim.cars[k], st = c.st, T = sim.T, n = T.n;
-  const { o } = racingLine(T);
+  const { o, k: kl } = racingLine(T);
   const prof = c.botData.v;
   const L = sim.world.locate(st.px, st.pz, st.hint);
   const i = L.i;
@@ -134,6 +139,15 @@ export function botInput(sim, k, skill = 0.95, mem = sim.cars[k].st) {
   if (dodge) steer = clamp(steer + dodge * 0.25, -1, 1);
   let thr = 0, brk = 0;
   if (v < vt) thr = clamp((vt - v) * 0.6 + 0.3, 0, 1);
+  // 코너 탈출: 도는 데 쓰는 접지만큼 가속을 줄인다(마찰원) — 고출력 차가 가속하며 바깥 벽으로 밀려 나가지 않게
+  if (thr > 0) {
+    let kk = 0;
+    for (let q = 0; q <= 6; q++) kk = Math.max(kk, Math.abs(kl[(i + q) % n]));
+    const aT = c.botData.a, aL = v * v * kk * 1.5;
+    const ax = Math.sqrt(Math.max(aT * aT - aL * aL, aT * aT * 0.0625));
+    const acar = Math.min(c.botData.pw / Math.max(Math.abs(v), 5), aT);
+    thr = Math.min(thr, clamp(ax / acar, 0.15, 1));
+  }
   else if (v > vt + 0.8) brk = clamp((v - vt) * 0.3, 0, 1);
   // 옆으로 크게 미끄러지면 가속을 풀어 준다
   const vlat = st.vx * lx + st.vz * lz;

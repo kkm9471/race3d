@@ -461,16 +461,22 @@ export class Car {
 
     // 차체자세제어(ESC, 주행 보조가 켜져 있을 때): 차가 조향보다 많이 돌면(오버스티어)
     // 바깥 앞바퀴에 브레이크를 걸어 돌아가는 것을 막는다. 사이드브레이크 중에는 끈다(드리프트 허용).
-    let escWheel = -1, escT = 0;
+    let escWheel = -1, escT = 0, escRel = 1;
     if (this.tcsOn && !s.hb && Math.abs(vlong) > 5) {
       const yaw = ox * r01 + oy * r11 + oz * r21;
       const lim = spec.tire.mu * G / Math.abs(vlong);
       let ref = vlong * delta / spec.wb;
       if (ref > lim) ref = lim; else if (ref < -lim) ref = -lim;
-      const over = Math.abs(yaw) - Math.abs(ref) - 0.06;
-      if (over > 0 && (yaw * ref >= 0 || Math.abs(ref) < 0.05)) {
+      // 반대로 꺾고 있으면(카운터스티어) 그 방향 회전은 전부 과한 회전이다 — 전에는 이때 ESC 가 빠져서
+      // 내리막 제동 코너에서 카운터를 대는 순간 차가 돌아 버렸다
+      let over = Math.abs(yaw) - (yaw * ref > 0 ? Math.abs(ref) : 0) - 0.06;
+      // 뒷바퀴가 회전 방향으로 한계 넘게 미끄러지기 시작해도 개입 (회전 속도만 보면 제동 중 서서히 도는 걸 늦게 잡는다)
+      const vlatR = vx * r00 + vy * r10 + vz * r20 + yaw * wh[2].z;
+      if (vlatR * yaw < 0) over = Math.max(over, (Math.abs(vlatR) / Math.abs(vlong) - spec.tire.ap) * 4);
+      if (over > 0) {
         escWheel = yaw > 0 ? 1 : 0;              // 왼쪽으로 돌고 있으면 오른쪽 앞(1)
         escT = Math.min(over * 6000, spec.brake.T * 0.35);
+        escRel = 1 - Math.min(0.8, over * 3);      // 나머지 바퀴 브레이크는 풀어 준다(앞이 이미 접지 한계면 한쪽만 더 잡아서는 회전을 못 막고, 뒤가 접지를 되찾는다)
         s.thr *= 1 - Math.min(0.7, over * 3);
       }
     }
@@ -550,7 +556,7 @@ export class Car {
       const K = Fmax * slope * tire.muX * R / (tire.kp * vref);
       let om = w.om + dt * (drive[i] - Fl * R) / Iw / (1 + dt * R * K / Iw);
       // 브레이크 (ABS 는 바퀴가 잠기려 하면 풀었다 잡는다)
-      let bw = bT * (W.front ? biasF : 1 - biasF) / 2 + (i === escWheel ? escT : 0);
+      let bw = bT * (W.front ? biasF : 1 - biasF) / 2 * (escWheel >= 0 && i !== escWheel ? escRel : 1) + (i === escWheel ? escT : 0);
       if (this.absOn && bw > 0) {
         // 최대 접지 미끄럼률(kp) 근처를 유지하도록 브레이크 압력을 조절
         const over = (-kappa - tire.kp * 0.95) / tire.kp;
