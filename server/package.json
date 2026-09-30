@@ -1,0 +1,7 @@
+{
+  "name": "race3d-rooms",
+  "private": true,
+  "version": "1.0.0",
+  "scripts": { "dev": "wrangler dev --port 8797 --local", "deploy": "wrangler deploy" },
+  "devDependencies": { "wrangler": "^4.0.0" }
+}

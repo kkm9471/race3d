@@ -1,0 +1,117 @@
+<!doctype html>
+<html lang="ko">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>한판 레이스</title>
+<meta name="description" content="링크 하나로 셋이 함께 타는 3D 레이싱">
+<link rel="icon" href="data:image/svg+xml,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 64 64'><rect width='64' height='64' rx='14' fill='%23c8141e'/><path d='M12 42h40l-6-14H26l-6 6h-6z' fill='white'/><circle cx='22' cy='44' r='5' fill='%23111'/><circle cx='44' cy='44' r='5' fill='%23111'/></svg>">
+<link rel="stylesheet" href="style.css?v=1">
+<script type="importmap">
+{ "imports": {
+  "three": "./vendor/three/three.module.js",
+  "three/addons/": "./vendor/three/addons/"
+} }
+</script>
+</head>
+<body>
+<canvas id="gl"></canvas>
+<div id="hud"></div>
+
+<!-- 첫 화면 -->
+<section id="menu" class="screen">
+  <div class="card wide">
+    <h1>한판 레이스 <small>3D 멀티 레이싱</small></h1>
+    <div class="row">
+      <label>내 이름 <input id="m-name" maxlength="12" placeholder="이름 (최대 12자)" autocomplete="off"></label>
+    </div>
+    <div class="row join">
+      <label>방 코드 <input id="m-room" maxlength="6" placeholder="예: ABCD" autocomplete="off" spellcheck="false"></label>
+      <button id="m-join" class="primary">방 들어가기</button>
+      <button id="m-new">새 방 만들기</button>
+    </div>
+    <div class="row">
+      <button id="m-solo">혼자 연습하기</button>
+      <span class="grow"></span>
+      <label class="inline">그래픽
+        <select id="m-q"><option value="low">낮음</option><option value="medium">보통</option><option value="high">높음</option></select>
+      </label>
+    </div>
+    <div id="m-msg" class="msg"></div>
+    <details class="keys"><summary>조작법</summary>
+      <table>
+        <tr><td>↑ / W</td><td>가속</td><td>↓ / S</td><td>브레이크 · 멈춘 뒤 계속 누르면 후진</td></tr>
+        <tr><td>← → / A D</td><td>핸들</td><td>Space</td><td>사이드브레이크 (드리프트 시작)</td></tr>
+        <tr><td>R</td><td>차 되돌리기 (길 한가운데로)</td><td>C</td><td>시점 바꾸기</td></tr>
+        <tr><td>B</td><td>뒤 보기</td><td>M</td><td>소리 켜기/끄기</td></tr>
+        <tr><td>게임패드</td><td colspan="3">왼스틱 핸들 · RT 가속 · LT 브레이크 · A 사이드 · Y 되돌리기 · X 뒤보기 · 스틱 누르기 시점</td></tr>
+      </table>
+    </details>
+  </div>
+</section>
+
+<!-- 대기실 -->
+<section id="lobby" class="screen hidden">
+  <div class="card wide">
+    <div class="lobby-head">
+      <div>방 코드 <b id="l-code" class="code">----</b> <button id="l-copy" class="small">초대 문구 복사</button></div>
+      <div id="l-conn" class="conn">연결 중…</div>
+    </div>
+    <div class="lobby-grid">
+      <div>
+        <h3>참가자</h3>
+        <ul id="l-players" class="players"></ul>
+        <h3>트랙 <small id="l-host-note"></small></h3>
+        <div id="l-tracks" class="tracks"></div>
+        <div class="row">
+          <label class="inline">랩 수 <select id="l-laps"><option>1</option><option>2</option><option selected>3</option><option>4</option><option>5</option></select></label>
+          <label class="inline"><input type="checkbox" id="l-assist" checked> 주행 보조(ABS·TCS·ESC)</label>
+          <label class="inline solo-only"><span>AI 상대</span> <select id="l-bots"><option>0</option><option selected>2</option><option>3</option></select></label>
+        </div>
+      </div>
+      <div>
+        <h3>내 차 고르기</h3>
+        <div id="l-cars" class="cars"></div>
+      </div>
+    </div>
+    <div class="row end">
+      <button id="l-leave">나가기</button>
+      <span class="grow"></span>
+      <span id="l-msg" class="msg"></span>
+      <button id="l-ready" class="primary">준비</button>
+      <button id="l-start" class="primary hidden">출발!</button>
+    </div>
+  </div>
+</section>
+
+<!-- 불러오는 중 -->
+<section id="loading" class="screen hidden"><div class="card"><div id="ld-text">트랙을 만드는 중…</div><div class="bar"><div id="ld-bar"></div></div></div></section>
+
+<!-- 결과 -->
+<section id="results" class="screen hidden">
+  <div class="card wide">
+    <h2 id="r-title">결과</h2>
+    <table id="r-table" class="results"></table>
+    <div id="r-rec" class="rec"></div>
+    <div class="row end"><span class="grow"></span><button id="r-back" class="primary">대기실로</button></div>
+  </div>
+</section>
+
+<!-- 일시정지 / 나가기 -->
+<section id="pause" class="screen hidden">
+  <div class="card">
+    <h2 id="p-title">일시정지</h2>
+    <div class="row col">
+      <button id="p-resume" class="primary">계속</button>
+      <button id="p-restart">처음부터 다시</button>
+      <label class="inline">그래픽 <select id="p-q"><option value="low">낮음</option><option value="medium">보통</option><option value="high">높음</option></select></label>
+      <button id="p-quit">레이스 나가기</button>
+    </div>
+  </div>
+</section>
+
+<div id="toast"></div>
+<noscript>이 게임은 자바스크립트가 필요합니다.</noscript>
+<script type="module" src="src/main.js?v=1"></script>
+</body>
+</html>
