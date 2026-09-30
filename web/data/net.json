@@ -1,1 +1,3 @@
-{ "ws": "" }
+{
+  "ws": "wss://race3d-rooms.kkm9471.workers.dev/ws"
+}
