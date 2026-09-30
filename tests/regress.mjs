@@ -104,5 +104,27 @@ for (const spec of CARS) {
   ok(big === 0 && rs === 0, `강한 벽 충돌 ${big}, 되돌리기 ${rs} ${bad.join(', ')}`);
 }
 
+// 8) 여러 봇이 같이 달릴 때 범퍼로 밀거나 나란히 비비지 않는다 (혼자 연습 구성: 나 + AI 3대 비슷한 급)
+{
+  console.log('[봇 4대 레이스 접촉]');
+  const { carStats } = await import('../web/src/sim/cars.js');
+  const { GO_FRAME } = await import('../web/src/sim/race.js');
+  let touchF = 0, rs = 0, unfinished = 0;
+  for (const t of ['circuit', 'mountain', 'city']) for (const me of ['masil', 'baram', 'cheondung']) {
+    const meS = CARS.find(c => c.id === me);
+    const pool = CARS.filter(c => c.id !== me).sort((a, b) => Math.abs(carStats(a).pwr - carStats(meS).pwr) - Math.abs(carStats(b).pwr - carStats(meS).pwr));
+    const players = [{ car: me, name: 'me', bot: true, botSkill: 0.95, abs: true, tcs: true }];
+    for (let i = 0; i < 3; i++) players.push({ car: pool[i].id, name: 'AI' + i, bot: true, botSkill: 0.86 + i * 0.03, abs: true, tcs: true });
+    const sim = new Sim({ track: t, laps: 2, players });
+    while (!sim.gs.over && sim.gs.frame < FPS * 400) {
+      sim.step(players.map(() => 0));
+      if (sim.events.some(e => e.t === 'car') && sim.gs.frame > GO_FRAME) touchF++;
+      rs += sim.events.filter(e => e.t === 'reset').length;
+    }
+    unfinished += sim.cars.filter(c => !c.st.fin).length;
+  }
+  ok(touchF / FPS < 10 && rs <= 2 && unfinished === 0, `9판 합계 접촉 시간 ${(touchF / FPS).toFixed(1)}초(<10), 되돌리기 ${rs}(≤2), 미완주 ${unfinished}`);
+}
+
 console.log(fail ? `\n실패 ${fail}개` : '\n전부 통과');
 process.exit(fail ? 1 : 0);

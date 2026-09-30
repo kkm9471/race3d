@@ -99,23 +99,14 @@ export function botInput(sim, k, skill = 0.95, mem = sim.cars[k].st) {
   const lx = 1 - 2 * (qy * qy + qz * qz), lz = 2 * (qx * qz - qw * qy);
   const v = st.vx * fx + st.vz * fz;
   const sp = Math.sqrt(st.vx * st.vx + st.vz * st.vz);
-  // 조향: 앞쪽 라인 위 한 점
-  const Ld = 6 + 0.42 * Math.abs(v);
-  const j = (i + Math.round(Ld / T.ds)) % n;
-  const tx = T.x[j] + T.lx[j] * o[j], tz = T.z[j] + T.lz[j] * o[j];
-  const dx = tx - st.px, dz = tz - st.pz;
-  const lat = dx * lx + dz * lz, fw = dx * fx + dz * fz;
-  const curv = 2 * lat / Math.max(lat * lat + fw * fw, 1);
-  const delta = datan(c.P.spec.wb * curv);
-  const lim = c.steerLimit();
-  let steer = clamp(-delta / lim, -1, 1);
   // 속도
   let vt = Infinity;
   const ahead = 2 + Math.round(Math.abs(v) * 0.25 / T.ds);
   for (let q = 0; q <= ahead; q++) vt = Math.min(vt, prof[(i + q) % n]);
   vt *= skill;
-  // 바로 앞에 느린 차가 있으면 속도를 맞추고 옆으로 비킨다(단순 회피)
-  let dodge = 0;
+  // 다른 차: 앞차와는 속도에 맞는 거리를 두고(범퍼로 밀지 않게), 내가 더 빠르면 빈 쪽으로 비켜 추월,
+  // 나란히면 서로 옆으로 벌린다. 옆 위치는 트랙 기준 가로 위치(off)로 정한다.
+  let want = null;
   for (let q = 0; q < sim.cars.length; q++) {
     if (q === k) continue;
     const o = sim.cars[q].st;
@@ -123,20 +114,29 @@ export function botInput(sim, k, skill = 0.95, mem = sim.cars[k].st) {
     const ox = o.px - st.px, oz = o.pz - st.pz;
     const ahead = ox * fx + oz * fz, side = ox * lx + oz * lz;
     const len = (c.P.Lb + sim.cars[q].P.Lb) / 2;
-    if (ahead > len * 0.9 && ahead < 8 + Math.abs(v) * 0.6 && Math.abs(side) < 2.1) {
-      // 정말 앞에 있다 → 속도를 맞추고 비킬 쪽으로
-      const ov = o.vx * fx + o.vz * fz;
-      if (ov < v) {
-        vt = Math.min(vt, ov + Math.max(0, ahead - len - 2) * 0.5);
-        dodge = side >= 0 ? -1 : 1;
-      }
+    const away = st.off >= o.off ? 1 : -1;            // 상대에게서 멀어지는 가로 방향
+    if (ahead > len * 0.9 && ahead < 10 + Math.abs(v) * 0.8 && Math.abs(side) < 2.3) {
+      const ov = o.vx * fx + o.vz * fz, gap = ahead - len;
+      if (vt > ov + 1.5) want = o.off + away * 3.2;      // 더 빠르다 → 옆으로 빠져 추월
+      // 옆으로 충분히 벌어지기 전에는 차간 거리를 지킨다
+      if (Math.abs(side) < 1.9) vt = Math.min(vt, ov + (gap - (2 + Math.abs(v) * 0.12)) * 0.6);
     } else if (Math.abs(ahead) <= len * 0.9 && Math.abs(side) < 2.8) {
-      // 나란히 붙어 있다 → 속도는 그대로, 옆으로만 살짝 벌린다
-      dodge = side >= 0 ? -0.6 : 0.6;
-      if (ahead > 0) vt *= 0.9;     // 내가 조금 뒤면 양보해서 떨어진다(좁은 길에서 계속 비비지 않게)
+      want = st.off + away * 1.5;                     // 나란히 → 옆으로 벌린다
+      if (ahead > 0) vt *= 0.9;                       // 조금 뒤인 쪽이 양보(좁은 길에서 계속 비비지 않게)
     }
   }
-  if (dodge) steer = clamp(steer + dodge * 0.25, -1, 1);
+  // 조향: 앞쪽 라인 위 한 점 (추월·벌리기 중이면 그 가로 위치로)
+  const Ld = 6 + 0.42 * Math.abs(v);
+  const j = (i + Math.round(Ld / T.ds)) % n;
+  const room = Math.max(0, T.hw[j] - 1.3);
+  const oj = want === null ? o[j] : clamp(want, -room, room);
+  const tx = T.x[j] + T.lx[j] * oj, tz = T.z[j] + T.lz[j] * oj;
+  const dx = tx - st.px, dz = tz - st.pz;
+  const lat = dx * lx + dz * lz, fw = dx * fx + dz * fz;
+  const curv = 2 * lat / Math.max(lat * lat + fw * fw, 1);
+  const delta = datan(c.P.spec.wb * curv);
+  const lim = c.steerLimit();
+  const steer = clamp(-delta / lim, -1, 1);
   let thr = 0, brk = 0;
   if (v < vt) thr = clamp((vt - v) * 0.6 + 0.3, 0, 1);
   // 코너 탈출: 도는 데 쓰는 접지만큼 가속을 줄인다(마찰원) — 고출력 차가 가속하며 바깥 벽으로 밀려 나가지 않게
