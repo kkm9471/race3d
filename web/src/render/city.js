@@ -65,7 +65,15 @@ export function buildCity(T, H, group, disposables, q) {
     return true;
   };
   const boxes = [];
-  const overlaps = (x, z, r) => boxes.some(b => Math.hypot(b.x - x, b.z - z) < b.r + r + 1.5);
+  // 정확한 회전 사각형 겹침 검사(분리축) — 원으로 근사하면 모서리끼리 겹친다 (2차 독립검증)
+  const ext = (b, ax, az) => b.w / 2 * Math.abs(b.ux * ax + b.uz * az) + b.d / 2 * Math.abs(b.vx * ax + b.vz * az);
+  const overlaps = c => boxes.some(b => {
+    const dx = c.x - b.x, dz = c.z - b.z;
+    for (const [ax, az] of [[b.ux, b.uz], [b.vx, b.vz], [c.ux, c.uz], [c.vx, c.vz]]) {
+      if (Math.abs(dx * ax + dz * az) >= ext(b, ax, az) + ext(c, ax, az) + 1.5) return false;
+    }
+    return true;
+  });
   // 도로 양옆을 따라 빌딩 줄 (앞줄) + 뒤쪽 채우기
   let seed = 7;
   const rnd = () => { seed = (seed * 16807) % 2147483647; return seed / 2147483647; };
@@ -76,10 +84,12 @@ export function buildCity(T, H, group, disposables, q) {
         const r = Math.hypot(w, d) / 2;
         const back = (side > 0 ? T.wallL[i] : T.wallR[i]) + 5 + r * 0.8 + row * 32 + rnd() * 6;
         const x = T.x[i] + T.lx[i] * side * back, z = T.z[i] + T.lz[i] * side * back;
-        if (!clearOfRoad(x, z, r * 0.8) || overlaps(x, z, r * 0.75)) continue;
+        // 너비축 = 트랙 옆방향, 깊이축 = 트랙 진행방향 (yaw = atan2(tx, tz) 회전과 같다)
+        const cand = { x, z, w, d, ux: T.lx[i], uz: T.lz[i], vx: T.tx[i], vz: T.tz[i] };
+        if (!clearOfRoad(x, z, r * 0.8) || overlaps(cand)) continue;
         const hgt = row === 0 ? 10 + rnd() * 35 : 18 + rnd() * 70;
         const yaw = Math.atan2(T.tx[i], T.tz[i]);
-        boxes.push({ x, z, r: r * 0.75, w, d, h: hgt, yaw, y: T.y[i] - 1 });
+        boxes.push({ ...cand, r: r * 0.75, h: hgt, yaw, y: T.y[i] - 1 });
       }
     }
   }

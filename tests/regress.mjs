@@ -50,5 +50,45 @@ for (const track of ['circuit', 'mountain']) {
   const b = JSON.stringify(sim.cars.map(c => [c.st.fin, c.st.lap, c.st.prog]));
   ok(a === b, '종료 뒤 20초 더 계산해도 완주·랩·진행거리 그대로');
 }
+// 5) 스핀 뒤 뒤로 굴러갈 때 회전계가 레드라인 위에 붙지 않는다 (2차 독립검증)
+console.log('[스핀 후 회전계]');
+for (const spec of CARS) {
+  const { c, w } = newCar(spec, { tcs: false });
+  c.setSpeed(108 / 3.6);
+  for (let f = 0; f < FPS * 1.5; f++) frame(c, w, pack({ steer: 1, hb: 1, kb: 0 }));
+  let over = 0;
+  for (let f = 0; f < FPS * 10; f++) { frame(c, w, pack({ kb: 0 })); if (c.st.rpm > spec.engine.redline * 1.02) over++; }
+  ok(over === 0, `${spec.name}: 레드라인 넘은 시간 ${(over / FPS).toFixed(1)}초`);
+}
+
+// 6) 도심 빌딩끼리 겹치지 않는다
+{
+  console.log('[도심 빌딩 겹침]');
+  const THREE = await import('three');
+  const { buildCity } = await import('../web/src/render/city.js');
+  const { getTrack } = await import('../web/src/sim/race.js');
+  const { TrackWorld } = await import('../web/src/sim/track.js');
+  const T = getTrack('city'), W = new TrackWorld(T);
+  const g = new THREE.Group();
+  buildCity(T, (i, d) => W.heightAt(i, 0, d).h, g, [], { detail: 1 });
+  const im = g.children.find(o => o.isInstancedMesh && o.count > 50);
+  const m = new THREE.Matrix4(), p = new THREE.Vector3(), q = new THREE.Quaternion(), sc = new THREE.Vector3();
+  const bs = [];
+  for (let i = 0; i < im.count; i++) {
+    im.getMatrixAt(i, m); m.decompose(p, q, sc);
+    const ux = new THREE.Vector3(1, 0, 0).applyQuaternion(q), vz = new THREE.Vector3(0, 0, 1).applyQuaternion(q);
+    bs.push({ x: p.x, z: p.z, w: sc.x, d: sc.z, ux: ux.x, uz: ux.z, vx: vz.x, vz: vz.z });
+  }
+  const ext = (b, ax, az) => b.w / 2 * Math.abs(b.ux * ax + b.uz * az) + b.d / 2 * Math.abs(b.vx * ax + b.vz * az);
+  let pairs = 0;
+  for (let i = 0; i < bs.length; i++) for (let j = i + 1; j < bs.length; j++) {
+    const a = bs[i], c = bs[j], dx = c.x - a.x, dz = c.z - a.z;
+    let sep = false;
+    for (const [ax, az] of [[a.ux, a.uz], [a.vx, a.vz], [c.ux, c.uz], [c.vx, c.vz]]) if (Math.abs(dx * ax + dz * az) >= ext(a, ax, az) + ext(c, ax, az) - 0.01) { sep = true; break; }
+    if (!sep) pairs++;
+  }
+  ok(pairs === 0, `빌딩 ${bs.length}채 중 겹치는 쌍 ${pairs}`);
+}
+
 console.log(fail ? `\n실패 ${fail}개` : '\n전부 통과');
 process.exit(fail ? 1 : 0);

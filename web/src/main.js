@@ -233,7 +233,7 @@ class Game {
     if (this.slowSec < 0) this.slowSec = 0;
     if (this.slowSec > 4 && gfx.scaleDyn <= 0.61 && gfx.qKey !== 'low') {
       const next = gfx.qKey === 'high' ? 'medium' : 'low';
-      gfx.setQuality(next); gfx.scaleDyn = 0.8; gfx.resize();
+      gfx.setQuality(next); gfx.scaleDyn = 0.8; gfx.resize(); syncBlobs();
       $('m-q').value = next; $('p-q').value = next;
       toast(`화면이 느려서 그래픽을 "${gfx.q.name}"(으)로 낮췄습니다`, 3500);
       this.slowSec = 0;
@@ -322,8 +322,12 @@ if (!CAR_BY_ID[app.car]) app.car = 'baram';
 
 $('m-name').value = Q.get('name') || store.get('name', '');
 $('m-room').value = Q.get('auto') || store.sget('room', '');
-$('m-q').onchange = e => { gfx.setQuality(e.target.value); store.set('quality', e.target.value); $('p-q').value = e.target.value; };
-$('p-q').onchange = e => { gfx.setQuality(e.target.value); store.set('quality', e.target.value); $('m-q').value = e.target.value; if (app.game) toast('트랙 품질(나무 수 등)은 다음 레이스부터 적용됩니다'); };
+/** 그림자맵을 끄고 켤 때 차 밑 그림자판도 맞춘다 (안 하면 품질을 바꾼 뒤 차 그림자가 아예 없어진다) */
+function syncBlobs() {
+  for (const v of [app.game && app.game.view, bgView && bgView.v]) if (v) for (const c of v.cars) c.mesh.userData.blob.visible = !gfx.q.shadow;
+}
+$('m-q').onchange = e => { gfx.setQuality(e.target.value); store.set('quality', e.target.value); $('p-q').value = e.target.value; syncBlobs(); };
+$('p-q').onchange = e => { gfx.setQuality(e.target.value); store.set('quality', e.target.value); $('m-q').value = e.target.value; syncBlobs(); if (app.game) toast('트랙 품질(나무 수 등)은 다음 레이스부터 적용됩니다'); };
 
 function myName() {
   const n = cleanName($('m-name').value);
@@ -334,6 +338,10 @@ function myName() {
 
 $('m-solo').onclick = () => {
   const n = cleanName($('m-name').value) || '나';
+  // 방 들어가기가 진행 중이었으면 취소 (늦게 온 입장 응답이 혼자 연습을 끊지 않게)
+  app.joinSeq = (app.joinSeq || 0) + 1;
+  if (app.net) { app.net.close(); app.net = null; }
+  $('m-msg').textContent = '';
   app.solo = true;
   openLobby(null, n);
 };
@@ -373,7 +381,7 @@ function renderCars() {
     b.append(t, d, bars);
     const desc = document.createElement('div'); desc.className = 's'; desc.textContent = c.desc; desc.style.marginTop = '4px';
     b.append(desc);
-    b.onclick = () => { app.car = c.id; store.set('car', c.id); renderCars(); if (app.net) app.net.send({ t: 'car', car: c.id }); updateLobby(); };
+    b.onclick = () => { app.car = c.id; store.set('car', c.id); renderCars(); if (app.net) { app.net.car = c.id; app.net.send({ t: 'car', car: c.id }); } updateLobby(); };
     box.appendChild(b);
   }
 }
@@ -431,11 +439,11 @@ function updateLobby() {
   const allReady = L && L.players.filter(p => p.conn).every(p => p.ready);
   $('l-start').classList.toggle('hidden', !isHost);
   $('l-start').disabled = !app.solo && !(allReady && L.phase === 'lobby');
-  $('l-msg').textContent = app.solo ? '' : L && L.phase === 'race' ? '레이스 진행 중 — 끝나면 같이 탈 수 있습니다 (관전 가능)' : isHost ? (allReady ? '모두 준비됐습니다. 출발을 누르세요.' : '모두 준비되면 출발할 수 있습니다.') : (me && me.ready ? '방장이 출발하기를 기다리는 중…' : '차를 고르고 준비를 누르세요.');
+  $('l-msg').textContent = app.solo ? '' : L && L.phase === 'race' ? '레이스 진행 중 — 끝나면 같이 탈 수 있습니다' : isHost ? (allReady ? '모두 준비됐습니다. 출발을 누르세요.' : '모두 준비되면 출발할 수 있습니다.') : (me && me.ready ? '방장이 출발하기를 기다리는 중…' : '차를 고르고 준비를 누르세요.');
 }
 
 $('l-laps').onchange = e => { app.laps = +e.target.value; if (app.net) app.net.send({ t: 'set', laps: app.laps }); };
-$('l-assist').onchange = e => { app.assist = e.target.checked; store.set('assist', app.assist ? '1' : '0'); if (app.net) app.net.send({ t: 'assist', on: app.assist }); };
+$('l-assist').onchange = e => { app.assist = e.target.checked; store.set('assist', app.assist ? '1' : '0'); if (app.net) { app.net.assist = app.assist; app.net.send({ t: 'assist', on: app.assist }); } };
 $('l-bots').onchange = e => { app.bots = +e.target.value; };
 $('l-ready').onclick = () => { const me = app.lobby && app.lobby.players.find(p => p.id === app.myId); if (app.net) app.net.send({ t: 'ready', on: !(me && me.ready) }); };
 $('l-copy').onclick = async () => {
@@ -460,13 +468,16 @@ $('p-quit').onclick = () => {
   const g = app.game;
   // 멀티에서 나가면 내 차를 "끊김"으로 알린다 → 다른 화면에서 유령이 되어 비키고, 완주 판정을 막지 않는다
   if (g && g.net && g.local >= 0) g.net.send({ t: 'in', e: [[++g.seq, g.session.frame + INPUT_DELAY, NEUTRAL | (1 << 21)]] });
-  if (g && g.net) { app.inRace = false; app.early = []; }
+  if (g && g.net) { app.inRace = false; app.early = []; app.leftRace = g.startAt; }
   if (app.game) { app.game.stop(); app.game = null; }
   if (app.solo) openLobby(null, app.name);
   else { show('lobby'); startBackground(); updateLobby(); }
 };
 
 function leaveToMenu() {
+  app.launchId = (app.launchId || 0) + 1;
+  app.joinSeq = (app.joinSeq || 0) + 1;
+  $('m-msg').textContent = '';
   if (app.game) { app.game.stop(); app.game = null; }
   if (app.net) { app.net.close(); app.net = null; }
   app.lobby = null; app.solo = false;
@@ -490,12 +501,16 @@ function launch(cfg, localSlot, net, startAt, names, log = []) {
   stopBackground();
   show('loading');
   $('ld-bar').style.width = '30%';
+  const id = app.launchId = (app.launchId || 0) + 1;
   setTimeout(() => {
+    if (id !== app.launchId) return;              // 그사이 다른 출발·취소가 있었다
+    if (app.game) { app.game.stop(); app.game = null; }
     try {
       app.game = new Game({
         cfg, localSlot, net, startAt, names, bot: Q.get('bot') === '1',
         onEnd: (res, g) => {
           app.game = null;
+          if (net) app.leftRace = startAt;        // 끝낸 레이스로 재접속 때 다시 끌려 들어가지 않게
           window.__lastResults = { res, hash: g.session.sim.hash(), frame: g.session.sim.gs.frame, stats: { ...g.session.stats(), rtt: g.net?.rtt, offset: g.net?.offset },
             ev: g.session.ev, cfg, local: localSlot, sent: window.__sentHashes || {}, desync: !!(g.net && g.net.desync),
             final: Object.fromEntries(g.session.hashes), sentInfo: g.sentInfo || {},
@@ -564,6 +579,7 @@ function wsUrl() {
 
 async function joinRoom(code, name) {
   $('m-msg').textContent = '서버에 연결하는 중…'; $('m-msg').className = 'msg';
+  const seq = app.joinSeq = (app.joinSeq || 0) + 1;
   let url = wsUrl();
   if (!url) {
     try {
@@ -571,17 +587,26 @@ async function joinRoom(code, name) {
       if (r.ok) { const j = await r.json(); url = j.ws || ''; window.__NET = j; }
     } catch { /* */ }
   }
+  if (seq !== app.joinSeq) return;               // 기다리는 사이 취소됨(혼자 연습·나가기)
   if (!url) { $('m-msg').textContent = '실시간 서버 주소가 없습니다(혼자 연습만 가능).'; $('m-msg').className = 'msg err'; return; }
   if (app.net) app.net.close();
   app.solo = false;
   store.sset('room', code);
   const net = new NetClient(url, code, name, token(), app.car, app.assist);
   app.net = net;
-  net.on = {
-    status(txt, ok) { $('l-conn').textContent = txt; $('l-conn').className = 'conn ' + (ok ? 'ok' : 'bad'); },
+  const H = {
+    status(txt, ok) {
+      $('l-conn').textContent = txt; $('l-conn').className = 'conn ' + (ok ? 'ok' : 'bad');
+      // 첫 화면에서 계속 못 붙으면 알아들을 수 있게 알려 준다 (회사망이 막는 경우)
+      if (!ok && net.tries >= 3 && !$('menu').classList.contains('hidden')) {
+        $('m-msg').textContent = '서버에 연결되지 않습니다 — 회사 네트워크가 막았을 수 있습니다. 휴대폰 핫스팟으로 해 보거나 [혼자 연습하기]를 쓰세요. (계속 다시 시도하는 중)';
+        $('m-msg').className = 'msg err';
+      }
+    },
     welcome(msg) {
       app.myId = msg.you;
       app.lobby = msg.lobby;
+      $('m-msg').textContent = '';
       // 같은 레이스 도중 잠깐 끊겼다 붙은 경우: 화면을 다시 만들지 않고 입력 기록만 맞춘다
       const g = app.game;
       if (g && g.net && msg.race && msg.race.startAt === g.startAt) {
@@ -590,6 +615,13 @@ async function joinRoom(code, name) {
       }
       // 끊긴 사이 레이스가 끝났으면 돌던 화면은 멈춘다 (좀비 게임이 대기실 위에서 계속 돌지 않게)
       if (g) { g.stop(); app.game = null; app.inRace = false; }
+      // 스스로 나갔거나 이미 끝낸 레이스로 다시 끌려 들어가지 않는다
+      if (msg.race && msg.race.startAt === app.leftRace) msg.race = null;
+      // 결과를 보고 있던 중이면 결과 화면을 그대로 둔다
+      if (!msg.race && !$('results').classList.contains('hidden')) {
+        $('l-conn').textContent = '연결됨'; $('l-conn').className = 'conn ok';
+        return;
+      }
       openLobby(code, name);
       $('l-conn').textContent = '연결됨'; $('l-conn').className = 'conn ok';
       if (msg.race) enterRace(msg.race, msg.log || []);
@@ -626,16 +658,37 @@ async function joinRoom(code, name) {
     error(code2, text) {
       $('m-msg').textContent = text; $('m-msg').className = 'msg err';
       if (code2 === 'full' || code2 === 'version' || code2 === 'badroom' || code2 === 'replaced') {
+        app.launchId = (app.launchId || 0) + 1;
         if (app.game) { app.game.stop(); app.game = null; }
         app.inRace = false;
         net.close(); app.net = null; show('menu'); startBackground();
       }
+      if (code2 === 'version' || code2 === 'mixed' || code2 === 'racever') offerHardReload(code2 === 'version' ? $('m-msg') : $('l-msg'));
       toast(text, 4000);
     },
     desync(f) { toast('⚠ 세 화면의 계산이 어긋났습니다 (프레임 ' + f + ')', 4000); },
     closed() { /* 재접속은 NetClient 가 한다 */ },
   };
+  // 이미 버려진 연결(나가기·다른 방·혼자 연습)의 늦은 메시지는 무시한다
+  net.on = {};
+  for (const k in H) net.on[k] = (...a) => { if (app.net === net) H[k](...a); };
   net.connect();
+}
+
+/** 새 버전을 확실히 받는 새로고침 — F5 는 GitHub Pages 캐시(최대 10분) 때문에 옛 파일을 쓸 수 있다 */
+async function hardReload() {
+  try {
+    const urls = performance.getEntriesByType('resource').map(e => e.name).filter(u => /\.(js|css|json)(\?|$)/.test(u));
+    await Promise.all([location.href, ...urls].map(u => fetch(u, { cache: 'reload' }).catch(() => {})));
+  } catch { /* */ }
+  location.reload();
+}
+function offerHardReload(where) {
+  if (!where || where.querySelector('button')) return;
+  const b = document.createElement('button');
+  b.className = 'small'; b.textContent = '새 버전 받기'; b.style.marginLeft = '8px';
+  b.onclick = hardReload;
+  where.appendChild(b);
 }
 
 function enterRace(race, log) {

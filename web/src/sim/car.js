@@ -296,7 +296,7 @@ export class Car {
       if (P.driven[0]) cap += ax(0, 1, spec.diff.front) * (spec.drive === 'AWD' ? 1 : 1);
       if (P.driven[2]) cap += ax(2, 3, spec.diff.rear);
       cap *= s.tcs;
-      const rpmNow = Math.max(Math.abs(rpmW), e.idle + (e.launch - e.idle) * thr);
+      const rpmNow = (rpmW < 0 && (g === 1 || g === -1)) ? e.idle + (e.launch - e.idle) * thr : Math.max(Math.abs(rpmW), e.idle + (e.launch - e.idle) * thr);
       const perThr = lerpTable(e.rpm, e.tq, rpmNow) * Math.abs(ratio) * spec.eff;
       if (perThr * thr > cap && perThr > 0) thr = Math.max(0, cap / perThr);
     }
@@ -305,7 +305,8 @@ export class Car {
     if ((Math.abs(rpmW) < e.launch || rpmW < 0) && (g === 1 || g === -1)) {
       // 출발: 클러치가 미끄러지며 붙는다 (엔진 회전은 발진 회전수 쪽으로)
       // 반쯤 물린 클러치도 엔진 관성은 바퀴에 전달한다(없으면 바퀴가 순간적으로 헛돌며 떨린다)
-      rpm = Math.max(Math.abs(rpmW), e.idle + (e.launch - e.idle) * thr);
+      // 바퀴가 기어 반대로 돌면 엔진은 그 바퀴를 따라가지 않는다 (회전계가 레드라인 위에 붙는 것 방지)
+      rpm = rpmW < 0 ? e.idle + (e.launch - e.idle) * thr : Math.max(Math.abs(rpmW), e.idle + (e.launch - e.idle) * thr);
       Te = lerpTable(e.rpm, e.tq, rpm) * thr;
       if (thr < 0.02) Te = 0;          // 가속 안 밟으면 클러치 떼고 굴러간다(시동 꺼짐 흉내 X)
       else this._coupled = true;

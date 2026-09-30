@@ -16,7 +16,8 @@ class Storage {
   async put(k, v) { this.puts++; this.m.set(k, structuredClone(v)); }
 }
 class Sock {
-  constructor(name) { this.name = name; this.out = []; this.att = null; this.closed = null; }
+  // 실제 서버처럼 연결마다 고유번호를 붙여 둔다 (fetch() 가 하는 일)
+  constructor(name) { this.name = name; this.out = []; this.att = { id: null, c: crypto.randomUUID() }; this.closed = null; }
   send(s) { this.out.push(JSON.parse(s)); }
   close(code) { this.closed = code; }
   serializeAttachment(a) { this.att = structuredClone(a); }
@@ -133,9 +134,9 @@ const hi = (room, s, name, tok) => room.webSocketMessage(s, JSON.stringify({ t: 
   await room.webSocketMessage(a, JSON.stringify({ t: 'start' }));
   clearInterval(room.tickTimer);
   now = room.race.startAt + 10000;
-  const e = Array.from({ length: 32 }, (_, i) => [i, 100, 5]);
+  const e = Array.from({ length: 32 }, (_, i) => [i, 100, 5 + i]);
   await room.webSocketMessage(a, JSON.stringify({ t: 'in', e }));
-  ok(room.race.log.length <= 4, `한 프레임에 32개 보냄 → 기록 ${room.race.log.length}개`);
+  ok(room.race.log.length === 1 && room.race.log[0][2] === 36, `한 프레임에 32개 → 기록 ${room.race.log.length}개, 값 ${room.race.log[0]?.[2]} (마지막 값 36 이어야)`);
 }
 
 // 7) 대기실 설정 바꾸기: 바뀐 게 없으면 저장하지 않는다
@@ -167,6 +168,78 @@ const hi = (room, s, name, tok) => room.webSocketMessage(s, JSON.stringify({ t: 
   const cs = JSON.parse(src.match(/const CARS = (\[[^\]]*\])/)[1].replace(/'/g, '"'));
   ok(JSON.stringify(tr) === JSON.stringify(TRACK_DEFS.map(t => t.id)), `서버 트랙 ${tr.join(',')} = 게임 트랙`);
   ok(JSON.stringify(cs) === JSON.stringify(CARS.map(c => c.id)), `서버 차 ${cs.length}종 = 게임 차`);
+}
+
+// 9) 재접속(새로고침): 같은 토큰의 새 연결이 옛 연결을 대신하고, 옛 연결이 닫혀도 "떠남"이 되지 않는다
+{
+  console.log('[재접속 교체]');
+  const st = new Storage(), socks = [];
+  const room = new Room(makeCtx(st, socks), {});
+  const a = new Sock('a'), b = new Sock('b'); socks.push(a, b);
+  await hi(room, a, 'A', 'ta'); await hi(room, b, 'B', 'tb');
+  await room.webSocketMessage(b, JSON.stringify({ t: 'ready', on: true }));
+  await room.webSocketMessage(a, JSON.stringify({ t: 'start' }));
+  clearInterval(room.tickTimer);
+  const a2 = new Sock('a2'); socks.push(a2);
+  await hi(room, a2, 'A', 'ta');
+  ok(a.closed === 4000, `옛 연결은 4000 으로 닫힘 (${a.closed})`);
+  const n0 = room.race.log.length;
+  await room.webSocketClose(a);
+  ok(room.players.get('p1').conn === true && room.race.log.length === n0, '옛 연결이 닫혀도 여전히 접속 중, 끊김 입력 없음');
+  ok(!!a2.last('welcome')?.race, '새 연결은 진행 중 레이스를 받는다');
+}
+
+// 10) 전원이 "레이스 나가기" → 바로 끝나 새 레이스 가능
+{
+  console.log('[전원 나가기]');
+  const st = new Storage(), socks = [];
+  const room = new Room(makeCtx(st, socks), {});
+  const a = new Sock('a'), b = new Sock('b'); socks.push(a, b);
+  await hi(room, a, 'A', 'ta'); await hi(room, b, 'B', 'tb');
+  await room.webSocketMessage(b, JSON.stringify({ t: 'ready', on: true }));
+  await room.webSocketMessage(a, JSON.stringify({ t: 'start' }));
+  clearInterval(room.tickTimer);
+  now = room.race.startAt + 20000;
+  const DC = 128 | (1 << 20) | (1 << 21);
+  await room.webSocketMessage(a, JSON.stringify({ t: 'in', e: [[1, 1200, DC]] }));
+  await room.webSocketMessage(b, JSON.stringify({ t: 'in', e: [[1, 1200, DC]] }));
+  room.tick();
+  ok(room.phase === 'lobby', `둘 다 나가기 → 레이스 종료 (${room.phase})`);
+}
+
+// 11) 출발 뒤 잠들었다 깨도 "준비"가 되살아나지 않는다
+{
+  console.log('[잠든 뒤 준비 상태]');
+  const st = new Storage(), socks = [];
+  let room = new Room(makeCtx(st, socks), {});
+  const a = new Sock('a'), b = new Sock('b'); socks.push(a, b);
+  await hi(room, a, 'A', 'ta'); await hi(room, b, 'B', 'tb');
+  await room.webSocketMessage(b, JSON.stringify({ t: 'ready', on: true }));
+  await room.webSocketMessage(a, JSON.stringify({ t: 'start' }));
+  clearInterval(room.tickTimer);
+  room.endRace(); clearTimeout(room._saveT);
+  room = new Room(makeCtx(st, socks), {});
+  ok(!room.players.get('p2').ready, 'B 는 준비 안 됨 상태로 복구');
+}
+
+// 12) 결과 보고 과반 규칙: 3명 중 1명만 보고 → 15초로는 안 끝나고 90초
+{
+  console.log('[과반 규칙]');
+  const st = new Storage(), socks = [];
+  const room = new Room(makeCtx(st, socks), {});
+  const ss = ['a', 'b', 'c'].map(n => new Sock(n)); socks.push(...ss);
+  for (const x of ss) await hi(room, x, x.name, 't' + x.name);
+  await room.webSocketMessage(ss[0], JSON.stringify({ t: 'set', laps: 1 }));
+  for (const x of ss.slice(1)) await room.webSocketMessage(x, JSON.stringify({ t: 'ready', on: true }));
+  await room.webSocketMessage(ss[0], JSON.stringify({ t: 'start' }));
+  clearInterval(room.tickTimer);
+  now = room.race.startAt + 60000;
+  await room.webSocketMessage(ss[2], JSON.stringify({ t: 'done', r: [[2, 3000, 601]] }));
+  now += 20000; room.tick();
+  ok(room.phase === 'race', '1명 보고 20초 뒤에도 아직 레이스');
+  now += 75000; room.tick();
+  ok(room.phase === 'lobby' && !room.settings.records.circuit, `90초 뒤 종료, 혼자 보고한 기록은 안 남김 (${JSON.stringify(room.settings.records.circuit)})`);
+  clearTimeout(room._saveT);
 }
 
 Date.now = realNow;
