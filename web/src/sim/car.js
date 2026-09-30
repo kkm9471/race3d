@@ -53,7 +53,9 @@ export function prepare(spec) {
     wheels.push({
       x: left ? t / 2 : -t / 2, z: front ? a : -b, front, left,
       k: front ? kF : kR, c: front ? cF : cR, xs: front ? xsF : xsR,
-      Fz0: (front ? mcF : mcR) * G,
+      // 타이어 기준하중: 앞뒤 같은 규격이면 같다(차 무게/4). 바퀴별 정지하중으로 하면
+      // 앞이 무거운 차의 앞바퀴가 손해를 안 봐서 언더스티어가 안 생긴다.
+      Fz0: m * G / 4,
     });
   }
   // 구동: 어느 바퀴에 몇 할
@@ -284,10 +286,11 @@ export class Car {
     // 트랙션 컨트롤: 구동바퀴가 지금 하중으로 낼 수 있는 힘 × 보정계수(tcs, 미끄럼으로 학습)만큼만 토크를 준다
     if (this.tcsOn && thr > 0) {
       // 오픈 디퍼렌셜 차축은 가벼운 쪽 바퀴가 한계 (양쪽에 같은 토크가 가므로)
-      const fz = this._fz, k = spec.tire.mu * spec.tire.muX * spec.R;
+      const fz = this._fz, k = spec.tire.mu * spec.tire.muX * spec.R, sf = this._sf || [0, 0, 0, 0];
+      const f = i => Math.max(fz[i], 0) * P.grip[sf[i]];      // 지금 노면(잔디·자갈이면 작게)
       const ax = (a, b, type) => type === 'lsd'
-        ? (Math.max(fz[a], 0) + Math.max(fz[b], 0)) * k
-        : 2 * Math.min(Math.max(fz[a], 0), Math.max(fz[b], 0)) * k * 1.3;
+        ? (f(a) + f(b)) * k
+        : 2 * Math.min(f(a), f(b)) * k * 1.3;
       let cap = 0;
       if (P.driven[0]) cap += ax(0, 1, spec.diff.front) * (spec.drive === 'AWD' ? 1 : 1);
       if (P.driven[2]) cap += ax(2, 3, spec.diff.rear);
@@ -517,7 +520,7 @@ export class Car {
       const ss = Math.sqrt(sx * sx + sy * sy);
       // 하중 민감도: 많이 눌린 바퀴는 비율상 덜 붙는다
       const ls = clamp(1 - 0.10 * (lr - 1), 0.75, 1.15);
-      const mu = tire.mu * P.grip[surfA[i]] * ls;
+      const mu = tire.mu * (W.front ? 1 : (tire.rear || 1)) * P.grip[surfA[i]] * ls;
       const Fmax = mu * Fn;
       // 곡선 c(s): 0→1 에서 포물선으로 1까지 오르고, 넘으면 slide 로 떨어진다
       let c, cp;

@@ -15,7 +15,7 @@ import { botInput, prepareBot } from './bot.js';
 
 export const FPS = 60, SUB = 8, DTF = 1 / FPS, DT = 1 / (FPS * SUB);
 export const GO_FRAME = 4 * FPS;           // 0~1초 준비, 1초부터 3·2·1, 4초에 출발
-export const FINISH_WAIT = 40 * FPS;       // 1등이 들어온 뒤 이만큼 기다려 준다
+export const FINISH_WAIT = 90 * FPS;       // 1등이 들어온 뒤 이만큼 기다려 준다 (경차 vs 슈퍼카 3랩 차이 ≈ 75초)
 export const MAX_FRAMES = 20 * 60 * FPS;   // 안전장치: 20분이면 무조건 끝
 export const MAX_LAPS = 5;
 

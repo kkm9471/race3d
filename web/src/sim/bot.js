@@ -57,8 +57,8 @@ export function prepareBot(T, spec) {
   const { k } = racingLine(T);
   const n = T.n;
   const m = spec.mass;
-  const mu = spec.tire.mu * 0.86;                       // 원선회 시험에서 잰 g ≈ 0.88μ, 여유 조금
-  const aero = 0.5 * 1.225 * (spec.aero.clA || 0) / m;  // 다운포스 → 속도² 당 추가 가속
+  const mu = spec.tire.mu * 0.80;                       // 원선회 시험에서 잰 g ≈ 0.88μ, 여유를 둔다
+  const aero = 0.5 * 0.5 * 1.225 * (spec.aero.clA || 0) / m;  // 다운포스 → 속도² 당 추가 가속 (절반만 믿는다)
   const vtop = (spec.target?.vmax?.[1] || 250) / 3.6;
   const v = new Float64Array(n);
   for (let i = 0; i < n; i++) {
@@ -107,6 +107,29 @@ export function botInput(sim, k, skill = 0.95) {
   const ahead = 2 + Math.round(Math.abs(v) * 0.25 / T.ds);
   for (let q = 0; q <= ahead; q++) vt = Math.min(vt, prof[(i + q) % n]);
   vt *= skill;
+  // 바로 앞에 느린 차가 있으면 속도를 맞추고 옆으로 비킨다(단순 회피)
+  let dodge = 0;
+  for (let q = 0; q < sim.cars.length; q++) {
+    if (q === k) continue;
+    const o = sim.cars[q].st;
+    if (o.ghostT > 0 || o.dc || o.fin) continue;
+    const ox = o.px - st.px, oz = o.pz - st.pz;
+    const ahead = ox * fx + oz * fz, side = ox * lx + oz * lz;
+    const len = (c.P.Lb + sim.cars[q].P.Lb) / 2;
+    if (ahead > len * 0.9 && ahead < 8 + Math.abs(v) * 0.6 && Math.abs(side) < 2.1) {
+      // 정말 앞에 있다 → 속도를 맞추고 비킬 쪽으로
+      const ov = o.vx * fx + o.vz * fz;
+      if (ov < v) {
+        vt = Math.min(vt, ov + Math.max(0, ahead - len - 2) * 0.5);
+        dodge = side >= 0 ? -1 : 1;
+      }
+    } else if (Math.abs(ahead) <= len * 0.9 && Math.abs(side) < 2.8) {
+      // 나란히 붙어 있다 → 속도는 그대로, 옆으로만 살짝 벌린다
+      dodge = side >= 0 ? -0.6 : 0.6;
+      if (ahead > 0) vt *= 0.9;     // 내가 조금 뒤면 양보해서 떨어진다(좁은 길에서 계속 비비지 않게)
+    }
+  }
+  if (dodge) steer = clamp(steer + dodge * 0.25, -1, 1);
   let thr = 0, brk = 0;
   if (v < vt) thr = clamp((vt - v) * 0.6 + 0.3, 0, 1);
   else if (v > vt + 0.8) brk = clamp((v - vt) * 0.3, 0, 1);

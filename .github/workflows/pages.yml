@@ -1,0 +1,38 @@
+# web/ 폴더를 GitHub Pages 에 올린다 (빌드 단계 없음 — three.js 를 vendor/ 에 넣고 importmap 으로 씀)
+name: 웹에 올리기
+
+on:
+  push:
+    branches: [main]
+    paths:
+      - 'web/**'
+      - '.github/workflows/pages.yml'
+  workflow_dispatch:
+
+permissions:
+  contents: read
+  pages: write
+  id-token: write
+
+concurrency:
+  group: pages
+  cancel-in-progress: true
+
+jobs:
+  deploy:
+    runs-on: ubuntu-latest
+    environment:
+      name: github-pages
+      url: ${{ steps.deployment.outputs.page_url }}
+    steps:
+      - uses: actions/checkout@v4
+      - name: 올릴 것 확인
+        run: |
+          du -sh web; echo "파일 수: $(find web -type f | wc -l)"
+          test -f web/index.html || { echo "web/index.html 이 없습니다"; exit 1; }
+      - uses: actions/configure-pages@v5
+      - uses: actions/upload-pages-artifact@v3
+        with:
+          path: web
+      - id: deployment
+        uses: actions/deploy-pages@v4
