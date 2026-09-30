@@ -67,7 +67,8 @@ try {
   document.body.innerHTML = '<div style="padding:40px;font-size:18px;color:#fff">이 브라우저에서 3D(WebGL)를 쓸 수 없습니다. 크롬 최신 버전으로 열어 주세요.<br><small>' + String(e.message || e) + '</small></div>';
   throw e;
 }
-const qSaved = Q.get('q') || store.get('quality', '') || detectQuality(gfx.renderer);
+const qAuto = detectQuality(gfx.renderer);       // GPU 이름도 여기서 기록된다(시험·진단용)
+const qSaved = Q.get('q') || store.get('quality', '') || qAuto;
 gfx.setQuality(qSaved);
 $('m-q').value = gfx.qKey; $('p-q').value = gfx.qKey;
 window.addEventListener('resize', () => gfx.resize());
@@ -147,7 +148,9 @@ class Game {
     if (v === this.lastSent) return;
     this.lastSent = v;
     if (!this.net) { this.session.addConfirmed(this.local, this.session.frame, v); return; }
-    const f = this.session.frame + INPUT_DELAY;
+    // 핑이 크면(멀리서 접속) 입력을 조금 늦게 적용해 서버 도착이 늦지 않게 (최대 6프레임=0.1초)
+    const delay = Math.max(INPUT_DELAY, Math.min(6, Math.round((this.net.rtt || 0) / 2 / (1000 / FPS)) - 1));
+    const f = this.session.frame + delay;
     const q = ++this.seq;
     this.session.addPending(q, f, v);
     this.sendBuf.push([q, f, v]);
@@ -218,7 +221,9 @@ class Game {
   checkHash() {
     if (!this.net) return;
     if (this.session.dirty !== Infinity) return;      // 되감기가 남아 있으면 아직 아니다
-    const c = this.net.confirmed;
+    // 내 입력 중 서버 확인을 아직 못 받은 게 있으면 그 이후 상태는 확정이 아니다
+    let c = this.net.confirmed;
+    for (const p of this.session.pending) c = Math.min(c, p.f - 1);
     this.sentHash ||= new Map();
     for (const [hf, h] of this.session.hashes) {
       if (hf <= c && hf < this.session.frame && !this.sentHash.has(hf)) {
@@ -443,7 +448,7 @@ function launch(cfg, localSlot, net, startAt, names, log = []) {
         cfg, localSlot, net, startAt, names, bot: Q.get('bot') === '1',
         onEnd: (res, g) => {
           app.game = null;
-          window.__lastResults = { res, hash: g.session.sim.hash(), frame: g.session.sim.gs.frame, stats: g.session.stats(),
+          window.__lastResults = { res, hash: g.session.sim.hash(), frame: g.session.sim.gs.frame, stats: { ...g.session.stats(), rtt: g.net?.rtt, offset: g.net?.offset },
             ev: g.session.ev, cfg, local: localSlot, sent: window.__sentHashes || {}, desync: !!(g.net && g.net.desync) };
           showResults(res, cfg, localSlot);
         },

@@ -25,7 +25,7 @@ export class Session {
     this.snaps = new Map();
     this.dirty = Infinity;               // 이 프레임부터 다시 계산해야 함
     this.states = new Map();             // 프레임 → 그리기용 자세
-    this.rollbacks = 0; this.maxRollback = 0; this.resimFrames = 0;
+    this.rollbacks = 0; this.maxRollback = 0; this.resimFrames = 0; this.restamped = 0; this.maxRestamp = 0;
     this.hashes = new Map();             // 120프레임마다 상태 해시 (되감아 다시 계산하면 덮어쓴다)
     this.events = [];                    // 화면 효과용 사건(충돌·랩 등) — 마지막으로 새로 계산한 프레임들
     this.lastFxFrame = -1;
@@ -74,6 +74,7 @@ export class Session {
     if (i >= 0) {
       const p = this.pending[i];
       this.pending.splice(i, 1);
+      if (p.f !== f) { this.restamped++; this.maxRestamp = Math.max(this.maxRestamp, f - p.f); }
       if (p.f !== f && Math.min(p.f, f) < this.frame) this.dirty = Math.min(this.dirty, p.f, f);
     }
     this.addConfirmed(this.local, f, v);
@@ -156,7 +157,7 @@ export class Session {
 
   /** 오래된 입력 기록 정리는 하지 않는다 — 재접속한 사람이 처음부터 계산할 때 필요하다 */
   stats() {
-    return { frame: this.frame, rollbacks: this.rollbacks, maxRollback: this.maxRollback, resim: this.resimFrames, pending: this.pending.length };
+    return { frame: this.frame, rollbacks: this.rollbacks, maxRollback: this.maxRollback, resim: this.resimFrames, pending: this.pending.length, restamped: this.restamped, maxRestamp: this.maxRestamp };
   }
 }
 

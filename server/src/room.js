@@ -17,7 +17,7 @@
 const PROTOCOL = 3;
 const MAX_PLAYERS = 4;
 const FRAME_MS = 1000 / 60;
-const LATE = 12, EARLY = 40;
+const LATE = 30, EARLY = 40;         // 0.5초까지 늦은 입력은 원래 시점 그대로 인정 (멀리서 들어온 사람도 자기 화면대로 달리게)
 const TICK_MS = 250;
 const MAX_MSG = 8192;
 const RATE = 60, BURST = 150;
