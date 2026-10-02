@@ -9,6 +9,8 @@ import { mergeGeometries } from 'three/addons/utils/BufferGeometryUtils.js';
 import { buildCity } from './city.js';
 import { THEMES } from './themes/index.js';
 import { makeCtx } from './themes/kit.js';
+import { applyTexSet } from './assets.js';
+import { realFor } from './realism.js';
 
 function hash2(x, z) {
   const s = Math.sin(x * 12.9898 + z * 78.233) * 43758.5453;
@@ -98,10 +100,23 @@ export function buildTrackScene(T, world, q, def) {
   if (look.rock != null) mats.rock.color.set(look.rock);
   // 벽은 보도(콘크리트)와 재질을 나눠서 색을 바꾼다
   mats.wall = mats.concrete;
+  mats.walk = mats.concrete;
   if (look.wall) {
     const w = look.wall;
     mats.wall = new THREE.MeshStandardMaterial({ map: w.map ? texOf(w.map) : TX.concrete(aniso), color: w.color ?? 0xffffff, roughness: w.roughness ?? 0.85, metalness: w.metalness ?? 0, emissive: w.emissive ?? 0x000000, emissiveIntensity: w.emissiveIntensity ?? 1 });
     disposables.push(mats.wall);
+  }
+
+  // ── 실사 질감(15회차): 사진 질감 세트(색·울퉁불퉁·거칠기). 보통·높음 화질, 미리 받아 둔 경우만 (못 받았으면 위의 그린 질감 그대로) ──
+  const real = q.detail >= 1 ? realFor(def, theme) : null;
+  if (real) {
+    let hwAvg = 0; for (let i = 0; i < T.n; i++) hwAvg += T.hw[i]; hwAvg /= T.n;
+    if (applyTexSet(mats.asphalt, real.road, [hwAvg * 2, 10], aniso)) mats.asphalt.envMapIntensity = real.road.env ?? 0.8;
+    applyTexSet(mats.grass, real.runoff, [8, 8], aniso);
+    applyTexSet(mats.gravel, real.gravel, [4, 4], aniso);
+    applyTexSet(mats.rock, real.rock, [6, 5], aniso);
+    if (real.walk) { mats.walk = new THREE.MeshStandardMaterial(); disposables.push(mats.walk); applyTexSet(mats.walk, real.walk, [3, 3], aniso); }
+    if (real.wall) { if (mats.wall === mats.concrete) { mats.wall = new THREE.MeshStandardMaterial(); disposables.push(mats.wall); } applyTexSet(mats.wall, real.wall, [3, 4], aniso); }
   }
 
   const H = (i, d) => world.heightAt(i, 0, d).h;
@@ -204,7 +219,7 @@ export function buildTrackScene(T, world, q, def) {
         const w = side > 0 ? T.wallL[ii] : T.wallR[ii];
         return side > 0 ? [e, w + 0.3] : [-w - 0.3, -e];
       }, (ii, d) => H(ii, d) + 0.015, (ii, d, x, z) => [x / 3, z / 3]);
-      const m = new THREE.Mesh(g, mats.concrete);
+      const m = new THREE.Mesh(g, mats.walk);
       m.receiveShadow = true;
       group.add(m);
     }
@@ -332,10 +347,11 @@ export function buildTrackScene(T, world, q, def) {
   }
 
   // ── 지형 ──
-  const terrain = buildTerrain(T, world, def, terrainH, q);
+  const terrain = buildTerrain(T, world, def, terrainH, q, !!(real && real.terrain));
   if (look.terrainTex) mats.terrain.map = texOf(look.terrainTex);
   else if (def.style === 'city') { mats.terrain.map = TX.concrete(aniso); mats.terrain.map.repeat.set(0.5, 0.5); }
   else if (def.palette?.runoff) mats.terrain.map = TX.gravel(aniso);    // 모래·눈 땅은 풀 질감 대신
+  if (real && real.terrain) applyTexSet(mats.terrain, real.terrain, [10, 10], aniso);
   terrain.material = mats.terrain;
   group.add(terrain);
   terrainHeight = terrain.userData.heightAt;
@@ -548,7 +564,7 @@ function makeTerrainFn(T, def) {
 }
 
 /** 지형: 도로 근처는 도로 높이에 맞추고 멀어질수록 자연 지형으로 */
-function buildTerrain(T, world, def, natural, q) {
+function buildTerrain(T, world, def, natural, q, neutral = false) {
   const b = T.bounds, pad = def.style === 'mountain' ? 900 : 700;
   const x0 = b.x0 - pad, x1 = b.x1 + pad, z0 = b.z0 - pad, z1 = b.z1 + pad;
   const N = q.detail >= 2 ? 320 : q.detail >= 1 ? 240 : 160;
@@ -597,7 +613,8 @@ function buildTerrain(T, world, def, natural, q) {
     uv[p * 2] = x / 10; uv[p * 2 + 1] = z / 10;
     const n = fbm(x / 60, z / 60, 3);
     green.copy(c1).lerp(c2, n);
-    if (def.style === 'city') green.setRGB(0.36 + n * 0.08, 0.36 + n * 0.08, 0.37 + n * 0.08);
+    if (neutral) { const v = 0.78 + n * 0.3 + Math.max(0, fbm(x / 140 + 5, z / 140, 3) - 0.5) * 0.3; green.setRGB(v, v * 0.99, v * 0.97); }   // 사진 질감 위에 밝기만 크게 얼룩지게
+    else if (def.style === 'city') green.setRGB(0.36 + n * 0.08, 0.36 + n * 0.08, 0.37 + n * 0.08);
     else if (def.style === 'mountain') { const hi = Math.min(1, Math.max(0, (h - 60) / 90)); green.lerp(c4, hi * 0.6); }
     else green.lerp(c3, Math.max(0, fbm(x / 140 + 5, z / 140, 3) - 0.55) * 1.2);
     col[p * 3] = green.r; col[p * 3 + 1] = green.g; col[p * 3 + 2] = green.b;

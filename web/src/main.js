@@ -21,6 +21,8 @@ import { PAINT, PAINT_NAME } from './render/carmesh.js';
 import { CarPreview } from './render/preview.js';
 import { TrackPreview, featureSummary } from './ui/trackpreview.js';
 import { loadTheme } from './render/themes/index.js';
+import { preloadReal } from './render/assets.js';
+import { realFor } from './render/realism.js';
 import { VERSION } from './version.js';
 
 const Q = new URLSearchParams(location.search);
@@ -603,7 +605,11 @@ function launch(cfg, localSlot, net, startAt, names, log = []) {
     if (id !== app.launchId) return;              // 그사이 다른 출발·취소가 있었다
     // 맵 테마 그림을 먼저 불러온다 (대기실에서 미리 불러 두므로 보통 바로 끝난다. 실패해도 기본 모습으로 진행)
     // 멀티: 그동안 온 남의 입력은 app.early 에 쌓였다가 아래에서 넣는다
-    await loadTheme(TRACK_BY_ID[cfg.track]?.theme);
+    const theme = await loadTheme(TRACK_BY_ID[cfg.track]?.theme);
+    if (id !== app.launchId) return;
+    // 실사 자료(사진 질감·하늘) — 보통·높음 화질만. 처음 한 번은 몇 초 걸릴 수 있다(그 뒤엔 브라우저에 저장돼 빠름)
+    $('ld-text').textContent = '트랙 사진 자료를 받는 중…'; $('ld-bar').style.width = '60%';
+    await preloadReal(realFor(TRACK_BY_ID[cfg.track], theme), gfx.q);
     if (id !== app.launchId) return;
     if (app.game) { app.game.stop(); app.game = null; }
     try {

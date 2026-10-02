@@ -14,6 +14,9 @@ import { UnrealBloomPass } from 'three/addons/postprocessing/UnrealBloomPass.js'
 import { OutputPass } from 'three/addons/postprocessing/OutputPass.js';
 import { ShaderPass } from 'three/addons/postprocessing/ShaderPass.js';
 import { FXAAShader } from 'three/addons/shaders/FXAAShader.js';
+import { getSky } from './assets.js';
+import { realFor } from './realism.js';
+import { THEMES } from './themes/index.js';
 
 export const QUALITY = {
   low: { name: '낮음', scale: 0.75, maxDpr: 1, shadow: 0, post: false, msaa: 0, bloom: false, trees: 0.35, fogMul: 1.5, detail: 0 },
@@ -200,6 +203,30 @@ export class Gfx {
     const fogCol = new THREE.Color(def.fogColor ?? (nd ? nd.horizon ?? 0x1a2240 : low > 0.5 ? 0xc7b9a5 : 0xb9cadb));
     this.scene.fog = new THREE.FogExp2(fogCol, (def.fog ?? 0.0006) * this.q.fogMul);
     this.hemi.color.set(nd ? nd.ambientColor ?? 0x8f9fd8 : low > 0.5 ? 0xffe0c0 : 0xcfe2ff);
+    // ── 실사 하늘(15회차): 하늘 사진(Poly Haven HDR)으로 조명·반사·보이는 하늘. 보통·높음 화질, 미리 받아 둔 경우만 ──
+    this.scene.background = null;
+    this.scene.backgroundRotation.set(0, 0, 0); this.scene.environmentRotation.set(0, 0, 0);
+    const real = !nd && this.q.detail >= 1 ? realFor(def, THEMES[def.theme]) : null;
+    const ps = real && real.sky ? getSky(real.sky) : null;
+    this.photoSky = !!ps;
+    if (ps) {
+      // 사진 속 해 방위를 설계도의 해 방위(sun.azim)로 돌린다(고도는 사진 그대로) — 맵마다 정해 둔 '해를 마주 보지 않는 방향'을 지키려고
+      const want = Math.atan2(this.sunDir.z, this.sunDir.x), have = Math.atan2(ps.sunDir.z, ps.sunDir.x);
+      const a = have - want;
+      this.sunDir.copy(ps.sunDir).applyAxisAngle(new THREE.Vector3(0, 1, 0), a).normalize();
+      this.scene.backgroundRotation.set(0, -a, 0); this.scene.environmentRotation.set(0, -a, 0);
+      this.sky.visible = false;
+      this.scene.background = ps.bg || ps.hdr;
+      this.scene.backgroundIntensity = real.bgInt ?? 1;
+      if (!ps.pmrem) ps.pmrem = this.pmrem.fromEquirectangular(ps.hdr);
+      this.scene.environment = ps.pmrem.texture;
+      this.scene.environmentIntensity = real.envInt ?? 1.0;
+      this.sun.color.copy(ps.sunColor);
+      this.sun.intensity = real.sun ?? 3.0;
+      this.hemi.intensity = real.hemi ?? 0.0;
+      this.renderer.toneMappingExposure = real.exposure ?? 0.85;
+      this.scene.fog = new THREE.FogExp2(ps.horizon.clone().multiplyScalar(real.fogMul ?? 0.9), (real.fog ?? def.fog ?? 0.0005) * this.q.fogMul);
+    }
   }
 
   /** 그림자 상자를 내 차 주변으로 (화소 격자에 맞춰 움직여 그림자가 떨리지 않게) */
