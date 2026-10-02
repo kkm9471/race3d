@@ -7,7 +7,7 @@
 
 import { datan, clamp } from './dmath.js';
 import { pack } from './input.js';
-import { G, KART, SURF_K, kartParams } from './car.js';
+import { G, KART, SURF_K, kartParams, K_DRIFT } from './car.js';
 
 const lineCache = new Map();
 
@@ -98,6 +98,17 @@ export function prepareBot(T, spec) {
 /** 자리 k 의 차를 봇이 운전할 때의 입력 */
 // mem: 막힘 타이머를 둘 곳. 시뮬 안(봇 자리·완주 후)은 st, 시험용 자동운전(?bot=1)은 시뮬 밖 객체를 넘긴다
 // (시뮬 밖에서 st 를 건드리면 그 화면만 해시가 달라진다 — 독립검증 지적)
+/** 꺾는 쪽(dir +1 오른쪽) 벽까지 남은 거리 — 지름길 분리대가 그쪽에 있으면 분리대까지 */
+function innerGap(T, i, dir, off) {
+  let g = dir > 0 ? T.wallR[i] + off : T.wallL[i] - off;
+  if (T.divW[i] > 0) {
+    const dv = T.div[i], w = T.divW[i];
+    if (dir > 0 && off > dv) g = Math.min(g, off - (dv + w));
+    if (dir < 0 && off < dv) g = Math.min(g, (dv - w) - off);
+  }
+  return g;
+}
+
 export function botInput(sim, k, skill = 0.95, mem = sim.cars[k].st) {
   const c = sim.cars[k], st = c.st, T = sim.T, n = T.n;
   const { o, k: kl } = racingLine(T);
@@ -141,7 +152,8 @@ export function botInput(sim, k, skill = 0.95, mem = sim.cars[k].st) {
       // 옆으로 충분히 벌어지기 전에는 차간 거리를 지킨다
       if (Math.abs(side) < 1.9) vt = Math.min(vt, ov + (gap - (2 + Math.abs(v) * 0.12)) * 0.6);
     } else if (Math.abs(ahead) <= len * 0.9 && Math.abs(side) < 2.8) {
-      want = st.off + away * 1.5;                     // 나란히 → 옆으로 벌린다
+      // 나란히 → 상대에게서 2.6m 옆을 목표로 (전엔 '내 위치 + 1.5m'라 둘이 계속 벌어지다 다시 모이며 길 폭 전체를 흔들었다 — 14회차, 이끼숲)
+      want = o.off + away * 2.6;
       if (ahead > 0) vt *= 0.9;                       // 조금 뒤인 쪽이 양보(좁은 길에서 계속 비비지 않게)
     }
   }
@@ -155,13 +167,16 @@ export function botInput(sim, k, skill = 0.95, mem = sim.cars[k].st) {
   const lat = dx * lx + dz * lz, fw = dx * fx + dz * fz;
   const curv = 2 * lat / Math.max(lat * lat + fw * fw, 1);
   // 카트식: 조향 = 목표 회전 속도 / 그 속도의 최대 회전 속도 (+ = 오른쪽, 회전은 왼쪽이 +)
-  const steer = clamp(-(Math.abs(v) * curv) / Math.max(c.yawMax(v), 0.05), -1, 1);
+  let steer = clamp(-(Math.abs(v) * curv) / Math.max(c.yawMax(v), 0.05), -1, 1);
   let thr = 0, brk = 0;
   if (v < vt) thr = clamp((vt - v) * 0.6 + 0.3, 0, 1);
   else if (v > vt + 0.8) brk = clamp((v - vt) * 0.3, 0, 1);
   // 드리프트·부스터(카트식): 빠른 속도로 크게 꺾어야 하는 코너에서는 Shift 로 게이지를 모으고,
   // 앞이 한동안 트여 있으면 모은 부스터를 쓴다. 시험용 자동운전(ram)은 안 쓴다.
   let hb = 0, bo = 0;
+  // AI 드리프트 (2026-10-02 2차 드리프트로 바뀐 뒤): 새 드리프트는 최소 초당 약 1rad 를 돌아, 접지 한계 속도로 코너에 들어가는
+  // 지금 AI 운전 방식과는 맞지 않는다(안쪽·바깥 벽에 박음). 드리프트로 코너를 도는 AI 운전은 따로 만들 때까지 끈다 → 개선목록
+  const AI_DRIFT = false;
   if (!mem.ram && sim.gs.frame > 300) {
     let kk = 0;
     const look = Math.round((10 + Math.abs(v) * 0.6) / T.ds);
@@ -169,9 +184,37 @@ export function botInput(sim, k, skill = 0.95, mem = sim.cars[k].st) {
     // 옆에 차가 있거나(15m 안) 피하는 중이면 드리프트하지 않는다 — 몰려 있을 때 드리프트하면 바깥으로 밀려 나가 자갈·벽에 갇혔다
     let crowd = want !== null;
     for (let q = 0; q < sim.cars.length && !crowd; q++) { if (q === k) continue; const o2 = sim.cars[q].st; if (o2.ghostT > 0 || o2.dc || o2.fin) continue; const dx2 = o2.px - st.px, dz2 = o2.pz - st.pz; if (dx2 * dx2 + dz2 * dz2 < 225) crowd = true; }
-    // 반지름 26m 보다 좁은 헤어핀은 드리프트하면 바깥으로 밀려 벽에 닿는다(설원 급행·황혼 항구) → 그냥 꺾는다
-    const tight = kk > 1 / 26;
-    if (!crowd && !tight && ((Math.abs(v) > 16 && kk > 1 / 70 && Math.abs(steer) > 0.3) || (st.drift && Math.abs(steer) > 0.15 && kk > 1 / 90))) hb = 1;
+    // 드리프트(2026-10-02 2차 — 오래 누를수록 더 꺾이는 카트라이더식): 드리프트는 최소한 초당 약 1rad 를 돌므로
+    // 그만큼 꺾어야 하는 코너(속도 × 곡률이 큰 곳)에서만 쓴다. 중간에는 필요한 만큼만 돌도록 방향키를 눌렀다 놓았다 한다.
+    // 드리프트 중엔 머리와 가는 방향이 30~50° 갈라지므로, 꺾을 양은 '가는 방향' 기준으로 잰다
+    // (머리 기준이면 진입하자마자 머리가 돌아 '다 돌았다'고 착각해 0.1초 만에 놓았다)
+    let cv = curv;
+    if ((st.drift || st.gripT < 0.3) && sp > 5) {
+      // 드리프트는 레이싱라인(안쪽 벽에 붙는 선)보다 더 돌기 쉬우므로 길 가운데를 겨눈다 (안쪽 벽과 여유)
+      const cx = T.x[j] - st.px, cz = T.z[j] - st.pz;
+      const dvx = st.vx / sp, dvz = st.vz / sp, latV = cx * dvz - cz * dvx, fwV = cx * dvx + cz * dvz;
+      cv = 2 * latV / Math.max(latV * latV + fwV * fwV, 1);
+    }
+    const needDir = cv < 0 ? 1 : -1;                   // 꺾을 방향 (+ 오른쪽)
+    const wNeed = Math.abs(v) * Math.abs(cv);          // 지금 필요한 회전 속도(rad/s)
+    if (!AI_DRIFT) { /* 드리프트 안 함 */ }
+    else if (st.drift) {
+      // 미끄럼각이 클수록 경로가 더 휜다 (car.js: 옆 가속 = K_DRIFT·옆속도 + 안쪽으로 감기는 힘)
+      const vlat0 = st.vx * lx + st.vz * lz, tb = Math.abs(vlat0) / Math.max(Math.abs(v), 1);
+      const have = K_DRIFT * tb + KART.centripetalStrength * 0.75;
+      // 아직 줄여야 할 속도가 남았으면(드리프트 감속을 브레이크 대신) 계속
+      // 필요한 것보다 많이 돌고 있으면(안쪽 벽으로 파고듦) 놓는다
+      // 안쪽 벽까지 남은 거리 — 2.2m 안으로 파고들면 카운터로 바로 편다
+      // 0.3초 뒤 안쪽 여유(옆으로 파고드는 속도까지) — 2m 안이면 카운터로 바로 편다
+      const vOff = st.vx * T.lx[i] + st.vz * T.lz[i];
+      const inner = innerGap(T, i, st.ddir, st.off || 0) - Math.max(0, st.ddir > 0 ? -vOff : vOff) * 0.3;
+      if (inner < 2.0) steer = -st.ddir;
+      else if (needDir === st.ddir && wNeed > 0.45 && kk * Math.abs(v) > 0.6 && have < wNeed * 1.2 + 0.1 && v < vt + 4) { hb = 1; steer = st.ddir * (have < wNeed ? 1 : 0); }
+      // 다 돌았거나 반대로 꺾어야 하면 Shift 를 놓는다 (조향은 평소대로 — 미끄러져 나오며 펴진다)
+    // 반지름 26m 보다 좁은 헤어핀은 AI 는 드리프트로 들어가지 않는다(안쪽 벽이 가까워 파고들다 박았다)
+    } else if (!crowd && kk < 1 / 26 && Math.abs(v) > 16 && Math.abs(steer) > 0.25 && kk * Math.abs(v) > 0.8 && wNeed > 0.7 && v < vt + 3
+      && innerGap(T, i, needDir, st.off || 0) > 3.5 && steer * needDir > 0 && st.gripT > 0.4 && st.alT <= 0) { hb = 1; steer = needDir; }   // 꺾을 쪽으로만, 펴자마자 다시는 안 함   // 드리프트는 최소 초당 약 1rad 를 돈다 → 그만큼 꺾어야 하는 코너에서, 안쪽 벽과 여유가 있을 때만
+    // (드리프트를 브레이크 대신 쓰게 했더니 빠르게 들어간 헤어핀에서 바깥 벽으로 미끄러졌다 → AI 는 브레이크를 그대로 쓴다)
     if (st.boosts > 0 && st.boostT === 0 && !st.drift) {
       let vmin = Infinity;
       const far = Math.round(90 / T.ds);
@@ -181,7 +224,7 @@ export function botInput(sim, k, skill = 0.95, mem = sim.cars[k].st) {
       if (vmin * skill > Math.abs(v) + 4) bo = 1;
     }
   }
-  if (st.drift) thr = Math.max(thr, 0.6);          // 드리프트 중엔 속도 유지
+  if (st.drift) thr = Math.max(thr, 0.6);          // 드리프트 중에도 가속 키는 누른다 (드리프트 감속은 어차피 생긴다)
   // 옆으로 크게 미끄러지면(드리프트가 아닌데) 가속을 풀어 준다
   const vlat = st.vx * lx + st.vz * lz;
   if (Math.abs(vlat) > 2.5 && sp > 5 && !st.drift) thr *= 0.4;

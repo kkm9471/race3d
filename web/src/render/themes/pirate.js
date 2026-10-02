@@ -52,7 +52,7 @@ function wallTex(ctx) {
 /** 모래 땅 (u,v = 10m 마다 1): 흐린 알갱이 + 조개·잔돌 */
 function sandTex(ctx) {
   return ctx.canvasTex(256, 256, (g, w, h) => {
-    g.fillStyle = '#f2ece0'; g.fillRect(0, 0, w, h);
+    g.fillStyle = '#cfc4ae'; g.fillRect(0, 0, w, h);
     for (let k = 0; k < 900; k++) {
       const v = 205 + Math.floor(ctx.rand() * 40);
       g.fillStyle = `rgba(${v},${v - 10},${v - 36},0.22)`;
@@ -125,7 +125,8 @@ export const look = {
   roadTex,
   roadRough: 0.8,
   line: 0xfffbea,
-  runoffColor: 0xd9be85,
+  runoffTex: sandTex,
+  runoffColor: 0xcdb27a,
   wall: { color: 0xffffff, map: wallTex, roughness: 0.9, stripe: false },
   terrainTex: sandTex,
   trees: false,              // 기본 나무 대신 야자수를 직접

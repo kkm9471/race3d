@@ -44,8 +44,10 @@ console.log('[길 위 보이지 않는 벽 없음]');
      for (const tt of fine ? [0, 0.25, 0.5, 0.75] : [0]) {
       const i2 = (i + 1) % T.n;
       for (let d = -T.hw[i] + 1.6; d <= T.hw[i] - 1.6; d += fine ? 0.4 : 1.2) {
-        if (T.divW[i] > 0 && Math.abs(d - T.div[i]) < T.divW[i] + 1.4) continue;
-        const near = [-3, -2, -1, 1, 2, 3].some(q => T.divW[(i + q + T.n) % T.n] > 0 && Math.abs(d - T.div[(i + q + T.n) % T.n]) < 1.6);
+        // 급커브에선 차 앞뒤 모서리가 옆으로 더 나가 분리대에 정상적으로 닿는다(반지름 22m 에서 약 0.5m) → 제외 폭을 곡률만큼 넓힌다 (14회차)
+        const kx = Math.abs(T.k[i]) * 12;
+        if (T.divW[i] > 0 && Math.abs(d - T.div[i]) < T.divW[i] + 1.4 + kx) continue;
+        const near = [-3, -2, -1, 1, 2, 3].some(q => T.divW[(i + q + T.n) % T.n] > 0 && Math.abs(d - T.div[(i + q + T.n) % T.n]) < 1.6 + kx);
         if (near) continue;
         const cx = T.x[i] + (T.x[i2] - T.x[i]) * tt, cz = T.z[i] + (T.z[i2] - T.z[i]) * tt;
         const x = cx + T.lx[i] * d, z = cz + T.lz[i] * d;
@@ -81,7 +83,8 @@ console.log('[드리프트 붙잡기]');
     c.setSpeed(150 / 3.6);
     let mb = 0;
     for (let f = 0; f < FPS * 5; f++) { frame(c, w, pack({ thr: 1, steer: 1, hb: 1, kb: 1 })); mb = Math.max(mb, Math.abs(beta(c))); }
-    ok(mb < 40 && c.out.fwd > 10, `${spec.name}: 5초 꽉 붙잡아도 최대 미끄럼 ${mb.toFixed(0)}°, 속도 ${(c.out.fwd * 3.6).toFixed(0)}km/h`);
+    // 2026-10-02 2차 드리프트: 오래 누를수록 미끄럼각이 커지는 게 의도(최대 50°). 팽이처럼 도는 스핀만 막는다 → 65° 상한, 계속 앞으로 간다
+    ok(mb < 66 && c.out.fwd > 8, `${spec.name}: 5초 꽉 붙잡아도 최대 미끄럼 ${mb.toFixed(0)}°(<66), 속도 ${(c.out.fwd * 3.6).toFixed(0)}km/h`);
   }
 }
 // 3) 출발부스터는 신호 직후 새로 누를 때만 / 부스터가 없으면 부스터 키는 아무 일 없음 / 부스터는 2개까지만

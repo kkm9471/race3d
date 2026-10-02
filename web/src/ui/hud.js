@@ -110,7 +110,7 @@ export class Hud {
     this.gear.classList.toggle('has', st.boosts > 0);
     this.rpmFill.style.width = (Math.max(0, Math.min(1, st.gauge)) * 100).toFixed(1) + '%';
     this.rpmFill.classList.toggle('hot', st.boostT > 0);
-    setText(this.assist, st.boostT > 0 ? '부스터!' : st.drift ? '드리프트 — 게이지 충전 중' : st.boosts > 0 ? 'Ctrl 로 부스터' : 'Shift 드리프트로 게이지 충전');
+    setText(this.assist, me.out.tok ? '톡톡이!' : st.boostT > 0 ? '부스터!' : st.drift ? '드리프트 — 게이지 충전 중' : st.boosts > 0 ? 'Ctrl 로 부스터' : 'Shift 드리프트로 게이지 충전');
     this.assist.classList.toggle('esc', st.boostT > 0 || !!st.drift);
     // 알림은 화면이 읽고 지운다 (화면이 느려 한 번에 여러 프레임을 계산해도 빠지지 않게)
     if (me.out.inst) { this.message(me.out.inst === 2 ? '출발 부스터!' : '순간 부스터!', 0.8, false); me.out.inst = 0; }

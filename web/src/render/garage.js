@@ -16,21 +16,22 @@ export function garage(gfx, Q) {
   const cars = CARS.map((spec, k) => {
     const P = prepare(spec);
     const m = buildCar(spec, P, PAINT[k % PAINT.length], gfx.q.detail);
-    m.position.set((k - 4.5) * 5.2, spec.cgH, 0);
+    m.position.set((k - (CARS.length - 1) / 2) * 5.2, spec.cgH, 0);
     m.userData.blob.visible = !gfx.q.shadow;
     gfx.scene.add(m);
     return m;
   });
   if (Q.get('grid') === '1') {
-    // 5×2 칸에 차마다 따로 찍는다 (후처리 없이 바로)
+    // 칸에 차마다 따로 찍는다 (후처리 없이 바로) — 차 수에 맞춰 6×3 등 (14회차: 18대)
     const yawG = +(Q.get('yaw') ?? 35) * Math.PI / 180, pitchG = +(Q.get('pitch') ?? 12) * Math.PI / 180;
     const r = gfx.renderer;
     (function loopG() {
       requestAnimationFrame(loopG);
-      const W = gfx.w, H = gfx.h, cw = W / 5, ch = H / 2;
+      const cols = Math.ceil(Math.sqrt(cars.length * 1.8)), rows = Math.ceil(cars.length / cols);
+      const W = gfx.w, H = gfx.h, cw = W / cols, ch = H / rows;
       r.setScissorTest(true);
       cars.forEach((m, k) => {
-        const cx = (k % 5) * cw, cy = (1 - Math.floor(k / 5)) * ch;
+        const cx = (k % cols) * cw, cy = (rows - 1 - Math.floor(k / cols)) * ch;
         r.setViewport(cx, cy, cw, ch); r.setScissor(cx, cy, cw, ch);
         const c = m.position.clone(); c.y = 0.55;
         const d = 7.2;

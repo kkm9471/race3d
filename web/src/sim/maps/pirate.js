@@ -43,8 +43,8 @@ export default {
   runBase: 3, runOut: 6, runK: 30, gravel: false, runSurf: SURF.GRASS,
   runSlope: -0.01,
   style: 'circuit',
-  palette: { ground: [0xe6d3a0, 0xd4bf88, 0xeedcb0, 0xc8b078], runoff: 'sand', far: [0x4a8f86, 0x6aa9a8] },
-  sun: { elev: 52, azim: 200 },   // 맑은 한낮
+  palette: { ground: [0xd9bb7c, 0xc6a768, 0xdfc48a, 0xb99b60], runoff: 'sand', far: [0x4a8f86, 0x6aa9a8] },
+  sun: { elev: 42, azim: 235 },   // 맑은 한낮
   fog: 0.00028, fogColor: 0xa6d3ea,
   features: [
     { t: 'pad', seg: 0, at: 0.6, d: 0, w: 4, len: 8 },

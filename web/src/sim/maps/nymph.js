@@ -32,7 +32,7 @@ export default {
   runBase: 4, runOut: 6, runK: 26, gravel: false, runSurf: SURF.GRASS,
   runSlope: -0.01,
   style: 'circuit',
-  palette: { ground: [0x2f5a50, 0x23463f, 0x3b5f6a, 0x45506e], grass: 0x9fd8c0, far: [0x2c2f5a, 0x3a3d6e] },
+  palette: { ground: [0x4a8f84, 0x35736a, 0x4f7f96, 0x5a6694], grass: 0x9fd8c0, far: [0x2c2f5a, 0x3a3d6e] },
   sun: { elev: 26, azim: 70 },
   // 해 질 녘~밤: 보랏빛 하늘, 청록 지평선. 길·차가 잘 보이게 밝은 밤
   night: { top: 0x1c0f40, horizon: 0x2d7a86, stars: 1400, moonDisc: true, moonSize: 150, moonDiscColor: 0xeaf6ff, moonColor: 0xd6d2ff, moon: 2.6, ambient: 1.7, ambientColor: 0x9a8fe6, exposure: 1.08 },

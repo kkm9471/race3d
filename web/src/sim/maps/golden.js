@@ -4,7 +4,7 @@ import { SURF } from '../car.js';
 
 export default {
   id: 'golden', name: '황금 문명 유적', kind: '정글 유적', level: 4, laps: 2, theme: 'golden', wip: true,
-  desc: '정글 속 계단식 피라미드 신전을 도는 길. 유적을 뚫는 돌 터널 3곳, U자 헤어핀 3곳(안쪽 지름길), 큰 오르내림과 점프대 2개. 한 바퀴 약 N초.',
+  desc: '정글 속 계단식 피라미드 신전을 도는 길. 유적을 뚫는 돌 터널 3곳, U자 헤어핀 3곳(안쪽 지름길), 큰 오르내림과 점프대 2개. 한 바퀴 약 2분.',
   segs: [
     ['S', 300],          // 0 출발 (가속 발판)
     ['A', 45, 90],       // 1
@@ -52,14 +52,14 @@ export default {
   smooth: 14,
   startAt: 130,
   width: 10,
-  elev: [[0, 0], [0.08, 2], [0.2, 16], [0.3, 28], [0.42, 46], [0.55, 48], [0.65, 36], [0.75, 22], [0.88, 8], [0.96, 1]],
+  elev: [[0, 22], [0.1, 26], [0.2, 36], [0.3, 46], [0.4, 56], [0.5, 64], [0.6, 64], [0.7, 54], [0.8, 42], [0.9, 30], [0.96, 24]],
   bankK: 1.5, bankMax: 0.03,
   curbW: 0.8, curbK: 1 / 60,
   runBase: 1.5, runOut: 1.8, runK: 20, gravel: false, runSurf: SURF.GRASS,
   runSlope: 0,
   style: 'mountain',
-  palette: { ground: [0x2f5a22, 0x254a1b, 0x3f6a2a, 0x335a28], grass: 0x4a7a3a, rock: 0x8f9a78, leaves: 0xffffff, far: [0x2c5a3a, 0x5d8a72] },
-  sun: { elev: 44, azim: 205 },
+  palette: { ground: [0x7fbf55, 0x5f9a3e, 0x95c862, 0x6aa045], grass: 0x6a9a4a, rock: 0x8f9a78, leaves: 0xffffff, far: [0x2c5a3a, 0x5d8a72] },
+  sun: { elev: 38, azim: 205 },
   fog: 0.0007, fogColor: 0x86ad94,
   features: [
     { t: 'pad', seg: 0, at: 0.6, d: 0, w: 4, len: 8 },

@@ -9,9 +9,15 @@
 //      앞뒤: 가속(최고속에 가까울수록 줄어듦) / 액셀을 떼면 확 줄어드는 감속 / 브레이크 / 멈춘 뒤 후진
 //      옆: 미끄러지는 옆 속도를 빠르게 없애 "가는 방향 = 보는 방향" (평소엔 거의 안 미끄러진다)
 //      회전: 조향 = 목표 회전 속도. 빠를수록 크게 못 돈다(접지 한계 aGrip)
-//  · 드리프트(Shift 누르는 동안): 더 많이 돌고 옆으로 미끄러진다. 떼면 0.15초 안에 접지가 돌아와 바로 펴진다.
-//  · 드리프트하면 게이지가 차고, 가득 차면 부스터 1개(최대 2개). 부스터 키로 쓴다.
-//    드리프트가 끝난 직후 가속 키를 "새로" 누르면 순간부스터, 출발 신호 직후 새로 누르면 출발부스터.
+//  · 드리프트 (2026-10-02 사용자 2차 요청 — 카트라이더 역설계 사양):
+//      Shift + 방향키로 시작하면 차 머리가 초당 최대 200° 로 확 돌아 미끄럼각 30° 가 된다(머리와 가는 방향이 갈라짐).
+//      드리프트 쪽 방향키를 계속 누르고 있으면 미끄럼각이 50° 까지 점점 커지고, 각이 클수록 경로가 더 휜다
+//      → 오래 누를수록 더 꺾인다(1.7~2초면 U자). 코너 안쪽으로 감기는 힘도 더한다. 드리프트 중엔 초당 15% 감속.
+//      Shift 를 떼면 0.35초에 걸쳐 부드럽게 접지가 돌아온다(뚝 끊기지 않게). 반대 방향키(카운터)면 0.12초 만에 편다.
+//      옆 미끄럼 속도는 앞 속도로 거의 돌려주지 않는다(드리프트로 잃은 속도가 탈출 때 공짜로 돌아오지 않게 — 동우 피드백).
+//  · 드리프트하면 게이지가 찬다 = 속도/최고속 × 미끄럼각 × 충전 계수. 가득 차면 부스터 1개(최대 2개). 부스터 키로 쓴다.
+//    드리프트가 끝난 직후 0.3초 안에 가속 키를 "새로" 누르면 순간부스터(0.5초), 출발 신호 직후 새로 누르면 출발부스터.
+//    부스터 중 드리프트하며 방향키를 톡톡 연타하면(톡톡이) 감속 없이 부스터 최고속의 110% 까지 더 밀어 준다.
 //  · 모든 계산은 dmath 의 결정적 함수만 쓴다(세 화면이 비트 단위로 같아야 하므로). 상태는 전부 st 에.
 //
 // 좌표: 월드 Y 가 위. 차 기준 +Z 앞, +Y 위, +X 왼쪽.
@@ -34,25 +40,49 @@ export const KART = {
   COAST1: 0.13,
   REV_ACC: 6, REV_MAX: 9,
   GRIP_K: 12,         // 옆미끄럼을 없애는 빠르기(1/초) — 평소
-  DRIFT_K: 2.2,       // 드리프트 중
-  RECOVER: 0.07,      // 드리프트를 놓은 뒤 접지가 다 돌아오는 시간(초)
-  DRIFT_LAT: 1.35,    // 드리프트 중 옆 가속 한계 = aGrip × 이 값
-  KEEP: 0.9,          // 옆미끄럼을 없앨 때 그 에너지의 이만큼은 앞으로 돌려준다(코너에서 속도를 덜 잃게)
-  DRIFT_DRAG: 1.2,    // 드리프트 중 추가 감속 m/s²
+  KEEP: 0.9,          // 평소: 옆미끄럼을 없앨 때 그 에너지의 이만큼은 앞으로 돌려준다(그냥 꺾는 코너에서 속도를 덜 잃게)
   KYAW: 11,           // 목표 회전 속도로 따라가는 빠르기(1/초)
-  KBETA: 4,           // 드리프트 미끄럼각을 목표각으로 맞추는 빠르기(1/초)
   YAW_CAP: 2.4,       // 저속 최대 회전 속도 rad/s
+  // ── 드리프트 조절 값 (사용자 사양의 이름 그대로 — 손맛을 바꿀 때 여기만 고친다) ──
+  driftYawRate: 3.5,          // 드리프트 진입 때 차 머리가 도는 최대 속도 rad/s (200°/초)
+  lateralGripFactor: 0.026,   // 드리프트 중 옆 미끄럼을 한 프레임(1/60초)에 없애는 비율(0~1). 높이면 바깥으로 덜 밀린다
+  centripetalStrength: 0.25,  // 코너 안쪽으로 감기는 힘(경로를 초당 이 rad 만큼 더 휜다). 높이면 인코스로 파고든다
+  toktokAccelMultiplier: 1.10,// 톡톡이: 부스터 최고속의 이 배까지
+  instantBoostWindowTime: 0.3,// 드리프트를 끝낸 뒤 순간부스터 입력을 받아 주는 시간(초)
+  instantBoostForce: 1.14,    // 순간부스터: 최고속의 이 배까지 밀어 준다
+  DRIFT_B0: 0.52,     // 진입 미끄럼각 rad (30°)
+  DRIFT_BMAX: 0.87,   // 방향키를 계속 누를 때 커지는 미끄럼각 상한 rad (50°)
+  DRIFT_BCLAMP: 1.13, // 어떤 경우에도 넘지 않는 미끄럼각 rad (65° — 팽이처럼 도는 스핀 방지)
+  DRIFT_GROW: 0.4,    // 드리프트 쪽 방향키를 누르고 있을 때 미끄럼각이 커지는 빠르기 rad/초
+  DRIFT_RELAX: 1.5,   // 방향키를 놓으면 진입각으로 돌아가는 빠르기(1/초)
+  DRIFT_ALAT: 2.8,    // 드리프트 중 옆 가속 상한 = aGrip × 이 값 (아케이드라 크게 — 빠를수록 안 꺾이던 것을 풂)
+  DRIFT_DECEL: 0.15,  // 드리프트 유지 중 감속: 속도의 15%/초
+  KEEP_D: 0.9,        // 드리프트 중: 옆미끄럼 에너지를 앞으로 돌려주는 비율 (드리프트 감속은 DRIFT_DECEL 로만 정한다)
+  KEEP_REC: 0.55,     // Shift 를 떼고 펴지는 중: 적게 돌려준다(펴지는 순간 속도가 확 붙던 것 — 동우 피드백)
+  KEEP_ALIGN: 0.6,    // 카운터로 펼 때
+  DRIFT_THR: 0.25,    // 드리프트 중 가속 키의 힘(평소의 25% — 액셀을 밟고 있어도 드리프트하면 속도가 준다)
+  KBETA: 8,           // 미끄럼각을 목표각으로 맞추는 빠르기(1/초)
+  KYAW_D: 16,         // 드리프트 중 목표 회전 속도로 따라가는 빠르기(1/초) — 진입이 즉답이게
+  RECOVER: 0.3,       // Shift 를 뗀 뒤 접지가 다 돌아오는 시간(초) — 부드럽게(전엔 0.07초라 뚝 끊겼다)
+  ALIGN_T: 0.14,      // 카운터(반대 방향키)로 머리와 가는 방향을 맞추는 시간(초)
+  ALIGN_K: 36,        // 그때 옆미끄럼을 없애는 빠르기(1/초)
+  TOKTOK_ACC: 8,      // 톡톡이 추가 가속 m/s²
+  TAP_N: 1.2,         // 톡톡이 판정: 방향키를 새로 누른 횟수(0.4초 반감) 누적이 이 값을 넘으면 '연타'
   RMIN: 2.8,          // 제자리 회전 방지: 최소 회전 반경 m
   TILT_K: 6,          // 땅에 닿아 있을 때 롤·피치 흔들림을 잡는 빠르기
   DRIFT_MIN_V: 8,     // 이보다 느리면 드리프트 안 됨 m/s
-  CHARGE: 0.60,       // 드리프트 게이지 기본 충전 속도(1/초) — 2026-10-02 사용자: 카트라이더만큼 잘 안 찬다 → 0.40 에서 올림(1초 드리프트 ≈ 65%)
+  CHARGE: 1.15,       // 게이지 충전 계수 chargeRate: 게이지 += 속도/최고속 × 미끄럼각(rad) × 이 값 × 초 (1.5초 드리프트 ≈ 부스터 1개)
+  CHARGE_BMIN: 0.3,   // 짧게 끊어 치는 드리프트도 차도록 미끄럼각은 이 값 이상으로 친다
   BOOST_V: 1.25, BOOST_TAU: 0.35, // 부스터: 최고속 ×, 그 속도까지 붙는 시간상수(초) — 누르자마자 확 밀어 준다
-  INST_V: 1.14, INST_T: 0.55,    // 순간부스터
-  INST_WIN: 0.35,                // 드리프트가 끝난 뒤 순간부스터 입력을 받아 주는 시간
+  INST_T: 0.5,                   // 순간부스터 지속(초)
+  START_WIN: 0.35,               // 출발 신호 뒤 출발부스터 입력을 받아 주는 시간
   START_T: 0.9,                  // 출발부스터 지속
   OVER_K: 0.8,                   // 최고속을 넘으면(부스터 끝·내리막) 줄어드는 빠르기
   PAD_T: 0.7, PAD_V: 1.18,       // 가속 발판
 };
+// 드리프트 중 옆 미끄럼을 없애는 빠르기(1/초) = −ln(1 − lateralGripFactor) × 60 (로그는 급수로 — 결정적 계산)
+export const K_DRIFT = (() => { const f = KART.lateralGripFactor; let s = 0, p = f; for (let n = 1; n < 60; n++) { s += p / n; p *= f; } return s * 60; })();
+const smooth01 = x => { const t = x < 0 ? 0 : x > 1 ? 1 : x; return t * t * (3 - 2 * t); };
 
 /** 제원 → 계산에 쓰는 상수 (한 번만) */
 export function prepare(spec) {
@@ -118,6 +148,7 @@ function makeState() {
     gear: 1, shiftT: 0, nextGear: 1, rpm: 800,
     // 카트
     drift: 0, ddir: 0, dT: 0, gripT: 9, gauge: 0, boosts: 0, boostT: 0, boostK: 0, boostV: 1,
+    dB: 0, alT: 0, tap: 0, stIn: 0, hbLatch: 0,
     instT: 0, instKind: 0, thrPrev: 0, boPrev: 0, wasLocked: 1, air: 0, padT: 0,
     hint: -1, ghostT: 0, dc: 0, lastRst: 0, rstCD: 0, flipT: 0, stuckT: 0,
     w: [0, 1, 2, 3].map(() => ({ om: 0, x: 0, hint: -1 })),
@@ -153,6 +184,7 @@ export class Car {
     s.gear = 1; s.shiftT = 0; s.nextGear = 1; s.rpm = this.P.spec.engine.idle;
     s.steer = 0; s.thr = 0; s.brk = 0; s.hb = 0; s.flipT = 0;
     s.drift = 0; s.ddir = 0; s.dT = 0; s.gripT = 9; s.boostT = 0; s.boostK = 0; s.boostV = 1; s.instT = 0;
+    s.dB = 0; s.alT = 0; s.tap = 0; s.stIn = 0; s.hbLatch = 0;
     for (let i = 0; i < 4; i++) {
       const w = s.w[i];
       w.om = 0;
@@ -215,22 +247,41 @@ export class Car {
       return;
     }
     // 출발 신호 직후 가속 키를 새로 누르면 출발부스터 (신호 전부터 누르고 있었으면 없음)
-    if (s.wasLocked) { s.wasLocked = 0; s.instT = KART.INST_WIN; s.instKind = 2; }
+    if (s.wasLocked) { s.wasLocked = 0; s.instT = KART.START_WIN; s.instKind = 2; }
 
     const fwdx = 2 * (s.qx * s.qz + s.qw * s.qy), fwdz = 1 - 2 * (s.qx * s.qx + s.qy * s.qy);
     const vf = s.vx * fwdx + s.vz * fwdz;
 
-    // 드리프트: Shift 를 누르고 있고, 방향키가 들어가 있고, 충분히 빠를 때 시작 → 떼면 끝
+    // 방향키 연타 세기 (톡톡이 판정): 새로 누르거나 반대쪽으로 바꿀 때마다 +1, 0.4초마다 절반으로
+    const sIn = inp.steer > 0.5 ? 1 : inp.steer < -0.5 ? -1 : 0;
+    if (sIn !== 0 && sIn !== s.stIn) s.tap += 1;
+    s.stIn = sIn;
+    s.tap -= s.tap * Math.min(1, 1.75 * dtF);
+    if (!s.hb) s.hbLatch = 0;
+    // 드리프트: Shift + 방향키 + 충분한 속도로 시작. 끝: Shift 를 떼거나, 반대 방향키(카운터).
+    // 카운터로 끝냈는데 Shift 를 계속 누르고 있으면, Shift 를 새로 눌러야 다음 드리프트(펴자마자 반대로 다시 미끄러지지 않게)
     if (!s.drift) {
-      if (s.hb && Math.abs(inp.steer) > 0.25 && vf > KART.DRIFT_MIN_V && !s.air && !s.dc) {
-        s.drift = 1; s.ddir = inp.steer > 0 ? 1 : -1; s.dT = 0;
+      if (s.hb && !s.hbLatch && Math.abs(inp.steer) > 0.25 && vf > KART.DRIFT_MIN_V && !s.air && !s.dc) {
+        s.drift = 1; s.ddir = inp.steer > 0 ? 1 : -1; s.dT = 0; s.dB = KART.DRIFT_B0; s.alT = 0;
       }
-    } else if (!s.hb || vf < KART.DRIFT_MIN_V * 0.6 || s.dc) {
-      s.drift = 0; s.gripT = 0;
-      // 순간부스터 기회: Shift 를 떼서, 충분한 속도로 끝낸 드리프트만 (벽에 박혀 멈춘 드리프트·끊김은 안 됨),
-      // 그리고 최고속의 90% 아래일 때만 (직선 지그재그로 계속 +11% 를 얻던 것 — 4차 독립검증)
-      if (s.dT > 0.3 && !s.hb && !s.dc && vf >= KART.DRIFT_MIN_V * 0.6 && vf < P.vtop * 0.9) { s.instT = KART.INST_WIN; s.instKind = 1; }
+    } else {
+      const counter = inp.steer * s.ddir < -0.35;      // 키를 누른 그 순간 바로(조향 램프를 기다리지 않음)
+      if (!s.hb || counter || vf < KART.DRIFT_MIN_V * 0.6 || s.dc) {
+        s.drift = 0; s.gripT = 0;
+        if (counter) { s.alT = KART.ALIGN_T; if (s.hb) s.hbLatch = 1; }
+        // 순간부스터 기회: Shift 를 떼거나 카운터로 끝낸, 0.3초 넘게 충분한 속도로 한 드리프트만 (벽에 박혀 멈춘 드리프트·끊김은 안 됨),
+        // 그리고 최고속의 90% 아래일 때만 (직선 지그재그로 계속 +11% 를 얻던 것 — 4차 독립검증). 카운터면 펴는 시간만큼 더 준다
+        if (s.dT > 0.3 && !s.dc && vf >= KART.DRIFT_MIN_V * 0.6 && vf < P.vtop * 0.9) { s.instT = KART.instantBoostWindowTime + (counter ? KART.ALIGN_T : 0); s.instKind = 1; }
+      } else {
+        // 미끄럼각 목표: 드리프트 쪽 방향키를 누르고 있으면 점점 커진다(오래 누를수록 더 꺾임), 놓으면 진입각으로 돌아간다
+        const u = s.steer * s.ddir;
+        if (u > 0.2) s.dB = Math.min(KART.DRIFT_BMAX, s.dB + KART.DRIFT_GROW * P.driftK * u * dtF);
+        else s.dB += (KART.DRIFT_B0 - s.dB) * Math.min(1, KART.DRIFT_RELAX * dtF);
+      }
     }
+    // Shift 를 뗀 뒤 미끄러져 나오는 중에도 반대 방향키면 빠르게 편다
+    if (!s.drift && s.ddir && s.gripT < KART.RECOVER && s.alT <= 0 && inp.steer * s.ddir < -0.35) s.alT = KART.ALIGN_T;
+    if (s.alT > 0) { s.alT -= dtF; if (s.alT <= 0) { s.alT = 0; s.gripT = Math.max(s.gripT, KART.RECOVER); } }
     if (s.drift) s.dT += dtF; else s.gripT += dtF;
 
     // 순간부스터·출발부스터: 기회 시간 안에 가속 키를 "새로" 누르면
@@ -240,7 +291,8 @@ export class Car {
       if (tNow && !s.thrPrev) {
         const t = s.instKind === 2 ? KART.START_T : KART.INST_T;
         // 더 센 부스터가 진행 중이면 약하게 덮어쓰지 않고 시간만 늘린다 (끝난 뒤 남은 boostV 1.25 와 섞이지 않게 진행 중일 때만)
-        if (s.boostT < t) { const on = s.boostT > 0; s.boostV = on ? Math.max(s.boostV, KART.INST_V) : KART.INST_V; s.boostK = on ? Math.max(s.boostK, 0.7) : 0.7; s.boostT = t; }
+        const iv = KART.instantBoostForce;
+        if (s.boostT < t) { const on = s.boostT > 0; s.boostV = on ? Math.max(s.boostV, iv) : iv; s.boostK = on ? Math.max(s.boostK, 0.7) : 0.7; s.boostT = t; }
         s.instT = 0; this.out.inst = s.instKind;
       }
     }
@@ -340,7 +392,16 @@ export class Car {
       const share = nc / 4;                       // 바퀴 일부만 닿으면 힘도 그만큼
       // 앞뒤
       const boost = s.boostT > 0 ? s.boostK : 0;
-      const vtop = P.vtop * sV * (s.boostT > 0 ? s.boostV : 1);
+      // 미끄럼각 β (진행 방향이 차 머리보다 왼쪽이면 +)
+      const beta = datan(vl / Math.max(vf, 1));
+      const aB = beta < 0 ? -beta : beta;
+      // 톡톡이: 부스터 중 드리프트 + 미끄럼각 25~50° + 방향키 연타 → 드리프트 감속 없이 부스터 최고속의 110% 까지 더 민다
+      const toktok = s.drift && s.boostT > 0 && aB > 0.436 && aB < 0.873 && s.tap > KART.TAP_N;
+      this.out.tok = toktok ? 1 : 0;     // 화면 표시용 (상태 아님)
+      const vtopB = P.vtop * sV * (s.boostT > 0 ? s.boostV : 1);
+      const vtop = toktok ? vtopB * KART.toktokAccelMultiplier : vtopB;
+      // 최고속·부스터 비교는 '앞 속도'가 아니라 실제 속력으로 (드리프트 중엔 앞 속도가 작아 부스터가 끝없이 밀어 265km/h 까지 나왔다 — 14회차에 발견)
+      const vs = vf > 0 ? Math.sqrt(vf * vf + vl * vl) : vf;
       let ax = 0;
       if (this.locked) ax = -clamp(vf * 8, -KART.BRAKE, KART.BRAKE);
       else if (s.gear < 0 || (s.brk > 0.3 && s.thr < 0.1 && vf < 0.6)) {
@@ -349,56 +410,77 @@ export class Car {
         else if (s.thr > 0.3) ax = KART.BRAKE * s.thr;
         else ax = -clamp(vf * 3, -4, 4);
       } else {
-        if (vf > vtop) ax = -(vf - vtop) * KART.OVER_K;
+        if (vs > vtop) ax = -(vs - vtop) * KART.OVER_K;
         else if (s.thr > 0) {
-          const r = vf / vtop;
-          ax = P.acc * sA * s.thr * (1 - r * r);
+          const r = vs / vtopB;
+          ax = P.acc * sA * s.thr * Math.max(0, 1 - r * r) * (s.drift && !toktok ? KART.DRIFT_THR : 1);
         }
         // 부스터: 부스터 최고속까지 바로 밀어 준다(가속 키를 안 눌러도)
-        if (boost > 0 && vf < vtop) ax = Math.max(ax, (vtop - vf) / KART.BOOST_TAU * boost);
+        if (boost > 0 && vs < vtopB) ax = Math.max(ax, (vtopB - vs) / KART.BOOST_TAU * boost);
+        if (toktok && vs < vtop) ax += KART.TOKTOK_ACC;
         if (s.thr < 0.05 && boost === 0) ax -= KART.COAST0 + KART.COAST1 * Math.max(0, vf);   // 액셀을 떼면 확 준다
         if (s.brk > 0 && vf > 0) ax -= KART.BRAKE * s.brk * (0.5 + 0.5 * sI);   // 빙판에선 덜 선다
-        if (s.drift) ax -= KART.DRIFT_DRAG;
+        if (s.drift && !toktok) ax -= KART.DRIFT_DECEL * Math.max(0, vs);     // 드리프트 유지: 초당 15% 감속
         if (s.dc) ax = -clamp(vf * 2, -6, 6);
       }
-      // 옆: 미끄럼을 없앤다 (드리프트 중엔 적게, 놓은 직후엔 빠르게 되돌아온다)
-      const rec = s.drift ? 0 : Math.min(1, s.gripT / KART.RECOVER);
-      const kLat = (s.drift ? KART.DRIFT_K : KART.DRIFT_K + (KART.GRIP_K - KART.DRIFT_K) * rec) * sI;   // 빙판은 옆으로 잘 미끄러진다
-      const aCap = (s.drift ? P.aGrip * KART.DRIFT_LAT * P.driftK : P.aGrip * (s.gripT < 0.4 ? 4.5 : 1.5)) * sG;
+      // 옆: 미끄럼을 없앤다 — 드리프트 중엔 조금(그래서 미끄러진다), Shift 를 뗀 뒤엔 0.35초에 걸쳐 평소로,
+      // 카운터(반대 방향키)면 0.12초 만에 강하게. 빙판은 옆으로 잘 미끄러진다(sI)
+      const u = s.steer * s.ddir;
+      let kLat, aCap, keep, rec = 1;
+      if (s.drift) { kLat = K_DRIFT; aCap = P.aGrip * KART.DRIFT_ALAT * P.driftK; keep = KART.KEEP_D; rec = 0; }
+      else if (s.alT > 0) { kLat = KART.ALIGN_K; aCap = P.aGrip * 8; keep = KART.KEEP_ALIGN; rec = 0; }
+      else if (s.gripT < KART.RECOVER) {
+        { const t = s.gripT / KART.RECOVER; rec = 1 - (1 - t) * (1 - t); }    // 처음부터 꾸준히 (끝에 몰리면 질질 끌린다)
+        kLat = K_DRIFT + (KART.GRIP_K - K_DRIFT) * rec;
+        aCap = P.aGrip * KART.DRIFT_ALAT;
+        keep = KART.KEEP_REC + (KART.KEEP - KART.KEEP_REC) * rec;
+      } else { kLat = KART.GRIP_K; aCap = P.aGrip * 1.5; keep = KART.KEEP; }
+      kLat *= sI; aCap *= sG;
       let al = -vl * kLat;
+      // 코너 안쪽으로 감기는 힘 (드리프트 쪽 방향키를 누르고 있으면 다, 놓으면 절반)
+      if (s.drift) al -= s.ddir * KART.centripetalStrength * Math.max(vf, 0) * (u > 0.2 ? 1 : 0.5);
       if (al > aCap) al = aCap; else if (al < -aCap) al = -aCap;
-      // 없앤 옆 속도의 일부를 앞으로 (미끄럼을 펴도 속도를 크게 잃지 않게)
+      // 없앤 옆 속도의 일부를 앞으로 (그냥 꺾을 땐 많이, 드리프트·탈출 땐 적게 — 잃은 속도가 공짜로 돌아오지 않게)
       let ak = 0;
-      if (vf > 1 && al * vl < 0) ak = KART.KEEP * (-al * vl) / vf;
+      if (vf > 1 && al * vl < 0) ak = keep * (-al * vl) / vf;
       ax += ak;
       Fx += m * share * (ax * fx + al * lx);
       Fy += m * share * (ax * fy + al * ly);
       Fz += m * share * (ax * fzv + al * lz);
       // 회전: 노면 법선 축 회전 속도를 목표로
       const on = ox * nx + oy * ny + oz * nz;
-      let wt;
+      let wt, kyaw = KART.KYAW;
+      const wPath = al / Math.max(vf, 1);           // 경로(가는 방향)가 도는 속도
       if (s.drift) {
-        // 미끄럼각 β(진행 방향이 차 머리보다 왼쪽이면 +)를 목표각으로: 드리프트 방향으로 누르면 26°, 놓으면 17°, 반대로 누르면 9°
-        // 경로가 얼마나 휘는지는 옆 가속(위 al)이 정한다 → 각이 클수록 더 돈다. 머리 회전 = 경로 회전 + 각 맞추기
-        const beta = datan(vl / Math.max(vf, 1));
-        const bt = s.ddir * (0.30 + 0.15 * clamp(s.steer * s.ddir, -1, 1));
-        wt = al / Math.max(vf, 1) - KART.KBETA * (bt - beta);
-        const cap = KART.YAW_CAP * 1.2;
+        // 머리 회전 = 경로 회전 + 미끄럼각을 목표각으로 맞추기. 목표각은 누르고 있을수록 커진다(controls 의 dB)
+        // 진입 때는 목표각과 차이가 커서 머리가 초당 최대 200° 로 확 돈다
+        const bt = s.ddir * Math.min(s.dB, KART.DRIFT_BCLAMP);
+        wt = wPath - KART.KBETA * (bt - beta);
+        // 미끄럼각이 65° 를 넘으려 하면 더 못 돌게 (스핀 방지)
+        if (aB > KART.DRIFT_BCLAMP && wt * s.ddir < 0) wt = wPath;
+        const cap = KART.driftYawRate;
         if (wt > cap) wt = cap; else if (wt < -cap) wt = -cap;
-      } else wt = -s.steer * this.yawMax(vf) * (vf >= 0 ? 1 : -1);
+        kyaw = KART.KYAW_D;
+      } else if (s.alT > 0) {
+        // 카운터: 머리는 그대로 두고 가는 방향을 머리 쪽으로 맞춘다 (흔들림·스핀 없이)
+        wt = 0; kyaw = KART.KYAW_D;
+      } else {
+        wt = -s.steer * this.yawMax(vf) * (vf >= 0 ? 1 : -1);
+        // Shift 를 뗀 직후: 머리가 갑자기 멈칫하지 않게 경로 회전에서 평소 조향으로 서서히
+        if (rec < 1) wt = wPath + (wt - wPath) * rec;
+      }
       if (this.locked) wt = 0;
-      const ty = P.I[1] * KART.KYAW * (wt - on) * share;
+      const ty = P.I[1] * kyaw * (wt - on) * share;
       Tx += ty * nx; Ty += ty * ny; Tz += ty * nz;
       // 롤·피치 흔들림 잡기 (카트는 기울지 않는다)
       const px = ox - on * nx, py = oy - on * ny, pz = oz - on * nz;
       const kt = KART.TILT_K * share * (P.I[0] + P.I[2]) / 2;
       Tx -= kt * px; Ty -= kt * py; Tz -= kt * pz;
-      // 드리프트 게이지: 미끄럼각·속도에 비례
+      // 드리프트 게이지 (사용자 사양): 게이지 += 속도/최고속 × 미끄럼각 × 충전 계수 × 시간
       const sp = Math.sqrt(vf * vf + vl * vl);
       if (s.drift && sp > KART.DRIFT_MIN_V) {
-        const ratio = Math.abs(vl) / sp;
-        // 드리프트를 막 시작해 미끄럼각이 작아도 꽤 찬다 (짧게 끊어 치는 드리프트도 보상)
-        s.gauge += dt * KART.CHARGE * P.charge * clamp(ratio / 0.15, 0.5, 1.2) * Math.min(1, sp / 25) * share;
+        // 짧게 끊어 치는 드리프트도 차도록 미끄럼각은 0.3rad 이상으로 친다
+        s.gauge += dt * KART.CHARGE * P.charge * Math.min(1.2, sp / P.vtop) * Math.max(aB, KART.CHARGE_BMIN) * share;
         if (s.gauge >= 1) {
           // 가득 차면 부스터 1개(최대 2개), 게이지는 0부터 다시 (2개를 갖고 있으면 그냥 비운다 — 사용자 요청)
           if (s.boosts < 2) s.boosts++;
@@ -417,7 +499,7 @@ export class Car {
       sw[i].om = vfOut / R;
       const o = out.wheels[i];
       o.steer = wh[i].front ? -s.steer * P.lock : 0;
-      o.slip = o.contact ? (s.drift ? 1.5 + slipShow * 3 : slipShow * 6) : 0;
+      o.slip = o.contact ? (s.drift || s.alT > 0 ? 1.5 + slipShow * 3 : slipShow * 6) : 0;
       o.sa = slipShow; o.sr = 0;
     }
     out.esc = 0;
