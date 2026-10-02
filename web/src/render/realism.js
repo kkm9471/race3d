@@ -44,7 +44,7 @@ export const REAL = {
     runoff: { tex: 'red_sand', scale: 3 },
     gravel: { tex: 'red_sand', scale: 2.5, tint: 0xd8c0b0 },
     terrain: { tex: 'red_sand', scale: 5 },
-    rock: { tex: 'red_sandstone_wall', scale: 4 },
+    rock: { tex: 'rock_face_03', scale: 5, tint: 0xf0b088 },   // red_sandstone_wall 은 돌담(벽돌)처럼 보였다
     wall: { tex: 'concrete_wall_006', scale: 3, tint: 0xf0dcd0 },
   },
   glacier: {    // 흐린 날 빙하
@@ -52,7 +52,7 @@ export const REAL = {
     road: { tex: 'asphalt_snow', scale: 3, env: 1.2, bright: 1.2 },
     runoff: { tex: 'snow_02', scale: 3 },
     terrain: { tex: 'snow_02', scale: 5 },
-    rock: { tex: 'cliff_side', scale: 4, tint: 0xdce6f0 },
+    rock: { tex: 'snow_02', scale: 4, tint: 0xd8e2ee, normal: 2 },   // 눈 덮인 절벽 (갈색 바위 질감은 얼음·눈 맵에 안 맞았다)
     wall: { tex: 'concrete_wall_006', scale: 3 },
   },
   harbor: {     // 해 질 녘 항구 도시
@@ -67,7 +67,7 @@ export const REAL = {
     road: { tex: 'asphalt_snow', scale: 3, env: 1.2, bright: 1.2 },
     runoff: { tex: 'snow_02', scale: 3 },
     terrain: { tex: 'snow_02', scale: 5 },
-    rock: { tex: 'cliff_side', scale: 4, tint: 0xdce6f0 },
+    rock: { tex: 'snow_02', scale: 4, tint: 0xd8e2ee, normal: 2 },   // 눈 덮인 절벽 (갈색 바위 질감은 얼음·눈 맵에 안 맞았다)
     wall: { tex: 'concrete_wall_006', scale: 3 },
   },
 };
