@@ -7,6 +7,24 @@ import { Sim } from '../web/src/sim/race.js';
 let fail = 0;
 const ok = (c, m) => { console.log(`  ${c ? '✅' : '❌'} ${m}`); if (!c) fail++; };
 
+// 0) 상태·해시에 숫자가 아닌 값(없는 값·NaN)이 없다 — NaN 은 비트 모양이 V8 버전·최적화 단계마다 달라
+//    세 화면 해시가 어긋난다 (2026-10-02 카트식 전환 때 없어진 w.abs 를 해시에 넣어 실제로 생겼다)
+console.log('[상태는 전부 유한한 숫자]');
+{
+  const sim = new Sim({ track: 'circuit', laps: 1, players: [{ car: 'masil', bot: true }, { car: 'baram', bot: true }, { car: 'yuseong' }] });
+  const bad = new Set();
+  for (let f = 0; f < FPS * 30; f++) {
+    sim.step([0, 0, pack({ thr: 1, steer: (f % 120) < 60 ? 1 : -1, hb: f % 90 < 40 ? 1 : 0, bo: f % 200 === 0 ? 1 : 0, kb: 1 })]);
+    for (const c of sim.cars) {
+      for (const k in c.st) { const v = c.st[k]; if (k !== 'w' && !Number.isFinite(v)) bad.add(k); }
+      for (const w of c.st.w) for (const k in w) if (!Number.isFinite(w[k])) bad.add('w.' + k);
+    }
+  }
+  const src = (await import('node:fs')).readFileSync(new URL('../web/src/sim/race.js', import.meta.url), 'utf8');
+  const hashed = [...src.matchAll(/hnum\(h, w\.(\w+)\)/g)].map(m => m[1]).filter(k => !(k in sim.cars[0].st.w[0]));
+  ok(bad.size === 0 && hashed.length === 0, `숫자가 아닌 상태 ${[...bad].join(',') || '없음'} · 해시가 읽는데 없는 바퀴 값 ${hashed.join(',') || '없음'}`);
+}
+
 // 1) 카트식 손맛 (2026-10-02 사용자 요구: 카트라이더처럼 — 액셀 떼면 확 줄고, Shift 떼면 바로 펴지고, 순간부스터)
 console.log('[카트 손맛]');
 {

@@ -38,7 +38,9 @@ function restoreSt(st, o) {
 
 const F64 = new Float64Array(1), U32 = new Uint32Array(F64.buffer);
 function hnum(h, x) {
-  F64[0] = x;
+  // NaN(없는 값 포함)은 비트 모양이 V8 버전·최적화 단계마다 다를 수 있다 → 같은 값으로 바꿔 넣는다
+  // (카트식으로 바꾸며 없어진 w.abs 를 해시에 넣었다가 세 화면·Node 해시가 어긋난 적이 있다 — 2026-10-02)
+  F64[0] = x === x ? x : -12345.678;
   h = Math.imul(h ^ U32[0], 16777619);
   h = Math.imul(h ^ U32[1], 16777619);
   return h >>> 0;
@@ -243,7 +245,7 @@ export class Sim {
       }
       for (let i = 0; i < 4; i++) {
         const w = st.w[i];
-        h = hnum(h, w.om); h = hnum(h, w.x); h = hnum(h, w.abs); h = hnum(h, w.hint);
+        h = hnum(h, w.om); h = hnum(h, w.x); h = hnum(h, w.hint);
       }
     }
     return h >>> 0;
