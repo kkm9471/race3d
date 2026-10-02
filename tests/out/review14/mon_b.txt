@@ -1,0 +1,4 @@
+nymph samples 40 blank 0  
+pirate samples 60 blank 6 s=751(f1788):11274 s=1223(f2637):11975 s=1277(f2732):11206 s=1315(f2826):11090 s=1705(f3674):11516 s=1922(f4052):11334 
+china samples 58 blank 0  
+ice samples 56 blank 1 s=2151(f4409):10281 

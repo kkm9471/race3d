@@ -1,0 +1,13 @@
+import puppeteer from 'puppeteer-core';
+const args = ['--no-sandbox','--window-size=1280,720','--enable-gpu','--use-angle=d3d11','--ignore-gpu-blocklist','--disable-background-timer-throttling','--disable-renderer-backgrounding'];
+const browser = await puppeteer.launch({ executablePath: 'C:/Program Files/Google/Chrome/Application/chrome.exe', headless: 'new', args, defaultViewport: { width: 1280, height: 720 } });
+const page = await browser.newPage();
+await page.goto(`http://127.0.0.1:8790/index.html?solo=1&track=mine&bots=0&q=high&laps=1&bot=1`, { waitUntil: 'load' });
+await page.waitForFunction(() => window.__game && window.__game.session.frame >= 580, { timeout: 60000, polling: 100 });
+await page.evaluate(() => { const g = window.__game; g.paused = true; g.pauseAt = performance.now(); });
+const size = async () => { await new Promise(r => setTimeout(r, 300)); return (await page.screenshot({ type: 'jpeg', quality: 60 })).length; };
+console.log('before', await size());
+const n = await page.evaluate(() => { const o = window.__game.view.track.children[116]; const nr = o.geometry.attributes.normal; let z = 0; for (let i = 0; i < nr.count; i++) { const x = nr.getX(i), y = nr.getY(i), zz = nr.getZ(i); if (x*x+y*y+zz*zz < 1e-8) { nr.setXYZ(i, 0, 1, 0); z++; } } nr.needsUpdate = true; return z; });
+console.log('fixed zero normals', n, 'after', await size());
+await page.screenshot({ path: 'tests/out/review14/mine_fixed.png' });
+await browser.close();
