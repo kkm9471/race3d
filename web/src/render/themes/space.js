@@ -128,10 +128,10 @@ export const look = {
   tunnel: { color: 0xffffff, map: tubeTex, light: 0x9fe8ff, emissive: 0x0c2c46, portal: 0x2c4a78 },
   // 실사(15회차): 별 하늘(코드 밤하늘)은 그대로 + 실제 금속판 노면·벽, 기지 소품(돔·탑·컨테이너)에도 금속 질감 (보통·높음 화질)
   real: {
-    road: { tex: 'metal_plate_02', scale: 3, tint: 0xb4c4e4, bright: 3.0, env: 1.2, rough: 0.7 },
-    runoff: { tex: 'metal_plate_02', scale: 3, tint: 0x9cb0d8, bright: 2.6, rough: 0.7 },
+    road: { tex: 'metal_plate_02', scale: 3, tint: 0xdce6f8, bright: 6.0, env: 1.2, rough: 0.7 },
+    runoff: { tex: 'metal_plate_02', scale: 3, tint: 0xb8c8e8, bright: 4.6, rough: 0.7 },
     terrain: { tex: 'metal_plate_02', scale: 4, tint: 0x8498c0, bright: 2.2, rough: 0.8 },
-    wall: { tex: 'metal_plate_02', scale: 3, tint: 0xb0c0e0, bright: 2.8, rough: 0.6 },
+    wall: { tex: 'metal_plate_02', scale: 3, tint: 0xc4d2ee, bright: 4.6, rough: 0.6 },
     props: { tex: 'rusty_metal_02' },
   },
 };

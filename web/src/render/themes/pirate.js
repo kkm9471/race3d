@@ -136,7 +136,7 @@ export const look = {
   // 실사(보통·높음 화질): 파란 칠을 한 실제 벽돌 노면, 실제 모래, 맑은 카리브해 낮 하늘 (나무는 테마가 직접 그린 야자수 그대로)
   real: {
     sky: 'kloofendal_43d_clear_puresky', exposure: 0.95,
-    road: { tex: 'brick_pavement', scale: 2.4, tint: 0x5f8fe0, bright: 1.25, env: 1.0 },
+    road: { tex: 'brick_pavement', scale: 2.4, tint: 0x6a9cff, bright: 3.0, env: 1.0 },
     runoff: { tex: 'coast_sand_01', scale: 6 },
     terrain: { tex: 'coast_sand_01', scale: 10 },
   },
