@@ -71,7 +71,7 @@ export class CarPreview {
     if (m.userData.blob) m.userData.blob.visible = false;
     this.scene.add(m);
     this.mesh = m;
-    this.dist = Math.max(8, spec.dims[0] * 1.95);
+    this.dist = Math.max(6.2, spec.dims[0] * 1.5);
   }
 
   start() {
