@@ -23,6 +23,24 @@
    "w": 2,
    "h": 2,
    "url": "https://polyhaven.com/a/concrete_wall_006"
+  },
+  "leafy_grass": {
+   "name": "Leafy Grass",
+   "w": 2,
+   "h": 2,
+   "url": "https://polyhaven.com/a/leafy_grass"
+  },
+  "grass_path_2": {
+   "name": "Grass Path 2",
+   "w": 1,
+   "h": 1,
+   "url": "https://polyhaven.com/a/grass_path_2"
+  },
+  "aerial_grass_rock": {
+   "name": "Aerial Grass Rock",
+   "w": 15,
+   "h": 15,
+   "url": "https://polyhaven.com/a/aerial_grass_rock"
   }
  },
  "sky": {

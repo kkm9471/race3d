@@ -53,6 +53,9 @@ function fetchSky(id) {
     const bg = await loadImageTex(`${BASE}sky/${id}/bg.jpg`, true);
     if (bg) { bg.mapping = THREE.EquirectangularReflectionMapping; bg.wrapS = THREE.RepeatWrapping; bg.wrapT = THREE.ClampToEdgeWrapping; }
     const info = analyseHdr(hdr);
+    // 사진 속 해(하늘보다 수천 배 밝다)를 깎는다: 해는 따로 해 조명이 비추므로, 그대로 두면 반사맵에 해가 두 번 들어가
+    // 모든 면이 비스듬한 각도에서 해를 비춰 화면이 하얗게 번졌다(15회차 화면 확인)
+    { const d = hdr.image.data, cap = 6; for (let i = 0; i < d.length; i++) if (d[i] > cap) d[i] = cap; hdr.needsUpdate = true; }
     const sky = { id, hdr, bg, ...info };
     skyCache.set(id, sky);
     return sky;
@@ -76,7 +79,7 @@ function analyseHdr(tex) {
       if (j < H / 2 && l > best) { best = l; bi = i; bj = j; }
       // 지평선 바로 위(고도 2~10°)의 평균 = 안개 색
       const elev = 90 - (j + 0.5) / H * 180;
-      if (elev > 2 && elev < 10) { hor[0] += Math.min(r, 4); hor[1] += Math.min(g, 4); hor[2] += Math.min(b, 4); hn++; }
+      if (elev > 2 && elev < 10) { hor[0] += Math.min(r, 1.5); hor[1] += Math.min(g, 1.5); hor[2] += Math.min(b, 1.5); hn++; }
     }
   }
   const u = (bi + 0.5) / W, v = (bj + 0.5) / H;
@@ -89,7 +92,10 @@ function analyseHdr(tex) {
   const sunColor = new THREE.Color(data[k], data[k + 1], data[k + 2]);
   const mx = Math.max(sunColor.r, sunColor.g, sunColor.b) || 1;
   sunColor.multiplyScalar(1 / mx);
+  // 안개 색: 지평선 평균 — 해 근처가 섞여 1(흰색)을 넘으면 안개가 빛나 화면이 하얗게 번진다 → 밝기를 0.55 로 맞춘다
   const horizon = new THREE.Color(hor[0] / hn, hor[1] / hn, hor[2] / hn);
+  const hl = 0.2126 * horizon.r + 0.7152 * horizon.g + 0.0722 * horizon.b;
+  if (hl > 0) horizon.multiplyScalar(0.55 / hl);
   return { sunDir, sunColor, sunPeak: best, horizon };
 }
 

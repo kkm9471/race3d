@@ -8,9 +8,10 @@
 export const REAL = {
   circuit: {
     sky: 'syferfontein_18d_clear_puresky',
-    road: { tex: 'asphalt_track', scale: 3 },
-    runoff: { tex: 'sparse_grass', scale: 3 },
-    terrain: { tex: 'sparse_grass', scale: 6 },
+    road: { tex: 'asphalt_track', scale: 3, env: 1.3 },
+    runoff: { tex: 'leafy_grass', scale: 3, tint: 0xb4d896 },
+    terrain: { tex: 'leafy_grass', scale: 5, tint: 0xb4d896 },
+    exposure: 1.05,
     gravel: { tex: 'gravel_floor', scale: 2.5 },
     wall: { tex: 'concrete_wall_006', scale: 3 },
   },
