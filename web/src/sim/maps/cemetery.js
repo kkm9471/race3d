@@ -39,7 +39,7 @@ export default {
   runBase: 2.0, runOut: 2.5, runK: 20, gravel: false, runSurf: SURF.GRASS,
   runSlope: 0.0,
   style: 'circuit',
-  palette: { ground: [0x3b3550, 0x29243a, 0x4a3f5a, 0x332d45], grass: 0x6a6488, far: [0x1f1633, 0x2c2045] },
+  palette: { ground: [0x5a4f7e, 0x3c3458, 0x6a5e90, 0x4a4068], grass: 0x6a6488, far: [0x1f1633, 0x2c2045] },
   sun: { elev: 22, azim: 200 },   // 달 높이·방향 (밤이라 태양 대신 달)
   night: { top: 0x090316, horizon: 0x40225e, stars: 2200, moon: 2.6, moonColor: 0xcfc4ff, ambient: 1.8, ambientColor: 0x9a88d8, exposure: 1.05, moonDisc: true, moonSize: 240, moonDiscColor: 0xfff2c8 },
   fog: 0.0016, fogColor: 0x2e1c48,
