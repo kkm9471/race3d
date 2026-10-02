@@ -154,7 +154,7 @@ function sawRoofGeo(THREE) {
 export const look = {
   road: 0xb4bcc0,
   roadTex: plateTex,
-  roadRough: 0.5,
+  roadRough: 0.9,     // 반들거리면 해를 마주 볼 때 노면이 하얗게 번진다
   line: 0xf2c21b,
   wall: { color: 0xffffff, map: wallTex, roughness: 0.55, metalness: 0.3, stripe: false },
   terrainTex: floorTex,

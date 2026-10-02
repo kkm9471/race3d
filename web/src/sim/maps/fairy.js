@@ -37,7 +37,7 @@ export default {
   palette: { ground: [0xbfe9c6, 0x9ed9ae, 0xf6cfe0, 0xd9cdf2], grass: 0xffffff },
   sun: { elev: 48, azim: 150 },
   // 파스텔 하늘: 밤하늘 틀(위·지평선 두 색 그라데이션)을 별 없이 써서 분홍·하늘색 하늘을 만든다
-  night: { top: 0x7fb8f5, horizon: 0xffd6ea, stars: 0, moonDisc: true, moonSize: 90, moonDiscColor: 0xfff8d8, moonColor: 0xfff2e2, moon: 3.0, ambient: 1.25, ambientColor: 0xffe6f2, exposure: 0.95 },
+  night: { top: 0x4b98ff, horizon: 0xffbfe0, stars: 0, moonDisc: true, moonSize: 90, moonDiscColor: 0xfff8d8, moonColor: 0xfff2e2, moon: 3.0, ambient: 1.25, ambientColor: 0xffe6f2, exposure: 0.95 },
   fog: 0.0009, fogColor: 0xf3dcef,
   features: [
     { t: 'ramp', seg: 2, at: 0.3, len: 13, h: 1.1 },

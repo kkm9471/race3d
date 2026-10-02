@@ -62,7 +62,7 @@ export default {
   runSlope: 0.0,
   style: 'city',
   sun: { elev: 40, azim: 150 },   // 공장 매연 낀 한낮 (해가 낮으면 마주 보는 구간에서 눈부심에 차가 묻힌다)
-  fog: 0.0016, fogColor: 0xb3a68e,
+  fog: 0.0010, fogColor: 0xa39a88,
   features: [
     { t: 'pad', seg: 0, at: 0.45, d: 0, w: 4, len: 8 },
     { t: 'tunnel', seg: 10, from: 0.08, to: 0.92 },

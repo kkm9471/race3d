@@ -30,7 +30,7 @@ export default {
   runSlope: -0.01,
   style: 'circuit',
   palette: { ground: [0x5f9a32, 0x4a8228, 0x86a840, 0x6a8a50], leaves: 0xffffff },
-  sun: { elev: 40, azim: 120 },   // 한낮
+  sun: { elev: 66, azim: 120 },   // 한낮
   fog: 0.0003, fogColor: 0xa9c6e2,
   features: [
     { t: 'ramp', seg: 5, at: 0.32, len: 14, h: 0.8 },                         // 착지 뒤 큰 코너까지 120m 넘게

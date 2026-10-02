@@ -64,7 +64,7 @@ export const look = {
   runoffTex: sprinkles,
   runoffColor: 0xffffff,
   terrainTex: softGround,
-  trees: { n: 0.9, conifer: 0.2, hue: [0.8, 0.99], sat: [0.45, 0.7], light: [0.72, 0.84], trunk: 0xa8764e },
+  trees: { n: 0.8, conifer: 0.2, hue: [0.83, 0.99], sat: [0.75, 0.95], light: [0.8, 0.9], trunk: 0xb0805a },
   far: [0xcdb6ee, 0xe9d6f7],
   banner: { bg: '#ff7fb6', fg: '#ffffff' },
 };
@@ -136,12 +136,16 @@ export function build(ctx) {
   };
   const b = T.bounds;
 
-  // ── 알록달록 성: 안쪽 들판에서 길과 가장 먼 곳 ──
-  let cx = (b.x0 + b.x1) / 2, cz = (b.z0 + b.z1) / 2, cr = 0;
-  for (let x = b.x0; x <= b.x1; x += 12) for (let z = b.z0; z <= b.z1; z += 12) {
-    if (!inside(x, z)) continue;
-    const c = clearance(x, z);
-    if (c > cr) { cr = c; cx = x; cz = z; }
+  // ── 알록달록 성: 안쪽 들판, 출발 직선 끝에서 정면으로 보이도록 첫 코너 가까이 (길에서 52m 넘게 떨어진 곳 중) ──
+  let cx = (b.x0 + b.x1) / 2, cz = (b.z0 + b.z1) / 2, cr = 0, best = Infinity;
+  {
+    const ti = ctx.segAt(1, 0.5);
+    for (let x = b.x0; x <= b.x1; x += 8) for (let z = b.z0; z <= b.z1; z += 8) {
+      if (!inside(x, z)) continue;
+      const c = clearance(x, z);
+      const d = Math.hypot(x - T.x[ti], z - T.z[ti]);
+      if (c >= 52 && d < best) { best = d; cr = c; cx = x; cz = z; }
+    }
   }
   {
     const P = [];
@@ -188,7 +192,7 @@ export function build(ctx) {
       P.push(paint(at(dg, Math.cos(a) * 12.2, 4.5, Math.sin(a) * 12.2), 0xff7fb0));
     }
     const geo = merge(P);
-    const sc = Math.max(0.6, Math.min(1.25, (cr - 8) / 34));
+    const sc = Math.max(0.6, Math.min(1.25, (cr - 10) / 34));
     geo.scale(sc, sc, sc);
     const m = new THREE.Mesh(geo, ctx.mat({ vertexColors: true, roughness: 0.55, emissive: 0x2a1a2a }));
     m.position.set(cx, ctx.ground(cx, cz) - 0.5, cz);
