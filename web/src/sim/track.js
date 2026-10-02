@@ -150,6 +150,8 @@ export function buildTrack(def) {
     T.curbL[i] = curve ? (def.curbW ?? 0) : 0;
     T.curbR[i] = curve ? (def.curbW ?? 0) : 0;
   }
+  // 카트식 지형 요소 (지름길 차선·점프대·가속 발판·빙판) — 2026-10-02
+  applyFeatures(T, def, segs, nFine, shift);
   // 런오프: 바깥쪽은 넓게(자갈), 안쪽은 좁게(잔디). 앞뒤로 퍼뜨려 "브레이크 존"도 넓어지게.
   const outBoost = new Float64Array(n);
   for (let i = 0; i < n; i++) outBoost[i] = Math.min(1, Math.abs(kS[i]) * (def.runK ?? 0));
@@ -189,6 +191,69 @@ export function buildTrack(def) {
   buildGrid(T);
   T.bounds = bounds(T);
   return T;
+}
+
+/**
+ * def.features: 설계도 구간(seg 번호)과 그 안의 비율(from·to·at, 0~1)로 위치를 정한다.
+ *   { t: 'split', seg, from, to, side: 1(왼쪽)|-1(오른쪽), extra, lane }  — 길을 extra m 넓히고 그쪽에 가운데 분리대.
+ *        분리대 안쪽(side 쪽) 좁은 차선 = 지름길(코너 안쪽이라 짧다). lane = 지름길 차선 폭(m)
+ *   { t: 'ramp', seg, at, len, h }   — at 지점에서 끝나는 점프대(길이 len m, 높이 h m, 끝은 뚝 떨어진다)
+ *   { t: 'pad', seg, at, d, w, len } — 가속 발판(가로 위치 d, 폭 w, 길이 len)
+ *   { t: 'ice', seg, from, to }      — 빙판(미끄럽다)
+ * 결과는 샘플마다의 배열: div·divW(분리대 중심·반폭), ramp(높이), padC·padW, roadSurf
+ */
+function applyFeatures(T, def, segs, nFine, shift) {
+  const n = T.n;
+  T.div = new Float64Array(n); T.divW = new Float64Array(n);
+  T.ramp = new Float64Array(n);
+  T.padC = new Float64Array(n); T.padW = new Float64Array(n);
+  T.roadSurf = new Uint8Array(n);
+  T.splits = [];
+  const feats = def.features || [];
+  if (!feats.length) return;
+  // 구간마다 시작 위치(미세 샘플 번호)
+  const starts = [];
+  let acc = 0;
+  for (const sg of segs) {
+    starts.push(acc);
+    acc += sg[0] === 'S' ? Math.round(sg[1] / DS_FINE) : Math.round(Math.abs(sg[2]) * Math.PI / 180 * sg[1] / DS_FINE);
+  }
+  starts.push(acc);
+  // (구간, 비율) → 샘플 번호
+  const idx = (seg, frac) => {
+    const j = starts[seg] + (starts[seg + 1] - starts[seg]) * frac;
+    return ((Math.round((j - shift) / STEP) % n) + n) % n;
+  };
+  const span = (a, b, fn) => { let k = 0; for (let i = a; k < n; i = (i + 1) % n, k++) { fn(i, k); if (i === b) break; } };
+  for (const f of feats) {
+    if (f.t === 'split') {
+      const a = idx(f.seg, f.from), b = idx(f.seg, f.to), ramp = Math.round(16 / T.ds);
+      let len = 0; span(a, b, () => len++);
+      const lane = f.lane ?? 4.5, divW = (f.div ?? 1.0) / 2;
+      span((a - ramp + n) % n, (b + ramp) % n, (i, k) => {
+        // 넓어지는 정도: 앞뒤 16m 는 서서히
+        const u = Math.min(1, k / ramp, (len + 2 * ramp - 1 - k) / ramp);
+        T.hw[i] += f.extra / 2 * u;
+      });
+      span(a, b, (i, k) => {
+        // 분리대: 지름길 차선(폭 lane) 바로 옆. 앞뒤 끝 6m 는 뾰족하게(부딪히면 옆으로 미끄러지도록)
+        const nose = Math.min(1, k / 3, (len - 1 - k) / 3);
+        T.divW[i] = divW * Math.max(0.15, nose);
+        T.div[i] = f.side * (T.hw[i] - lane - divW);
+      });
+      // 분리대 바로 앞뒤 샘플도 같은 가로 위치로 (0 과 섞이면 길 한가운데에 보이지 않는 벽이 생긴다 — 실제로 겪음)
+      T.div[(a - 1 + n) % n] = T.div[a]; T.div[(b + 1) % n] = T.div[b];
+      T.splits.push({ a, b, side: f.side });
+    } else if (f.t === 'ramp') {
+      const e = idx(f.seg, f.at), m = Math.max(2, Math.round(f.len / T.ds));
+      for (let k = 0; k <= m; k++) T.ramp[(e - m + k + n) % n] = Math.max(T.ramp[(e - m + k + n) % n], f.h * k / m);
+    } else if (f.t === 'pad') {
+      const c = idx(f.seg, f.at), m = Math.max(1, Math.round((f.len ?? 8) / T.ds / 2));
+      for (let k = -m; k <= m; k++) { const i = (c + k + n) % n; T.padC[i] = f.d ?? 0; T.padW[i] = (f.w ?? 4) / 2; }
+    } else if (f.t === 'ice') {
+      span(idx(f.seg, f.from), idx(f.seg, f.to), i => { T.roadSurf[i] = SURF.ICE; });
+    }
+  }
 }
 
 function limitInside(T) {
@@ -329,9 +394,11 @@ export class TrackWorld {
       h = yc + sg * edge * b + (ad - edge) * rs;
       slope = sg * rs;
     }
+    // 점프대 (길 위에만) — 위 if/else 뒤에 둔다 (사이에 끼우면 else 가 이 줄에 붙어 노면 높이가 통째로 틀어진다 — 실제로 겪음)
+    if (ad <= hw && (T.ramp[i] > 0 || T.ramp[j] > 0)) h += T.ramp[i] + (T.ramp[j] - T.ramp[i]) * t;
     // 연석: 톱니 모양으로 살짝 솟아 덜컹거린다
     let surf;
-    if (ad <= hw) surf = SURF.ASPHALT;
+    if (ad <= hw) surf = T.roadSurf ? T.roadSurf[i] : SURF.ASPHALT;
     else if (ad <= edge) {
       surf = SURF.CURB;
       const s = (i + t) * T.ds;

@@ -134,6 +134,18 @@ export function collideWall(car, R, world, events) {
     let depth = 0, nx = 0, nz = 0;
     if (L.d > wl) { depth = L.d - wl; nx = -L.lx; nz = -L.lz; }
     else if (L.d < -wr) { depth = -wr - L.d; nx = L.lx; nz = L.lz; }
+    else if (T.divW && (T.divW[i] > 0 || T.divW[j] > 0)) {
+      // 지름길 차선의 가운데 분리대: 가까운 쪽 옆으로 밀어낸다
+      // 분리대가 없는 쪽 샘플의 위치(0)와 섞지 않는다
+      const dw = T.divW[i] + (T.divW[j] - T.divW[i]) * L.t;
+      const dc = T.divW[i] > 0 && T.divW[j] > 0 ? T.div[i] + (T.div[j] - T.div[i]) * L.t : T.divW[i] > 0 ? T.div[i] : T.div[j];
+      const rel = L.d - dc;
+      if (dw > 0 && Math.abs(rel) < dw) {
+        depth = dw - Math.abs(rel);
+        const sg = rel >= 0 ? 1 : -1;
+        nx = sg * L.lx; nz = sg * L.lz;
+      }
+    }
     if (depth <= 0) continue;
     if (depth > 3) depth = 3;
     if (nx * L.lx + nz * L.lz < 0) { if (depth > pushL) { pushL = depth; nxL = nx; nzL = nz; } }

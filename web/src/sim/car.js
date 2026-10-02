@@ -23,9 +23,9 @@ export const G = 9.81;
 const KMH = 3.6;
 
 // 노면: 0 아스팔트, 1 연석, 2 잔디, 3 자갈, 4 흙/비포장
-export const SURF = { ASPHALT: 0, CURB: 1, GRASS: 2, GRAVEL: 3, DIRT: 4 };
-// 노면별 [최고속 배율, 가속 배율, 접지 배율] — 길 밖으로 나가면 확실히 느려진다
-const SURF_K = [[1, 1, 1], [0.97, 1, 1], [0.58, 0.6, 0.8], [0.5, 0.55, 0.75], [0.8, 0.85, 0.9]];
+export const SURF = { ASPHALT: 0, CURB: 1, GRASS: 2, GRAVEL: 3, DIRT: 4, ICE: 5 };
+// 노면별 [최고속 배율, 가속 배율, 접지 배율] — 길 밖으로 나가면 확실히 느려진다. 빙판은 속도는 그대로, 접지만 크게 준다
+export const SURF_K = [[1, 1, 1], [0.97, 1, 1], [0.58, 0.6, 0.8], [0.5, 0.55, 0.75], [0.8, 0.85, 0.9], [0.98, 0.7, 0.45]];
 
 // 모든 차 공통 (카트식 손맛을 정하는 값 — tests/physics_report.mjs 가 잰다)
 export const KART = {
@@ -51,6 +51,7 @@ export const KART = {
   INST_WIN: 0.35,                // 드리프트가 끝난 뒤 순간부스터 입력을 받아 주는 시간
   START_T: 0.9,                  // 출발부스터 지속
   OVER_K: 0.8,                   // 최고속을 넘으면(부스터 끝·내리막) 줄어드는 빠르기
+  PAD_T: 0.7, PAD_V: 1.18,       // 가속 발판
 };
 
 /** 제원 → 계산에 쓰는 상수 (한 번만) */
@@ -117,7 +118,7 @@ function makeState() {
     gear: 1, shiftT: 0, nextGear: 1, rpm: 800,
     // 카트
     drift: 0, ddir: 0, dT: 0, gripT: 9, gauge: 0, boosts: 0, boostT: 0, boostK: 0, boostV: 1,
-    instT: 0, instKind: 0, thrPrev: 0, boPrev: 0, wasLocked: 1, air: 0,
+    instT: 0, instKind: 0, thrPrev: 0, boPrev: 0, wasLocked: 1, air: 0, padT: 0,
     hint: -1, ghostT: 0, dc: 0, lastRst: 0, rstCD: 0, flipT: 0, stuckT: 0,
     w: [0, 1, 2, 3].map(() => ({ om: 0, x: 0, hint: -1 })),
   };
@@ -268,7 +269,7 @@ export class Car {
     const wh = P.wheels, sw = s.w, fz = this._fz;
     const comp = this._cp || (this._cp = [0, 0, 0, 0]);
     const g = world.g;
-    let nc = 0, nxs = 0, nys = 0, nzs = 0, kV = 0, kA = 0, kG = 0;
+    let nc = 0, nxs = 0, nys = 0, nzs = 0, kV = 0, kA = 0, kG = 0, kI = 0;
     for (let i = 0; i < 4; i++) {
       const W = wh[i], w = sw[i], o = out.wheels[i];
       const bx = W.x, by = P.yO, bz = W.z;
@@ -294,7 +295,7 @@ export class Car {
         if (F < 0) F = 0;
         nc++; nxs += g.nx; nys += g.ny; nzs += g.nz;
         const sk = SURF_K[g.surf] || SURF_K[0];
-        kV += sk[0]; kA += sk[1]; kG += sk[2];
+        kV += sk[0]; kA += sk[1]; kG += sk[2]; kI += g.surf === SURF.ICE ? 0.35 : 1;
       }
       comp[i] = x;
       w.x = x > 0 ? x : 0;
@@ -325,7 +326,7 @@ export class Car {
       const inv = 1 / nc;
       let nx = nxs * inv, ny = nys * inv, nz = nzs * inv;
       const nl = Math.sqrt(nx * nx + ny * ny + nz * nz) || 1; nx /= nl; ny /= nl; nz /= nl;
-      const sV = kV * inv, sA = kA * inv, sG = kG * inv;
+      const sV = kV * inv, sA = kA * inv, sG = kG * inv, sI = kI * inv;
       // 노면 위 앞(f)·왼쪽(l)
       const hn = r02 * nx + r12 * ny + r22 * nz;
       let fx = r02 - nx * hn, fy = r12 - ny * hn, fzv = r22 - nz * hn;
@@ -353,13 +354,13 @@ export class Car {
         // 부스터: 부스터 최고속까지 바로 밀어 준다(가속 키를 안 눌러도)
         if (boost > 0 && vf < vtop) ax = Math.max(ax, (vtop - vf) / KART.BOOST_TAU * boost);
         if (s.thr < 0.05 && boost === 0) ax -= KART.COAST0 + KART.COAST1 * Math.max(0, vf);   // 액셀을 떼면 확 준다
-        if (s.brk > 0 && vf > 0) ax -= KART.BRAKE * s.brk;
+        if (s.brk > 0 && vf > 0) ax -= KART.BRAKE * s.brk * (0.5 + 0.5 * sI);   // 빙판에선 덜 선다
         if (s.drift) ax -= KART.DRIFT_DRAG;
         if (s.dc) ax = -clamp(vf * 2, -6, 6);
       }
       // 옆: 미끄럼을 없앤다 (드리프트 중엔 적게, 놓은 직후엔 빠르게 되돌아온다)
       const rec = s.drift ? 0 : Math.min(1, s.gripT / KART.RECOVER);
-      const kLat = s.drift ? KART.DRIFT_K : KART.DRIFT_K + (KART.GRIP_K - KART.DRIFT_K) * rec;
+      const kLat = (s.drift ? KART.DRIFT_K : KART.DRIFT_K + (KART.GRIP_K - KART.DRIFT_K) * rec) * sI;   // 빙판은 옆으로 잘 미끄러진다
       const aCap = (s.drift ? P.aGrip * KART.DRIFT_LAT * P.driftK : P.aGrip * (s.gripT < 0.4 ? 4.5 : 1.5)) * sG;
       let al = -vl * kLat;
       if (al > aCap) al = aCap; else if (al < -aCap) al = -aCap;

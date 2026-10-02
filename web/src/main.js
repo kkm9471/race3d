@@ -393,7 +393,8 @@ function renderTracks(isHost) {
     const T = getTrack(d.id);
     b.innerHTML = '';
     const t = document.createElement('b'); t.textContent = `${d.name}`;
-    const sm = document.createElement('small'); sm.textContent = `${d.kind} · ${(T.L / 1000).toFixed(2)}km`;
+    // 난이도 별(★ 1~3) · 종류 · 길이
+    const sm = document.createElement('small'); sm.textContent = `${d.level ? '★'.repeat(d.level) + '☆'.repeat(3 - d.level) + ' ' : ''}${d.kind} · ${(T.L / 1000).toFixed(2)}km`;
     b.append(t, sm);
     b.disabled = !isHost;
     b.onclick = () => { app.track = d.id; if (app.net) app.net.send({ t: 'set', track: d.id }); updateLobby(); };

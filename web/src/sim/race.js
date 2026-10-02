@@ -4,7 +4,7 @@
 // 같은 설정 + 같은 입력 순서면 어느 PC에서든 비트 단위로 같은 결과가 나오게 만든다
 // (그래서 롤백: 과거 상태로 되돌아가 늦게 도착한 입력으로 다시 계산해도 모두 같은 곳에 도착한다).
 
-import { Car } from './car.js';
+import { Car, KART } from './car.js';
 import { buildTrack, TrackWorld } from './track.js';
 import { collideCars, collideWall } from './collide.js';
 import { CAR_BY_ID, CARS } from './cars.js';
@@ -160,6 +160,13 @@ export class Sim {
     const L = this.world.locate(st.px, st.pz, st.hint);
     st.hint = L.i;
     st.off = L.d;
+    // 가속 발판: 차 중심이 발판 위에 들어오면 짧은 부스터 (0.4초 안엔 다시 안 켜진다)
+    if (st.padT > 0) st.padT -= DTF;
+    if (f >= GO_FRAME && T.padW[L.i] > 0 && Math.abs(L.d - T.padC[L.i]) < T.padW[L.i] && st.padT <= 0 && !st.fin) {
+      if (st.boostT < KART.PAD_T) { st.boostT = KART.PAD_T; st.boostK = 0.8; st.boostV = KART.PAD_V; }
+      st.padT = 0.4;
+      this.events.push({ t: 'pad', a: c.slot });
+    }
     let ds = L.s - st.sPrev;
     if (ds > T.L / 2) ds -= T.L; else if (ds < -T.L / 2) ds += T.L;
     const prev = st.prog;

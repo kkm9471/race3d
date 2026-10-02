@@ -7,7 +7,7 @@
 
 import { datan, clamp } from './dmath.js';
 import { pack } from './input.js';
-import { G, KART, kartParams } from './car.js';
+import { G, KART, SURF_K, kartParams } from './car.js';
 
 const lineCache = new Map();
 
@@ -15,8 +15,21 @@ export function racingLine(T) {
   if (lineCache.has(T)) return lineCache.get(T);
   const n = T.n;
   let o = new Float64Array(n);
-  const lim = new Float64Array(n);
-  for (let i = 0; i < n; i++) lim[i] = Math.max(0, T.hw[i] + Math.min(T.curbL[i], T.curbR[i]) * 0.4 - 1.4);
+  const lo = new Float64Array(n), hi = new Float64Array(n);
+  for (let i = 0; i < n; i++) { const l = Math.max(0, T.hw[i] + Math.min(T.curbL[i], T.curbR[i]) * 0.4 - 1.4); lo[i] = -l; hi[i] = l; }
+  // 지름길 분리대가 있는 곳(앞뒤 16m 포함)은 넓은 본 차선으로만 (봇은 지름길을 안 쓴다)
+  if (T.divW) {
+    const bd = new Float64Array(n).fill(NaN);
+    for (const dir of [1, -1]) {
+      let last = NaN, cnt = 0;
+      for (let k = 0; k < 2 * n; k++) {
+        const i = dir > 0 ? k % n : (2 * n - 1 - k) % n;
+        if (T.divW[i] > 0) { last = T.div[i]; cnt = 8; bd[i] = T.div[i]; }
+        else if (cnt > 0) { if (bd[i] !== bd[i]) bd[i] = last; cnt--; }
+      }
+    }
+    for (let i = 0; i < n; i++) if (bd[i] === bd[i]) { if (bd[i] > 0) hi[i] = Math.min(hi[i], bd[i] - 3.0); else lo[i] = Math.max(lo[i], bd[i] + 3.0); }
+  }
   // 곡률(2차 차분)이 고르게 되도록 4차 차분을 줄인다. 원은 그대로 두고 꺾인 곳만 펴진다.
   // (이웃 중점으로 당기는 방식은 코스 전체를 안쪽으로 오그라뜨려서 쓰면 안 된다)
   const P = (i, oo) => [T.x[i] + T.lx[i] * oo[i], T.z[i] + T.lz[i] * oo[i]];
@@ -29,7 +42,7 @@ export function racingLine(T) {
         const dx = a2[0] - 4 * a1[0] + 6 * p0[0] - 4 * b1[0] + b2[0];
         const dz = a2[1] - 4 * a1[1] + 6 * p0[1] - 4 * b1[1] + b2[1];
         const g = dx * T.lx[i] + dz * T.lz[i];
-        o2[i] = clamp(o[i] - 0.05 * g, -lim[i], lim[i]);
+        o2[i] = clamp(o[i] - 0.05 * g, lo[i], hi[i]);
       }
       o = o2;
     }
@@ -64,7 +77,8 @@ export function prepareBot(T, spec) {
     // 앞뒤 몇 샘플 중 가장 급한 곡률
     let kk = 0;
     for (let q = -3; q <= 3; q++) kk = Math.max(kk, Math.abs(k[(i + q + n) % n]));
-    v[i] = kk > 1e-6 ? Math.min(vtop, Math.sqrt(aG / kk)) : vtop;
+    const sg = T.roadSurf ? SURF_K[T.roadSurf[i]][2] : 1;      // 빙판이면 그만큼 느리게
+    v[i] = kk > 1e-6 ? Math.min(vtop, Math.sqrt(aG * sg / kk)) : vtop;
   }
   // 뒤에서부터: 다음 지점 속도까지 브레이크로 줄일 수 있어야 한다 (도는 중엔 여유를 조금 더)
   const ab = KART.BRAKE * 0.7;

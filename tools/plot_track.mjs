@@ -39,6 +39,15 @@ for (const def of TRACK_DEFS) {
     const i = Math.floor(s / T.ds);
     marks += `<text x="${X(T.x[i] + T.lx[i] * 14)}" y="${Z(T.z[i] + T.lz[i] * 14)}" font-size="13" fill="#000">${s}</text>`;
   }
+  // 카트식 요소: 분리대(검정 굵게)·점프대(주황)·가속 발판(하늘)·빙판(연파랑 점)
+  let feats = '';
+  for (let i = 0; i < T.n; i++) {
+    const P = o => [X(T.x[i] + T.lx[i] * o), Z(T.z[i] + T.lz[i] * o)];
+    if (T.divW && T.divW[i] > 0) { const [x, y] = P(T.div[i]); feats += '<circle cx="' + x + '" cy="' + y + '" r="2.2" fill="#111"/>'; }
+    if (T.ramp && T.ramp[i] > 0) { const [x1, y1] = P(-T.hw[i]), [x2, y2] = P(T.hw[i]); feats += '<line x1="' + x1 + '" y1="' + y1 + '" x2="' + x2 + '" y2="' + y2 + '" stroke="#f80" stroke-width="3"/>'; }
+    if (T.padW && T.padW[i] > 0) { const [x, y] = P(T.padC[i]); feats += '<circle cx="' + x + '" cy="' + y + '" r="4" fill="#0cf"/>'; }
+    if (T.roadSurf && T.roadSurf[i] === 5) { const [x, y] = P(0); feats += '<circle cx="' + x + '" cy="' + y + '" r="1.5" fill="#9df"/>'; }
+  }
   let minR = Infinity;
   for (let i = 0; i < T.n; i++) if (Math.abs(T.k[i]) > 1e-6) minR = Math.min(minR, 1 / Math.abs(T.k[i]));
   let maxG = 0;
@@ -49,6 +58,7 @@ for (const def of TRACK_DEFS) {
     ${segs}
     <circle cx="${X(T.x[0])}" cy="${Z(T.z[0])}" r="7" fill="#000"/>
     <line x1="${X(T.x[0])}" y1="${Z(T.z[0])}" x2="${X(T.x[0] + T.tx[0] * 40)}" y2="${Z(T.z[0] + T.tz[0] * 40)}" stroke="#000" stroke-width="3"/>
+    ${feats}
     ${marks}
     <text x="10" y="${(H * sc + 28).toFixed(0)}" font-size="18">${def.name}: 길이 ${T.L.toFixed(0)} m, 최소반경 ${minR.toFixed(1)} m, 고도 ${hmin.toFixed(0)}~${hmax.toFixed(0)} m, 최대경사 ${(maxG * 100).toFixed(1)}%  (빨강=벽, 색=높이)</text>
   </svg>`;
