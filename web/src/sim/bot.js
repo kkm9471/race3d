@@ -7,8 +7,7 @@
 
 import { datan, clamp } from './dmath.js';
 import { pack } from './input.js';
-import { G } from './car.js';
-import { carStats } from './cars.js';
+import { G, KART, kartParams } from './car.js';
 
 const lineCache = new Map();
 
@@ -53,36 +52,33 @@ export function racingLine(T) {
   return res;
 }
 
-/** 차별 속도표 */
+/** 차별 속도표 (카트식: 그냥 꺾어서 돌 수 있는 한계 aGrip 기준, 여유 12%) */
 export function prepareBot(T, spec) {
   const { k } = racingLine(T);
   const n = T.n;
-  const m = spec.mass;
-  const mu = spec.tire.mu * 0.80;                       // 원선회 시험에서 잰 g ≈ 0.88μ, 여유를 둔다
-  const aero = 0.5 * 0.5 * 1.225 * (spec.aero.clA || 0) / m;  // 다운포스 → 속도² 당 추가 가속 (절반만 믿는다)
-  const vtop = (spec.target?.vmax?.[1] || 250) / 3.6;
+  const K = kartParams(spec);
+  const aG = K.aGrip * 0.88;
+  const vtop = K.vtop;
   const v = new Float64Array(n);
   for (let i = 0; i < n; i++) {
     // 앞뒤 몇 샘플 중 가장 급한 곡률
     let kk = 0;
     for (let q = -3; q <= 3; q++) kk = Math.max(kk, Math.abs(k[(i + q + n) % n]));
-    const den = kk - mu * aero;
-    v[i] = den > 1e-6 ? Math.min(vtop, Math.sqrt(mu * G / den)) : vtop;
+    v[i] = kk > 1e-6 ? Math.min(vtop, Math.sqrt(aG / kk)) : vtop;
   }
-  // 뒤에서부터: 다음 지점 속도까지 제동으로 줄일 수 있어야 한다
-  // 돌면서 쓰는 접지만큼 제동에 쓸 몫이 준다(마찰원) — 안 그러면 휘는 제동 구간에서 바깥으로 밀려 나간다
-  const ab = spec.tire.mu * 0.80 * G;
+  // 뒤에서부터: 다음 지점 속도까지 브레이크로 줄일 수 있어야 한다 (도는 중엔 여유를 조금 더)
+  const ab = KART.BRAKE * 0.7;
   for (let pass = 0; pass < 2; pass++) {
     for (let q = n - 1; q >= 0; q--) {
       const i = q, j = (q + 1) % n;
-      const aT = ab + aero * v[j] * v[j] * spec.tire.mu, aL = v[j] * v[j] * Math.abs(k[j]) * 1.5;
+      const aT = ab, aL = v[j] * v[j] * Math.abs(k[j]) * 0.5;
       const ax = Math.sqrt(Math.max(aT * aT - aL * aL, aT * aT * 0.0625));
       // 내리막이면 중력이 앞으로 밀어 제동에 쓸 몫이 준다(오르막은 반대) — 산길 내리막 코너에서 스핀하던 원인
       const vb = Math.sqrt(v[j] * v[j] + 2 * Math.max(ax + G * T.grade[j], ax * 0.3) * T.ds);
       if (vb < v[i]) v[i] = vb;
     }
   }
-  return { v, a: ab, pw: carStats(spec).pwr * spec.eff };
+  return { v, a: ab };
 }
 
 /** 자리 k 의 차를 봇이 운전할 때의 입력 */
@@ -144,20 +140,10 @@ export function botInput(sim, k, skill = 0.95, mem = sim.cars[k].st) {
   const dx = tx - st.px, dz = tz - st.pz;
   const lat = dx * lx + dz * lz, fw = dx * fx + dz * fz;
   const curv = 2 * lat / Math.max(lat * lat + fw * fw, 1);
-  const delta = datan(c.P.spec.wb * curv);
-  const lim = c.steerLimit();
-  const steer = clamp(-delta / lim, -1, 1);
+  // 카트식: 조향 = 목표 회전 속도 / 그 속도의 최대 회전 속도 (+ = 오른쪽, 회전은 왼쪽이 +)
+  const steer = clamp(-(Math.abs(v) * curv) / Math.max(c.yawMax(v), 0.05), -1, 1);
   let thr = 0, brk = 0;
   if (v < vt) thr = clamp((vt - v) * 0.6 + 0.3, 0, 1);
-  // 코너 탈출: 도는 데 쓰는 접지만큼 가속을 줄인다(마찰원) — 고출력 차가 가속하며 바깥 벽으로 밀려 나가지 않게
-  if (thr > 0) {
-    let kk = 0;
-    for (let q = 0; q <= 6; q++) kk = Math.max(kk, Math.abs(kl[(i + q) % n]));
-    const aT = c.botData.a, aL = v * v * kk * 1.5;
-    const ax = Math.sqrt(Math.max(aT * aT - aL * aL, aT * aT * 0.0625));
-    const acar = Math.min(c.botData.pw / Math.max(Math.abs(v), 5), aT);
-    thr = Math.min(thr, clamp(ax / acar, 0.15, 1));
-  }
   else if (v > vt + 0.8) brk = clamp((v - vt) * 0.3, 0, 1);
   // 옆으로 크게 미끄러지면 가속을 풀어 준다
   const vlat = st.vx * lx + st.vz * lz;

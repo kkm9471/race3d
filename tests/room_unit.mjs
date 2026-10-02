@@ -27,7 +27,7 @@ class Sock {
 function makeCtx(storage, socks) {
   return { storage, getWebSockets: () => socks.filter(s => s.closed === null), setWebSocketAutoResponse() {}, acceptWebSocket() {} };
 }
-const hi = (room, s, name, tok) => room.webSocketMessage(s, JSON.stringify({ t: 'hi', v: 3, ver: 'x', name, tok, car: 'baram', assist: true }));
+const hi = (room, s, name, tok) => room.webSocketMessage(s, JSON.stringify({ t: 'hi', v: 4, ver: 'x', name, tok, car: 'baram', assist: true }));
 
 // 1) 방장이 떠난 뒤 잠들었다 깨어나도 방장이 옛 사람으로 돌아가지 않는다
 {

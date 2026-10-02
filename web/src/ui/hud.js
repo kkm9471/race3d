@@ -24,18 +24,18 @@ export class Hud {
     this.times = el('div', 'hud-times', tl);
     this.board = el('div', 'hud-board', root);
     const br = el('div', 'hud-br', root);
-    this.rpmBar = el('div', 'hud-rpm', br);
+    this.rpmBar = el('div', 'hud-rpm hud-gauge', br);       // 드리프트 게이지 (예전 회전계 자리)
     this.rpmFill = el('div', 'hud-rpm-fill', this.rpmBar);
     this.rpmRed = el('div', 'hud-rpm-red', this.rpmBar);
     const spd = el('div', 'hud-speed', br);
     this.speed = el('span', 'hud-speed-num', spd);
     el('span', 'hud-speed-unit', spd).textContent = 'km/h';
-    this.gear = el('div', 'hud-gear', br);
+    this.gear = el('div', 'hud-gear hud-boost', br);       // 가진 부스터 개수 (예전 기어 자리)
     this.assist = el('div', 'hud-assist', br);
     this.center = el('div', 'hud-center', root);
     this.sub = el('div', 'hud-sub', root);
     this.help = el('div', 'hud-help', root);
-    this.help.textContent = '↑↓←→/WASD 운전 · Space 사이드 · R 되돌리기 · C 시점 · B 뒤보기 · M 소리 · Esc 메뉴';
+    this.help.textContent = '↑↓←→/WASD 운전 · Shift 드리프트 · Ctrl(Z) 부스터 · R 되돌리기 · C 시점 · B 뒤보기 · M 소리 · Esc 메뉴';
     this.mapC = el('canvas', 'hud-map', root);
     this.mapC.width = 220; this.mapC.height = 220;
     this.labels = el('div', 'hud-labels', root);
@@ -105,17 +105,14 @@ export class Hud {
     // 속도·기어·회전
     const kmh = Math.round(Math.abs(me.out.fwd) * 3.6);
     setText(this.speed, String(kmh));
-    setText(this.gear, st.gear < 0 ? 'R' : st.shiftT > 0 ? '·' : String(st.gear));
-    const e = me.spec.engine;
-    const r = Math.max(0, Math.min(1, st.rpm / (e.redline * 1.05)));
-    this.rpmFill.style.width = (r * 100).toFixed(1) + '%';
-    this.rpmFill.classList.toggle('hot', st.rpm > e.redline * 0.92);
-    this.rpmRed.style.left = (e.redline / (e.redline * 1.05) * 100).toFixed(1) + '%';
-    const as = [];
-    if (me.absOn) as.push('ABS');
-    if (me.tcsOn) as.push('TCS');
-    setText(this.assist, as.join(' ') || '보조 끔');
-    this.assist.classList.toggle('esc', !!me.out.esc);
+    // 부스터 개수·드리프트 게이지 (카트식)
+    setText(this.gear, String(st.boosts));
+    this.gear.classList.toggle('has', st.boosts > 0);
+    this.rpmFill.style.width = (Math.max(0, Math.min(1, st.gauge)) * 100).toFixed(1) + '%';
+    this.rpmFill.classList.toggle('hot', st.boostT > 0);
+    setText(this.assist, st.boostT > 0 ? '부스터!' : st.drift ? '드리프트 — 게이지 충전 중' : st.boosts > 0 ? 'Ctrl(Z) 로 부스터' : 'Shift 드리프트로 게이지 충전');
+    this.assist.classList.toggle('esc', st.boostT > 0 || !!st.drift);
+    if (me.out.inst) this.message(me.out.inst === 2 ? '출발 부스터!' : '순간 부스터!', 0.8, false);
     // 순위표 (줄은 한 번만 만든다)
     if (!this.rows || this.rows.length !== order.length) {
       this.board.innerHTML = '';

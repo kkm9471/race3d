@@ -72,15 +72,16 @@ const dot = (a, b) => a[0] * b[0] + a[1] * b[1];
   ok(r.after.b[1] > r.after.a[1] && r.after.b[1] > 0, `경차가 앞으로 밀려남: 세단 ${(r.after.a[1] * 3.6).toFixed(1)} km/h, 경차 ${(r.after.b[1] * 3.6).toFixed(1)} km/h`);
 }
 
-// 2) 무게 차이: 픽업(2150kg) vs 경차(1000kg) 정면, 둘 다 40km/h
+// 2) 무게 차이: 픽업 vs 경차 정면, 둘 다 40km/h (카트식에서 무게 차이를 1500 vs 1100kg 로 줄였다 — 2026-10-02)
 {
   console.log('\n[정면] 픽업 40 km/h ↔ 경차 40 km/h');
   lines.push('\n[정면] 픽업 40 km/h ↔ 경차 40 km/h');
   const A = mk('jimkkun', 0, 0, 0, 40 / 3.6), B = mk('kongal', 0.3, 9, Math.PI, 40 / 3.6);
   const r = crash(A, B);
   const dA = r.after.a[1] - r.before.a[1], dB = r.after.b[1] - r.before.b[1];
-  ok(Math.abs(dB) > Math.abs(dA) * 1.8, `가벼운 차의 속도 변화가 더 크다: 픽업 Δv ${(dA * 3.6).toFixed(1)}, 경차 Δv ${(dB * 3.6).toFixed(1)} km/h (질량비 ${(A.P.m / B.P.m).toFixed(2)})`);
-  ok(r.after.a[1] > 0, `픽업이 이긴다(계속 앞으로): 충돌 후 픽업 ${(r.after.a[1] * 3.6).toFixed(1)} km/h, 경차 ${(r.after.b[1] * 3.6).toFixed(1)} km/h`);
+  const ratio = Math.abs(dB) / Math.max(1e-6, Math.abs(dA)), mr = A.P.m / B.P.m;
+  ok(Math.abs(ratio / mr - 1) < 0.1, `가벼운 차의 속도 변화가 무게 비만큼 크다(비 ${ratio.toFixed(2)}): 픽업 Δv ${(dA * 3.6).toFixed(1)}, 경차 Δv ${(dB * 3.6).toFixed(1)} km/h (질량비 ${(A.P.m / B.P.m).toFixed(2)})`);
+  ok(r.after.b[1] > r.after.a[1] && r.after.b[1] > 0, `경차가 픽업 쪽으로 튕겨 나간다(무거운 쪽이 이긴다): 충돌 후 픽업 ${(r.after.a[1] * 3.6).toFixed(1)} km/h, 경차 ${(r.after.b[1] * 3.6).toFixed(1)} km/h`);
 }
 
 // 3) T자: 쿠페 50km/h 가 멈춘 SUV 옆구리 뒤쪽을 친다 → SUV 회전

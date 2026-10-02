@@ -2,7 +2,8 @@
 //
 // 키보드는 켜짐/꺼짐뿐이라 조향을 부드럽게 올리는 건 시뮬레이션이 한다(kb 플래그).
 // 게임패드는 아날로그 값을 그대로(양자화만) 보낸다.
-//   가속 ↑/W, 브레이크·후진 ↓/S, 조향 ←→/AD, 사이드브레이크 Space, 차 되돌리기 R, 시점 C, 뒤보기 B
+//   가속 ↑/W, 브레이크·후진 ↓/S, 조향 ←→/AD, 드리프트 Shift(또는 Space), 부스터 Ctrl(또는 Z),
+//   차 되돌리기 R, 시점 C, 뒤보기 B   (카트라이더식 — 2026-10-02)
 
 export class Controls {
   constructor() {
@@ -49,23 +50,24 @@ export class Controls {
     return null;
   }
 
-  /** 지금 입력 → { steer, thr, brk, hb, rst, kb, look } */
+  /** 지금 입력 → { steer, thr, brk, hb(드리프트), rst, kb, look, bo(부스터) } */
   read() {
     const K = this.keys;
     const left = K.has('ArrowLeft') || K.has('KeyA'), right = K.has('ArrowRight') || K.has('KeyD');
     const up = K.has('ArrowUp') || K.has('KeyW'), down = K.has('ArrowDown') || K.has('KeyS');
     let steer = (right ? 1 : 0) - (left ? 1 : 0);
     let thr = up ? 1 : 0, brk = down ? 1 : 0;
-    let hb = K.has('Space') ? 1 : 0, rst = K.has('KeyR') ? 1 : 0, look = K.has('KeyB') ? 1 : 0;
+    let hb = K.has('ShiftLeft') || K.has('ShiftRight') || K.has('Space') ? 1 : 0, rst = K.has('KeyR') ? 1 : 0, look = K.has('KeyB') ? 1 : 0;
+    let bo = K.has('ControlLeft') || K.has('ControlRight') || K.has('KeyZ') ? 1 : 0;
     let kb = 1;
     const g = this.pad();
     if (g) {
       const dz = v => (Math.abs(v) < 0.12 ? 0 : (v - Math.sign(v) * 0.12) / 0.88);
       const sx = dz(g.axes[0] || 0);
-      // 표준 매핑: 6 = 왼쪽 트리거(브레이크), 7 = 오른쪽 트리거(가속), 0 = A(사이드), 3 = Y(리셋), 2 = X(뒤보기)
+      // 표준 매핑: 6 = 왼쪽 트리거(브레이크), 7 = 오른쪽 트리거(가속), 0 = A·5 = RB(드리프트), 2 = X·4 = LB(부스터), 3 = Y(리셋), 1 = B(뒤보기)
       const rt = g.buttons[7] ? g.buttons[7].value : 0, lt = g.buttons[6] ? g.buttons[6].value : 0;
-      const a = g.buttons[0] && g.buttons[0].pressed, y = g.buttons[3] && g.buttons[3].pressed;
-      const x = g.buttons[2] && g.buttons[2].pressed;
+      const btn = i => !!(g.buttons[i] && g.buttons[i].pressed);
+      const a = btn(0) || btn(5), y = btn(3), x = btn(2) || btn(4), bb = btn(1);
       const used = Math.abs(sx) > 0 || rt > 0.02 || lt > 0.02 || a || y;
       if (used) {
         // 패드를 만지고 있으면 패드 우선 (감도 곡선: 가운데는 둔하게)
@@ -76,12 +78,13 @@ export class Controls {
       }
       if (a) hb = 1;
       if (y) rst = 1;
-      if (x) look = 1;
+      if (x) bo = 1;
+      if (bb) look = 1;
       // 시점 전환: 오른쪽 스틱 누르기 또는 Back
       const cam = (g.buttons[8] && g.buttons[8].pressed) || (g.buttons[11] && g.buttons[11].pressed);
       if (cam && !this._camHeld && this.onAction) this.onAction('camera');
       this._camHeld = cam;
     }
-    return { steer, thr, brk, hb, rst, kb, look };
+    return { steer, thr, brk, hb, rst, kb, look, bo };
   }
 }

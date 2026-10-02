@@ -3,7 +3,7 @@
 // 사용법: node tests/net_rules.mjs   (WS=wss://... 로 실제 서버도 가능)
 const WS = process.env.WS || 'ws://127.0.0.1:8797/ws';
 const HTTP = WS.replace(/^ws/, 'http').replace(/\/ws$/, '');
-const PROTOCOL = 3;
+const PROTOCOL = 4;
 const sleep = ms => new Promise(r => setTimeout(r, ms));
 let fail = 0;
 const ok = (c, m) => { console.log(`  ${c ? '✅' : '❌'} ${m}`); if (!c) fail++; };

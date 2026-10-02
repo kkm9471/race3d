@@ -1,15 +1,16 @@
-// 차급별 물리 측정 — "느낌"이 아니라 숫자로 튜닝하기 위한 시험
+// 카트식 주행 측정 — "느낌"을 숫자로 (2026-10-02 카트식으로 바꾸며 새로 씀)
 //
-// 평평한 무한 아스팔트 위에서 차마다:
-//   0→100 km/h 시간, 최고속도, 100→0 제동거리(ABS 켬/끔), 원선회 최대 횡가속도(g),
-//   그리고 구동방식별 특성(출발 시 바퀴 헛돎)을 잰다.
-// 결과를 실제 같은 차급의 공개 성능 범위(cars.js 의 target)와 비교해 표로 낸다.
+// 평평한 아스팔트에서 차마다:
+//   0→100km/h, 최고속, 액셀을 떼고 1초 동안 줄어든 속도, 100→0 제동거리,
+//   그냥 꺾을 때 미끄럼각, 드리프트 미끄럼각·회전 반경, Shift 를 뗀 뒤 펴질 때까지 걸린 시간,
+//   부스터 최고속, 순간부스터(드리프트 끝에 가속 키를 새로 누름 / 계속 누르고 있으면 안 나감)
+// 범위(TARGET)를 벗어나면 ❌ — 카트라이더 손맛 기준으로 정한 값.
 //
-// 사용법: node tests/physics_report.mjs [차id]   → tests/out/physics.md 도 쓴다
+// 사용법: node tests/physics_report.mjs   → tests/out/physics.md
 
 import fs from 'node:fs';
 import { CARS } from '../web/src/sim/cars.js';
-import { Car } from '../web/src/sim/car.js';
+import { Car, KART } from '../web/src/sim/car.js';
 import { pack } from '../web/src/sim/input.js';
 
 export const FPS = 60, SUB = 8, DT = 1 / (FPS * SUB), DTF = 1 / FPS;
@@ -29,150 +30,108 @@ export function newCar(spec, opts) {
   const c = new Car(spec, opts);
   c.place(0, spec.cgH + 0.03, 0, 0);
   const w = new FlatWorld();
-  for (let i = 0; i < 90; i++) frame(c, w, pack({ kb: 0 }));   // 1.5초 안착
+  for (let i = 0; i < 60; i++) frame(c, w, pack({ kb: 0 }), true);   // 안착(출발 전)
+  for (let i = 0; i < 30; i++) frame(c, w, pack({ kb: 0 }));          // 출발 신호 뒤 0.5초 (출발부스터 기회가 지나가게)
   return { c, w };
 }
 
 const kmh = c => c.out.fwd * 3.6;
+/** 미끄럼각(도): 진행 방향과 차 머리 사이 */
+export function beta(c) {
+  const ax = c.axes([]);
+  const vl = c.st.vx * ax[0] + c.st.vz * ax[2], vf = c.st.vx * ax[6] + c.st.vz * ax[8];
+  return Math.atan2(vl, Math.max(Math.abs(vf), 0.5)) * 180 / Math.PI;
+}
 
-function accelTest(spec) {
-  const { c, w } = newCar(spec);
-  const full = pack({ thr: 1, kb: 0 });
-  let t = 0, t60 = 0, t100 = 0, t200 = 0, vmax = 0, flat = 0, x0 = c.st.pz, q400 = 0, maxSpin = 0;
-  let prev = 0;
-  for (let f = 0; f < FPS * 150; f++) {
-    frame(c, w, full);
-    t += DTF;
-    const v = kmh(c);
-    if (!t60 && v >= 60) t60 = t;
-    if (!t100 && v >= 100) t100 = t;
-    if (!t200 && v >= 200) t200 = t;
-    if (!q400 && c.st.pz - x0 >= 402.3) q400 = t;
-    if (t < 3) {
-      for (let i = 0; i < 4; i++) {
-        const sp = Math.abs(c.st.w[i].om * c.P.R - c.out.fwd);
-        if (sp > maxSpin) maxSpin = sp;
-      }
+export const TARGET = {
+  acc100: [2.2, 4.5], vtop: [155, 170], coast1: [20, 40], brake100: [18, 32],
+  gripBeta: [0, 5], driftBeta: [12, 32], straighten: [0, 0.30], boostTop: [188, 212],
+};
+
+export function measure(spec) {
+  const r = {};
+  // 0→100, 최고속
+  {
+    const { c, w } = newCar(spec);
+    let t100 = 0;
+    for (let f = 0; f < FPS * 30; f++) { frame(c, w, pack({ thr: 1, kb: 1 })); if (!t100 && kmh(c) >= 100) t100 = (f + 1) / FPS; }
+    r.acc100 = t100; r.vtop = kmh(c);
+    // 액셀을 떼고 1초
+    const v0 = kmh(c);
+    for (let f = 0; f < FPS; f++) frame(c, w, pack({ kb: 1 }));
+    r.coast1 = v0 - kmh(c);
+  }
+  // 100→0 제동
+  {
+    const { c, w } = newCar(spec);
+    c.setSpeed(100 / 3.6); c.finishFrame();
+    let d = 0;
+    for (let f = 0; f < FPS * 5 && kmh(c) > 0.5; f++) { frame(c, w, pack({ brk: 1, kb: 1 })); d += Math.max(0, c.out.fwd) / FPS; }
+    r.brake100 = d;
+  }
+  // 그냥 꺾기: 100km/h 에서 끝까지 3초
+  {
+    const { c, w } = newCar(spec);
+    c.setSpeed(100 / 3.6);
+    let mb = 0;
+    for (let f = 0; f < FPS * 3; f++) { frame(c, w, pack({ thr: 1, steer: 1, kb: 1 })); if (f > 30) mb = Math.max(mb, Math.abs(beta(c))); }
+    r.gripBeta = mb;
+    r.gripR = c.out.speed / Math.max(1e-6, Math.abs(c.st.wy));
+  }
+  // 드리프트: 140km/h 에서 오른쪽 + Shift 2초(가속 유지) → 놓고 곧게
+  {
+    const { c, w } = newCar(spec);
+    c.setSpeed(140 / 3.6);
+    let sb = 0, n = 0;
+    for (let f = 0; f < FPS * 2; f++) {
+      frame(c, w, pack({ thr: 1, steer: f < 30 ? 1 : 0.4, hb: 1, kb: 1 }));
+      if (f > 40) { sb += Math.abs(beta(c)); n++; }
     }
-    if (v > vmax + 0.02) { vmax = v; flat = 0; } else flat += DTF;
-    if (flat > 6 && t > 20) break;
-    prev = v;
+    r.driftBeta = sb / n;
+    r.driftR = c.out.speed / Math.max(1e-6, Math.abs(c.st.wy));
+    r.driftKmh = kmh(c);
+    r.gauge2s = c.st.gauge + c.st.boosts;
+    let t = 0;
+    for (let f = 0; f < FPS * 2; f++) { frame(c, w, pack({ thr: 1, kb: 1 })); if (Math.abs(beta(c)) < 3) { t = (f + 1) / FPS; break; } }
+    r.straighten = t || 9;
   }
-  return { t60, t100, t200, q400, vmax, maxSpin, drift: Math.abs(c.st.px) };
-}
-
-function brakeTest(spec, abs, pedal = 1) {
-  const { c, w } = newCar(spec, { abs });
-  const full = pack({ thr: 1, kb: 0 });
-  // 100 km/h 조금 넘게 올린다
-  for (let f = 0; f < FPS * 60 && kmh(c) < 101; f++) frame(c, w, full);
-  // 100 km/h 를 지나는 순간부터 거리 측정
-  const br = pack({ brk: pedal, kb: 0 });
-  const z0 = c.st.pz, x0 = c.st.px;
-  let t = 0, locked = 0, yaw0 = Math.atan2(2 * (c.st.qw * c.st.qy), 1 - 2 * c.st.qy * c.st.qy);
-  const v0 = kmh(c);
-  while (c.out.speed > 0.3 && t < 20) {
-    frame(c, w, br);
-    t += DTF;
-    for (let i = 0; i < 4; i++) if (c.st.w[i].om === 0 && c.out.speed > 3) locked++;
+  // 부스터 최고속
+  {
+    const { c, w } = newCar(spec);
+    for (let f = 0; f < FPS * 25; f++) frame(c, w, pack({ thr: 1, kb: 1 }));
+    c.st.boosts = 1;
+    let mx = 0;
+    for (let f = 0; f < FPS * 3; f++) { frame(c, w, pack({ thr: 1, kb: 1, bo: f < 3 ? 1 : 0 })); mx = Math.max(mx, kmh(c)); }
+    r.boostTop = mx;
   }
-  const d = Math.hypot(c.st.pz - z0, c.st.px - x0);
-  // 100 km/h 기준으로 환산 (시작 속도가 101 근처라 제곱비 보정)
-  return { dist: d * (100 / v0) ** 2, time: t, lockedFrames: locked };
+  // 순간부스터: 드리프트 중 가속 키를 뗐다가, 끝나자마자 새로 누르면 나간다 / 계속 누르고 있으면 안 나간다
+  const inst = holdThr => {
+    const { c, w } = newCar(spec);
+    c.setSpeed(120 / 3.6);
+    for (let f = 0; f < 50; f++) frame(c, w, pack({ thr: holdThr || f < 10 ? 1 : 0, steer: 1, hb: 1, kb: 1 }));
+    frame(c, w, pack({ thr: holdThr ? 1 : 0, kb: 1 }));            // Shift 뗌
+    let got = 0;
+    for (let f = 0; f < 10; f++) { frame(c, w, pack({ thr: 1, kb: 1 })); if (c.st.boostT > 0) got = 1; }
+    return got;
+  };
+  r.instOk = inst(false); r.instHold = inst(true);
+  return r;
 }
-
-/** 스키드패드: 반지름 R 원을 일정 속도로 20초 유지할 수 있는 최대 횡가속도(g).
- *  실제 자동차 잡지 시험처럼 속도를 한 단계씩 올려 가며 "원 위에 머무는지"만 본다. */
-export function circleHold(spec, vkmh, R = 40, secs = 20, opts) {
-  const { c, w } = newCar(spec, opts);
-  const cx = R, cz = 0;          // +X 가 왼쪽 → 왼쪽으로 도는 원
-  c.setSpeed(vkmh / 3.6);
-  const vt = vkmh / 3.6;
-  let ok = 0, sumAy = 0, n = 0, integ = 0;
-  for (let f = 0; f < FPS * secs; f++) {
-    const s = c.st;
-    const ax = c.axes([]);
-    const fwdx = ax[6], fwdz = ax[8], lx = ax[0], lz = ax[2];
-    const ang = Math.atan2(s.pz - cz, s.px - cx);
-    const look = 5 + c.out.speed * 0.3;
-    let best = null;
-    for (const sg of [-1, 1]) {
-      const a2 = ang + sg * look / R;
-      const tx = cx + R * Math.cos(a2), tz = cz + R * Math.sin(a2);
-      const d = (tx - s.px) * fwdx + (tz - s.pz) * fwdz;
-      if (!best || d > best[2]) best = [tx, tz, d];
-    }
-    const lat = (best[0] - s.px) * lx + (best[1] - s.pz) * lz, fw = (best[0] - s.px) * fwdx + (best[1] - s.pz) * fwdz;
-    const curv = 2 * lat / (lat * lat + fw * fw);
-    let st = -Math.atan(spec.wb * curv) / (c.out.maxSteer || 0.5);
-    st = Math.max(-1, Math.min(1, st));
-    const v = c.out.fwd;
-    integ += (vt - v) / FPS;
-    const thr = Math.max(0, Math.min(1, (vt - v) * 0.8 + integ * 0.3 + 0.15));
-    frame(c, w, pack({ steer: st, thr, brk: 0, kb: 0 }));
-    if (f > FPS * (secs - 6)) {
-      const r = Math.hypot(c.st.px - cx, c.st.pz - cz);
-      if (Math.abs(r - R) < 2 && c.out.fwd > vt - 1.5) ok++;
-      sumAy += c.out.fwd * c.out.fwd / r / 9.81; n++;
-    }
-  }
-  return { hold: ok >= n * 0.98, ay: sumAy / n };
-}
-
-function skidpad(spec, R = 40) {
-  let best = 0;
-  for (let v = 40; v < 160; v += 2) {
-    const r = circleHold(spec, v, R);
-    if (!r.hold) break;
-    best = r.ay;
-  }
-  return { latG: best };
-}
-
-export function runAll(ids) {
-  const rows = [];
-  for (const spec of CARS) {
-    if (ids.length && !ids.includes(spec.id)) continue;
-    const a = accelTest(spec);
-    let b = brakeTest(spec, spec.brake.abs);
-    if (!spec.brake.abs) {
-      // ABS 없는 차는 사람이 잠기기 직전까지만 밟는다(문턱 제동) — 가장 짧은 값을 쓴다
-      for (const p of [0.5, 0.55, 0.6, 0.65, 0.7, 0.75, 0.8, 0.9]) {
-        const t = brakeTest(spec, false, p);
-        if (t.dist < b.dist) b = { ...t, pedal: p };
-      }
-    }
-    const bn = brakeTest(spec, false);
-    const k = skidpad(spec);
-    rows.push({ spec, a, b, bn, k });
-  }
-  return rows;
-}
-
-function mark(v, [lo, hi]) { return v >= lo && v <= hi ? '✅' : '❌'; }
 
 if ((process.argv[1] || '').replace(/\\/g, '/').endsWith('tests/physics_report.mjs')) {
-  const ids = process.argv.slice(2);
   const t0 = Date.now();
-  const rows = runAll(ids);
-  const lines = [];
-  lines.push('| 차 | 구동 | 0→100 s (목표) | 최고 km/h (목표) | 100→0 m ABS (목표) | ABS끔 m | 원선회 g (목표) | 출발 헛돎 m/s | 0→200 s | 400m s |');
-  lines.push('|---|---|---|---|---|---|---|---|---|---|');
+  const rows = [];
   let bad = 0;
-  for (const { spec, a, b, bn, k } of rows) {
-    const T = spec.target;
-    const m1 = mark(a.t100, T.acc100), m2 = mark(a.vmax, T.vmax), m3 = mark(b.dist, T.brake100), m4 = mark(k.latG, T.latG);
-    bad += [m1, m2, m3, m4].filter(x => x === '❌').length;
-    lines.push(`| ${spec.name}(${spec.cls}) | ${spec.drive} | ${m1} ${a.t100.toFixed(2)} (${T.acc100.join('~')}) | ${m2} ${a.vmax.toFixed(0)} (${T.vmax.join('~')}) | ${m3} ${b.dist.toFixed(1)} (${T.brake100.join('~')}) | ${bn.dist.toFixed(1)}${bn.lockedFrames ? ' 잠김' : ''} | ${m4} ${k.latG.toFixed(3)} (${T.latG.join('~')}) | ${a.maxSpin.toFixed(1)} | ${a.t200 ? a.t200.toFixed(1) : '-'} | ${a.q400.toFixed(2)} |`);
+  const chk = (v, k, d = 1) => { const [a, b] = TARGET[k]; const ok = v >= a && v <= b; if (!ok) bad++; return `${ok ? '✅' : '❌'} ${v.toFixed(d)}`; };
+  for (const spec of CARS) {
+    const r = measure(spec);
+    rows.push(`| ${spec.name}(${spec.cls}) | ${chk(r.acc100, 'acc100', 2)} | ${chk(r.vtop, 'vtop', 0)} | ${chk(r.coast1, 'coast1', 0)} | ${chk(r.brake100, 'brake100')} | ${chk(r.gripBeta, 'gripBeta')} (${r.gripR.toFixed(0)}m) | ${chk(r.driftBeta, 'driftBeta')} (${r.driftR.toFixed(0)}m, ${r.driftKmh.toFixed(0)}km/h) | ${chk(r.straighten, 'straighten', 2)} | ${r.gauge2s.toFixed(2)} | ${chk(r.boostTop, 'boostTop', 0)} | ${r.instOk && !r.instHold ? '✅' : '❌'} ${r.instOk}/${r.instHold} |`);
+    if (!(r.instOk && !r.instHold)) bad++;
+    console.log(rows[rows.length - 1]);
   }
-  const txt = lines.join('\n');
-  console.log(txt);
-  console.log(`\n범위 밖: ${bad}개   (${((Date.now() - t0) / 1000).toFixed(1)}초)`);
+  const T = TARGET;
+  const head = `| 차 | 0→100 s (${T.acc100}) | 최고 km/h (${T.vtop}) | 액셀 떼고 1초 감속 km/h (${T.coast1}) | 100→0 m (${T.brake100}) | 그냥 꺾기 미끄럼° (${T.gripBeta}) | 드리프트 미끄럼° (${T.driftBeta}) | Shift 뗀 뒤 펴짐 s (${T.straighten}) | 2초 드리프트 게이지 | 부스터 최고 km/h (${T.boostTop}) | 순간부스터 새로누름/계속누름 |`;
   fs.mkdirSync('tests/out', { recursive: true });
-  if (!ids.length) {
-    fs.writeFileSync('tests/out/physics.md', `# 물리 측정 (${new Date().toISOString()})\n\n${txt}\n\n범위 밖: ${bad}개\n`);
-    // 게임 대기실이 보여 줄 실측값 (손으로 옮겨 적지 않는다)
-    const m = Object.fromEntries(rows.map(({ spec, a, b, k }) => [spec.id, { acc100: +a.t100.toFixed(1), vmax: Math.round(a.vmax), brake100: +b.dist.toFixed(1), latG: +k.latG.toFixed(2) }]));
-    fs.writeFileSync('web/src/sim/measured.js', `// tests/physics_report.mjs 가 만든 실측값 — 손으로 고치지 말 것\nexport const MEASURED = ${JSON.stringify(m, null, 1)};\n`);
-  }
+  fs.writeFileSync('tests/out/physics.md', `# 카트식 주행 측정 (${new Date().toISOString()})\n\n${head}\n|${'---|'.repeat(11)}\n${rows.join('\n')}\n\n범위 밖: ${bad}개\n`);
+  console.log(`\n범위 밖: ${bad}개   (${((Date.now() - t0) / 1000).toFixed(1)}초)`);
 }

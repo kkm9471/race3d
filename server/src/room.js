@@ -14,7 +14,7 @@
 //    연결 유지 신호 "ka" 는 자동응답이라 서버를 깨우지 않는다.
 //  · 연결당 초당 메시지 수 제한, 메시지 크기 제한, 방 인원 4명.
 
-const PROTOCOL = 3;
+const PROTOCOL = 4;              // 4: 카트식(부스터 키 비트 22) — 2026-10-02
 const MAX_PLAYERS = 4;
 const FRAME_MS = 1000 / 60;
 const LATE = 30, EARLY = 40;         // 0.5초까지 늦은 입력은 원래 시점 그대로 인정 (멀리서 들어온 사람도 자기 화면대로 달리게)
@@ -326,7 +326,7 @@ export class Room {
     for (const it of e.slice(0, 32)) {
       if (!Array.isArray(it)) continue;
       const [q, f, v] = it;
-      if (!isInt(f) || !isInt(v) || v < 0 || v >= (1 << 22)) continue;
+      if (!isInt(f) || !isInt(v) || v < 0 || v >= (1 << 23)) continue;
       if (r.logCap[s] > 60000) break;                 // 한 사람이 기록을 부풀리면 그 사람 입력만 멈춘다
       let f2 = Math.max(f, F - LATE, r.last[s]);
       f2 = Math.min(f2, F + EARLY);

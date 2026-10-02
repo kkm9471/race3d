@@ -94,6 +94,14 @@ button.small { padding: 5px 10px; font-size: 13px; }
 .hud-rpm-fill.hot { background: linear-gradient(90deg, #f2d034, #ff3b2a); }
 .hud-rpm-red { position: absolute; top: 0; bottom: 0; width: 2px; background: #ff3b2a; }
 .hud-assist { font-size: 11px; color: var(--dim); margin-top: 2px; } .hud-assist.esc { color: var(--accent2); }
+/* 카트식: 드리프트 게이지·부스터 개수 */
+.hud-gauge { height: 14px; border: 1px solid rgba(255,255,255,0.25); }
+.hud-gauge .hud-rpm-fill { background: linear-gradient(90deg, #2b7cff, #4fd1ff); }
+.hud-gauge .hud-rpm-fill.hot { background: linear-gradient(90deg, #ff9a2b, #ffe14f); }
+.hud-gauge .hud-rpm-red { display: none; }
+.hud-gear.hud-boost { font-size: 36px; color: rgba(255,255,255,0.35); }
+.hud-gear.hud-boost::after { content: "부스터"; display: block; font-size: 10px; font-weight: 600; margin-top: -4px; }
+.hud-gear.hud-boost.has { color: #4fd1ff; text-shadow: 0 0 10px rgba(79,209,255,0.8); }
 .hud-center { position: absolute; left: 0; right: 0; top: 28%; text-align: center; font-size: 110px; font-weight: 900; font-style: italic; letter-spacing: -2px; }
 .hud-center.small { font-size: 56px; }
 .hud-sub { position: absolute; left: 0; right: 0; top: 46%; text-align: center; font-size: 22px; color: var(--accent2); font-weight: bold; }

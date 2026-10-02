@@ -4,7 +4,7 @@
 // 시계: 서버 시각을 여러 번 물어 왕복시간이 가장 짧았던 값들로 차이를 구한다(NTP 방식).
 
 import { VERSION } from '../version.js';
-export const PROTOCOL = 3;
+export const PROTOCOL = 4;     // 서버 room.js 와 같아야 한다 (4: 카트식, 부스터 키)
 
 export class NetClient {
   constructor(url, room, name, token, car, assist) {

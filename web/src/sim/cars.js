@@ -1,224 +1,82 @@
-// 차량 10종 제원 — 실제 차급의 수치 범위를 참고한 가상 차량 (실제 상표·모델명 없음)
+// 차량 10종 — 카트식 (2026-10-02 사용자 결정: 성능은 비슷하게, 성격만 다르게 — 실력으로 겨룬다)
 //
-// 단위: 무게 kg(운전자 80kg 포함), 길이 m, 토크 Nm, 출력 kW, 속도 km/h
-// gears 는 "그 단에서 레드라인까지 돌렸을 때의 속도(km/h)" 로 적는다.
-//   → 기어비·종감속비를 따로 외울 필요 없이 차 성격이 바로 보인다. 실제 비는 car.js 가 계산.
-// target 은 실제 같은 차급의 공개 성능 범위(튜닝 검증용). tests/physics_report.mjs 가 비교한다.
-//
-// 구동방식: FF(앞엔진 앞바퀴) FR(앞엔진 뒷바퀴) MR(가운데엔진 뒷바퀴) RR(뒤엔진 뒷바퀴) AWD(네바퀴)
+// 능력치 stats 는 1~5점, 다섯 개 합이 모두 15점. 1점 차이가 주는 효과는 작다(car.js kartParams):
+//   speed 최고속 ±1%/점 · accel 가속 ±5%/점 · corner 코너 접지 ±4%/점 · drift 드리프트 회전 ±5%/점
+//   boost 게이지 충전·부스터 지속 ±6%/점
+// 이름은 지어낸 것(실제 차 모델명·다른 게임의 카트 이름과 겹치지 않게).
+// 모양 치수(dims·wb·tF·tR·cgH·R)는 그리기·충돌용이고, 무게(mass)는 부딪힐 때 밀고 밀리는 정도에만 영향.
+// engine 은 소리(회전수)용.
+
+const SUSP = (fF, fR, z, bump) => ({ fF, fR, z, bump, arbF: 0.4, arbR: 0.3 });
 
 export const CARS = [
   {
-    id: 'kongal', name: '콩알', cls: '경차', drive: 'FF',
-    desc: '가볍고 작다. 느리지만 다루기 쉽다.',
-    mass: 1000, wb: 2.40, wf: 0.62, tF: 1.40, tR: 1.39, cgH: 0.56,
-    dims: [3.60, 1.60, 1.52],
-    R: 0.277, Iw: 0.7,
-    engine: {
-      rpm: [800, 1500, 2500, 3500, 4500, 5500, 6200, 6600],
-      tq: [62, 74, 85, 92, 95, 92, 86, 76],
-      idle: 800, redline: 6500, launch: 2600, Ie: 0.07,
-    },
-    gears: [44, 78, 115, 150, 188], rev: 30, shift: 0.30, eff: 0.88, vmax: 0,
-    brake: { T: 3400, bias: 0.70, abs: true, hb: 1800 },
-    tire: { mu: 1.00, kp: 0.11, ap: 0.16, slide: 0.80, muX: 1.03, type: 'road' },
-    susp: { fF: 1.65, fR: 1.85, z: 0.38, bump: 0.10, arbF: 0.35, arbR: 0.25 },
-    aero: { cdA: 0.70, clA: 0, bal: 0.5 },
-    steer: { lock: 36 },
-    diff: { front: 'open', rear: 'open' },
-    target: { acc100: [13.0, 15.0], vmax: [150, 170], brake100: [38, 44], latG: [0.75, 0.85] },
+    id: 'kongal', name: '포켓 로켓', cls: '가속형', desc: '작고 가볍다. 출발과 재가속이 제일 빠르고 잘 돈다. 최고속은 조금 낮다.',
+    stats: { speed: 1, accel: 5, corner: 4, drift: 3, boost: 2 },
+    mass: 1100, wb: 2.40, wf: 0.62, tF: 1.40, tR: 1.39, cgH: 0.56, dims: [3.60, 1.60, 1.52], R: 0.277,
+    susp: SUSP(1.9, 2.0, 0.45, 0.10), tire: {}, engine: { idle: 800, redline: 6500 },
   },
   {
-    id: 'masil', name: '마실', cls: '준중형 세단', drive: 'FF',
-    desc: '무난한 출퇴근 세단. 안정적이다.',
-    mass: 1300, wb: 2.72, wf: 0.61, tF: 1.56, tR: 1.57, cgH: 0.53,
-    dims: [4.65, 1.82, 1.42],
-    R: 0.316, Iw: 0.9,
-    engine: {
-      rpm: [800, 1500, 2500, 3500, 4850, 5500, 6300, 6800],
-      tq: [100, 118, 135, 146, 154, 150, 136, 120],
-      idle: 750, redline: 6600, launch: 2400, Ie: 0.10,
-    },
-    gears: [46, 80, 120, 162, 200, 238], rev: 32, shift: 0.10, eff: 0.88, vmax: 0,
-    brake: { T: 4800, bias: 0.68, abs: true, hb: 2200 },
-    tire: { mu: 1.03, kp: 0.11, ap: 0.15, slide: 0.80, muX: 1.07, type: 'road' },
-    susp: { fF: 1.55, fR: 1.75, z: 0.38, bump: 0.10, arbF: 0.40, arbR: 0.30 },
-    aero: { cdA: 0.63, clA: 0, bal: 0.5 },
-    steer: { lock: 35 },
-    diff: { front: 'open', rear: 'open' },
-    target: { acc100: [9.8, 11.2], vmax: [185, 200], brake100: [36, 41], latG: [0.80, 0.88] },
+    id: 'masil', name: '어반 나이트', cls: '균형형', desc: '모든 능력이 고르다. 처음 타기 좋다.',
+    stats: { speed: 3, accel: 3, corner: 3, drift: 3, boost: 3 },
+    mass: 1250, wb: 2.72, wf: 0.61, tF: 1.56, tR: 1.57, cgH: 0.53, dims: [4.65, 1.82, 1.42], R: 0.316,
+    susp: SUSP(1.8, 1.9, 0.45, 0.10), tire: {}, engine: { idle: 750, redline: 6600 },
   },
   {
-    id: 'beongae', name: '번개', cls: '핫해치', drive: 'FF',
-    desc: '작은 차에 힘센 터보. 앞바퀴 LSD로 코너를 파고든다.',
-    mass: 1460, wb: 2.63, wf: 0.61, tF: 1.54, tR: 1.51, cgH: 0.50,
-    dims: [4.29, 1.79, 1.44],
-    R: 0.316, Iw: 1.0,
-    engine: {
-      rpm: [800, 1200, 1600, 4300, 5000, 6000, 6500, 6900],
-      tq: [180, 260, 370, 370, 350, 290, 262, 220],
-      idle: 800, redline: 6700, launch: 3200, Ie: 0.12,
-    },
-    gears: [58, 92, 138, 192, 238, 280], rev: 38, shift: 0.10, eff: 0.90, vmax: 250,
-    brake: { T: 6000, bias: 0.68, abs: true, hb: 2600 },
-    tire: { mu: 1.15, kp: 0.10, ap: 0.14, slide: 0.82, muX: 1.08, type: 'sport' },
-    susp: { fF: 1.95, fR: 2.15, z: 0.40, bump: 0.08, arbF: 0.40, arbR: 0.55 },
-    aero: { cdA: 0.60, clA: 0.10, bal: 0.5 },
-    steer: { lock: 34 },
-    diff: { front: 'lsd', rear: 'open', lock: 60, ratio: 0.35 },
-    target: { acc100: [5.9, 6.8], vmax: [245, 252], brake100: [33, 37], latG: [0.93, 1.0] },
+    id: 'beongae', name: '핫샷', cls: '드리프트형', desc: '가속이 좋고 드리프트가 잘 돈다. 최고속·부스터는 조금 낮다.',
+    stats: { speed: 2, accel: 4, corner: 3, drift: 4, boost: 2 },
+    mass: 1250, wb: 2.63, wf: 0.61, tF: 1.54, tR: 1.51, cgH: 0.50, dims: [4.29, 1.79, 1.44], R: 0.316,
+    susp: SUSP(2.1, 2.2, 0.45, 0.08), tire: {}, engine: { idle: 800, redline: 6700 },
   },
   {
-    id: 'deundeun', name: '든든', cls: 'SUV', drive: 'AWD',
-    desc: '무겁고 높다. 네바퀴굴림이라 출발은 좋지만 코너에서 기운다.',
-    mass: 1900, wb: 2.82, wf: 0.57, tF: 1.65, tR: 1.66, cgH: 0.68,
-    dims: [4.80, 1.90, 1.72],
-    R: 0.365, Iw: 1.4,
-    engine: {
-      rpm: [800, 1300, 1700, 4000, 5000, 5800, 6200, 6500],
-      tq: [220, 320, 422, 422, 390, 341, 310, 270],
-      idle: 700, redline: 6300, launch: 2000, Ie: 0.15,
-    },
-    gears: [48, 76, 110, 145, 178, 210, 240, 270], rev: 32, shift: 0.45, eff: 0.82, vmax: 210,
-    brake: { T: 7800, bias: 0.66, abs: true, hb: 3000 },
-    tire: { mu: 1.03, kp: 0.12, ap: 0.16, slide: 0.80, muX: 1.03, type: 'offroad' },
-    susp: { fF: 1.45, fR: 1.60, z: 0.38, bump: 0.12, arbF: 0.55, arbR: 0.45 },
-    aero: { cdA: 0.93, clA: 0, bal: 0.5 },
-    steer: { lock: 34 },
-    diff: { front: 'open', rear: 'open', center: 0.40, cvisc: 120, ctmax: 600 },
-    target: { acc100: [7.2, 8.5], vmax: [200, 212], brake100: [37, 42], latG: [0.78, 0.86] },
+    id: 'deundeun', name: '아이언 혼', cls: '코너형', desc: '묵직하고 코너에서 안 밀린다. 가속과 드리프트는 둔하다. 부딪히면 잘 밀어낸다.',
+    stats: { speed: 3, accel: 2, corner: 5, drift: 2, boost: 3 },
+    mass: 1450, wb: 2.82, wf: 0.57, tF: 1.65, tR: 1.66, cgH: 0.68, dims: [4.80, 1.90, 1.72], R: 0.365,
+    susp: SUSP(1.7, 1.8, 0.45, 0.12), tire: {}, engine: { idle: 700, redline: 6300 },
   },
   {
-    id: 'jimkkun', name: '짐꾼', cls: '픽업트럭', drive: 'FR',
-    desc: '디젤 토크는 세지만 짐칸이 비어 뒤가 가볍다. 뒷바퀴가 쉽게 헛돈다.',
-    mass: 2150, wb: 3.10, wf: 0.60, tF: 1.64, tR: 1.64, cgH: 0.74,
-    dims: [5.10, 1.95, 1.85],
-    R: 0.382, Iw: 1.6,
-    engine: {
-      rpm: [800, 1200, 1600, 2600, 3200, 3800, 4200, 4600],
-      tq: [240, 330, 441, 441, 410, 374, 330, 250],
-      idle: 750, redline: 4400, launch: 2300, Ie: 0.22,
-    },
-    gears: [34, 58, 88, 122, 158, 198], rev: 26, shift: 0.22, eff: 0.85, vmax: 0,
-    brake: { T: 8200, bias: 0.72, abs: true, hb: 3200 },
-    tire: { mu: 0.99, kp: 0.12, ap: 0.17, slide: 0.78, muX: 1.03, type: 'offroad' },
-    susp: { fF: 1.50, fR: 1.90, z: 0.35, bump: 0.13, arbF: 0.60, arbR: 0.15 },
-    aero: { cdA: 1.20, clA: 0, bal: 0.5 },
-    steer: { lock: 33 },
-    diff: { front: 'open', rear: 'open' },
-    target: { acc100: [9.5, 11.5], vmax: [175, 190], brake100: [40, 46], latG: [0.70, 0.78] },
+    id: 'jimkkun', name: '럼블러', cls: '묵직형', desc: '무겁고 최고속·부스터가 좋다. 가속과 드리프트는 둔하다.',
+    stats: { speed: 4, accel: 2, corner: 3, drift: 2, boost: 4 },
+    mass: 1500, wb: 3.10, wf: 0.60, tF: 1.64, tR: 1.64, cgH: 0.74, dims: [5.10, 1.95, 1.85], R: 0.382,
+    susp: SUSP(1.7, 1.9, 0.45, 0.13), tire: {}, engine: { idle: 750, redline: 4400 },
   },
   {
-    id: 'baram', name: '바람', cls: '쿠페 스포츠카', drive: 'FR',
-    desc: '가볍고 낮은 뒷바퀴굴림. 미끄러뜨리며 달리기 좋다.',
-    mass: 1350, wb: 2.575, wf: 0.53, tF: 1.52, tR: 1.55, cgH: 0.46,
-    dims: [4.27, 1.78, 1.31],
-    R: 0.315, Iw: 0.95,
-    engine: {
-      rpm: [800, 1500, 2500, 3700, 5000, 6000, 7000, 7600],
-      tq: [150, 190, 225, 250, 245, 240, 236, 210],
-      idle: 800, redline: 7400, launch: 4500, Ie: 0.10,
-    },
-    gears: [58, 98, 138, 178, 215, 258], rev: 36, shift: 0.14, eff: 0.90, vmax: 226,
-    brake: { T: 5600, bias: 0.62, abs: true, hb: 2600 },
-    tire: { mu: 1.15, kp: 0.10, ap: 0.14, slide: 0.84, muX: 1.03, type: 'sport', rear: 1.03 },
-    susp: { fF: 2.10, fR: 2.20, z: 0.42, bump: 0.08, arbF: 0.45, arbR: 0.35 },
-    aero: { cdA: 0.56, clA: 0.08, bal: 0.5 },
-    steer: { lock: 38 },
-    diff: { front: 'open', rear: 'lsd', lock: 80, ratio: 0.45 },
-    target: { acc100: [6.0, 6.9], vmax: [220, 232], brake100: [33, 37], latG: [0.93, 1.0] },
+    id: 'baram', name: '윈드커터', cls: '코너·드리프트형', desc: '코너와 드리프트가 모두 좋다. 대신 부스터 게이지가 느리게 찬다.',
+    stats: { speed: 3, accel: 3, corner: 4, drift: 4, boost: 1 },
+    mass: 1250, wb: 2.575, wf: 0.53, tF: 1.52, tR: 1.55, cgH: 0.46, dims: [4.27, 1.78, 1.31], R: 0.315,
+    susp: SUSP(2.2, 2.3, 0.45, 0.08), tire: { rear: 1.03 }, engine: { idle: 800, redline: 7400 },
   },
   {
-    id: 'cheondung', name: '천둥', cls: '슈퍼카', drive: 'MR',
-    desc: '엔진이 등 뒤에. 720마력 뒷바퀴굴림 — 가속은 폭력적, 한계 넘으면 순식간에 돈다.',
-    mass: 1500, wb: 2.67, wf: 0.42, tF: 1.67, tR: 1.61, cgH: 0.42,
-    dims: [4.54, 1.93, 1.20],
-    R: 0.34, Iw: 1.2,
-    engine: {
-      rpm: [1000, 2000, 3000, 4000, 5500, 7000, 7500, 8200, 8600],
-      tq: [300, 480, 640, 730, 770, 740, 700, 600, 520],
-      idle: 950, redline: 8200, launch: 4500, Ie: 0.16,
-    },
-    gears: [72, 112, 155, 200, 250, 300, 345], rev: 45, shift: 0.06, eff: 0.90, vmax: 0,
-    brake: { T: 9600, bias: 0.58, abs: true, hb: 3000 },
-    tire: { mu: 1.30, kp: 0.09, ap: 0.12, slide: 0.84, muX: 1.07, type: 'semi', rear: 1.14 },
-    susp: { fF: 2.60, fR: 2.75, z: 0.45, bump: 0.07, arbF: 0.50, arbR: 0.40 },
-    aero: { cdA: 0.63, clA: 0.55, bal: 0.42 },
-    steer: { lock: 34 },
-    diff: { front: 'open', rear: 'lsd', lock: 80, ratio: 0.40 },
-    target: { acc100: [2.8, 3.4], vmax: [330, 345], brake100: [29, 33], latG: [1.05, 1.15] },
+    id: 'cheondung', name: '스칼렛 블레이드', cls: '최고속형', desc: '직선 최고속이 가장 높다. 코너 접지는 약하다.',
+    stats: { speed: 5, accel: 3, corner: 2, drift: 3, boost: 2 },
+    mass: 1300, wb: 2.67, wf: 0.42, tF: 1.67, tR: 1.61, cgH: 0.42, dims: [4.54, 1.93, 1.20], R: 0.340,
+    susp: SUSP(2.6, 2.7, 0.48, 0.07), tire: { rear: 1.14 }, engine: { idle: 950, redline: 8200 },
   },
   {
-    id: 'yuseong', name: '유성', cls: '하이퍼카', drive: 'AWD',
-    desc: '전기모터+엔진 합계 1100마력, 네바퀴굴림. 다운포스로 빠를수록 더 붙는다.',
-    mass: 1750, wb: 2.70, wf: 0.44, tF: 1.70, tR: 1.64, cgH: 0.40,
-    dims: [4.62, 2.00, 1.14],
-    R: 0.35, Iw: 1.3,
-    engine: {
-      rpm: [800, 1500, 3000, 5000, 6500, 7500, 8500, 9000],
-      tq: [1150, 1200, 1200, 1200, 1150, 1030, 900, 800],
-      idle: 1000, redline: 8800, launch: 3200, Ie: 0.14,
-    },
-    gears: [88, 132, 178, 222, 266, 306, 342, 380], rev: 50, shift: 0.05, eff: 0.90, vmax: 350,
-    brake: { T: 12500, bias: 0.58, abs: true, hb: 3200 },
-    tire: { mu: 1.38, kp: 0.09, ap: 0.12, slide: 0.85, muX: 1.07, type: 'semi', rear: 1.10 },
-    susp: { fF: 2.90, fR: 3.00, z: 0.48, bump: 0.06, arbF: 0.55, arbR: 0.45 },
-    aero: { cdA: 0.66, clA: 1.35, bal: 0.44 },
-    steer: { lock: 33 },
-    diff: { front: 'lsd', rear: 'lsd', lock: 80, ratio: 0.35, center: 0.35, cvisc: 200, ctmax: 1400 },
-    target: { acc100: [2.2, 2.7], vmax: [345, 352], brake100: [28, 32], latG: [1.15, 1.30] },
+    id: 'yuseong', name: '스타폴', cls: '최고속·부스터형', desc: '최고속과 부스터가 좋다. 가속·코너·드리프트는 약하다.',
+    stats: { speed: 5, accel: 2, corner: 2, drift: 2, boost: 4 },
+    mass: 1350, wb: 2.70, wf: 0.44, tF: 1.70, tR: 1.64, cgH: 0.40, dims: [4.62, 2.00, 1.14], R: 0.350,
+    susp: SUSP(2.8, 2.9, 0.48, 0.06), tire: { rear: 1.10 }, engine: { idle: 1000, redline: 8800 },
   },
   {
-    id: 'heukmeonji', name: '흙먼지', cls: '랠리카', drive: 'AWD',
-    desc: '랠리 혈통의 네바퀴굴림 터보. 잔디·자갈에서도 덜 미끄러진다.',
-    mass: 1480, wb: 2.62, wf: 0.58, tF: 1.53, tR: 1.54, cgH: 0.50,
-    dims: [4.40, 1.80, 1.45],
-    R: 0.32, Iw: 1.0,
-    engine: {
-      rpm: [800, 1500, 2500, 3500, 5000, 6000, 6500, 7200],
-      tq: [180, 250, 340, 400, 400, 355, 325, 260],
-      idle: 850, redline: 7000, launch: 4000, Ie: 0.12,
-    },
-    gears: [58, 94, 132, 172, 212, 252], rev: 38, shift: 0.15, eff: 0.87, vmax: 0,
-    brake: { T: 6400, bias: 0.64, abs: true, hb: 3400 },
-    tire: { mu: 1.12, kp: 0.11, ap: 0.15, slide: 0.86, muX: 1.03, type: 'rally' },
-    susp: { fF: 1.85, fR: 1.95, z: 0.40, bump: 0.12, arbF: 0.40, arbR: 0.40 },
-    aero: { cdA: 0.76, clA: 0.15, bal: 0.45 },
-    steer: { lock: 38 },
-    diff: { front: 'lsd', rear: 'lsd', lock: 60, ratio: 0.35, center: 0.50, cvisc: 150, ctmax: 800 },
-    target: { acc100: [4.8, 5.6], vmax: [245, 258], brake100: [33, 38], latG: [0.92, 1.0] },
+    id: 'heukmeonji', name: '더스트 데빌', cls: '드리프트형', desc: '드리프트가 가장 잘 돈다. 최고속은 조금 낮다.',
+    stats: { speed: 2, accel: 3, corner: 3, drift: 5, boost: 2 },
+    mass: 1280, wb: 2.62, wf: 0.58, tF: 1.53, tR: 1.54, cgH: 0.50, dims: [4.40, 1.80, 1.45], R: 0.320,
+    susp: SUSP(2.0, 2.1, 0.45, 0.12), tire: {}, engine: { idle: 850, redline: 7000 },
   },
   {
-    id: 'chueok', name: '추억', cls: '클래식 스포츠카', drive: 'RR',
-    desc: '1970년대 감성, 엔진이 맨 뒤. ABS가 없고 뒤가 무거워 조심해야 한다.',
-    mass: 1150, wb: 2.27, wf: 0.41, tF: 1.37, tR: 1.35, cgH: 0.50,
-    dims: [4.15, 1.65, 1.32],
-    R: 0.30, Iw: 0.8,
-    engine: {
-      rpm: [900, 2000, 3000, 4000, 5200, 6000, 6600, 7300],
-      tq: [130, 170, 195, 208, 216, 210, 200, 170],
-      idle: 900, redline: 7200, launch: 3500, Ie: 0.09,
-    },
-    gears: [62, 102, 145, 190, 232], rev: 36, shift: 0.35, eff: 0.90, vmax: 0,
-    brake: { T: 4300, bias: 0.62, abs: false, hb: 2200 },
-    tire: { mu: 1.04, kp: 0.12, ap: 0.17, slide: 0.80, muX: 1.03, type: 'road', rear: 1.08 },
-    susp: { fF: 1.45, fR: 1.65, z: 0.33, bump: 0.10, arbF: 0.40, arbR: 0.15 },
-    aero: { cdA: 0.70, clA: 0, bal: 0.5 },
-    steer: { lock: 36 },
-    diff: { front: 'open', rear: 'lsd', lock: 40, ratio: 0.25 },
-    target: { acc100: [6.4, 7.6], vmax: [222, 235], brake100: [40, 47], latG: [0.78, 0.86] },
+    id: 'chueok', name: '빈티지 에이스', cls: '부스터형', desc: '게이지가 가장 빨리 차고 부스터가 오래 간다. 최고속은 조금 낮다.',
+    stats: { speed: 2, accel: 3, corner: 3, drift: 2, boost: 5 },
+    mass: 1200, wb: 2.27, wf: 0.41, tF: 1.37, tR: 1.35, cgH: 0.50, dims: [4.15, 1.65, 1.32], R: 0.300,
+    susp: SUSP(1.8, 1.9, 0.42, 0.10), tire: { rear: 1.08 }, engine: { idle: 900, redline: 7200 },
   },
 ];
 
 export const CAR_BY_ID = Object.fromEntries(CARS.map(c => [c.id, c]));
 
-/** 화면에 보여 줄 대표 수치 (마력 = 최대출력) */
+export const STAT_NAMES = [['speed', '최고속'], ['accel', '가속'], ['corner', '코너'], ['drift', '드리프트'], ['boost', '부스터']];
+
+/** 화면에 보여 줄 능력치 (1~5점) */
 export function carStats(c) {
-  const e = c.engine;
-  let pk = 0;
-  for (let i = 0; i < e.rpm.length; i++) pk = Math.max(pk, e.tq[i] * e.rpm[i] * Math.PI / 30 / 1000);
-  return {
-    kw: Math.round(pk), ps: Math.round(pk * 1.36), nm: Math.max(...e.tq),
-    kg: c.mass, drive: c.drive, pwr: pk * 1000 / c.mass,
-  };
+  return { ...c.stats };
 }

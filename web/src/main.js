@@ -12,14 +12,13 @@ import { NetClient, PROTOCOL } from './net/client.js';
 import { Hud, fmtTime } from './ui/hud.js';
 import { Controls } from './ui/controls.js';
 import { EngineAudio } from './audio/engine.js';
-import { CARS, CAR_BY_ID, carStats } from './sim/cars.js';
+import { CARS, CAR_BY_ID, STAT_NAMES } from './sim/cars.js';
 import { TRACK_DEFS, TRACK_BY_ID } from './sim/tracks.js';
 import { pack, NEUTRAL } from './sim/input.js';
 import { FPS, GO_FRAME, getTrack } from './sim/race.js';
 import { botInput } from './sim/bot.js';
 import { PAINT, PAINT_NAME } from './render/carmesh.js';
 import { VERSION } from './version.js';
-import { MEASURED } from './sim/measured.js';
 
 const Q = new URLSearchParams(location.search);
 const $ = id => document.getElementById(id);
@@ -369,23 +368,17 @@ $('m-room').addEventListener('keydown', e => { if (e.key === 'Enter') $('m-join'
 // ── 대기실 그리기 ──
 function renderCars() {
   const box = $('l-cars'); box.innerHTML = '';
-  const maxPw = Math.max(...CARS.map(c => carStats(c).pwr));
   for (const c of CARS) {
-    const s = carStats(c);
     const b = document.createElement('button');
     b.className = 'carbtn' + (c.id === app.car ? ' sel' : '');
     const t = document.createElement('div'); t.className = 't'; t.textContent = c.name;
     const cl = document.createElement('span'); cl.className = 'c'; cl.textContent = c.cls; t.appendChild(cl);
-    const d = document.createElement('div'); d.className = 's';
-    const me = MEASURED[c.id];      // 물리 시험으로 잰 값 (목표 범위가 아니라 실제 이 게임에서의 값)
-    d.textContent = `${s.ps}마력 · ${s.kg}kg · ${c.drive} · 0→100 ${me ? me.acc100.toFixed(1) : '?'}초 · 최고 ${me ? me.vmax : '?'}km/h`;
     const bars = document.createElement('div'); bars.className = 'bars';
     const bar = (label, v) => { const l = document.createElement('span'); l.textContent = label; const bb = document.createElement('div'); bb.className = 'b'; const i = document.createElement('i'); i.style.width = Math.round(Math.max(0.05, Math.min(1, v)) * 100) + '%'; bb.appendChild(i); bars.append(l, bb); };
-    bar('힘', s.pwr / maxPw);
-    bar('접지', (c.target.latG[0] - 0.6) / 0.65);
-    bar('최고', (c.target.vmax[1] - 140) / 215);
+    // 능력치 1~5점 (모든 차 합 15점 — 성능은 비슷하고 성격만 다르다)
+    for (const [k, label] of STAT_NAMES) bar(label, c.stats[k] / 5);
     b.title = c.desc;
-    b.append(t, d, bars);
+    b.append(t, bars);
     const desc = document.createElement('div'); desc.className = 's'; desc.textContent = c.desc; desc.style.marginTop = '4px';
     b.append(desc);
     b.onclick = () => { app.car = c.id; store.set('car', c.id); renderCars(); if (app.net) { app.net.car = c.id; app.net.send({ t: 'car', car: c.id }); } updateLobby(); };
@@ -496,10 +489,9 @@ function leaveToMenu() {
 // ── 혼자 연습 ──
 function startSolo() {
   const players = [{ car: app.car, name: app.name, abs: app.assist, tcs: app.assist }];
-  const pool = CARS.filter(c => c.id !== app.car);
-  const me = CAR_BY_ID[app.car];
-  // AI 는 비슷한 급의 차로 (출력비가 가까운 순)
-  pool.sort((a, b) => Math.abs(carStats(a).pwr - carStats(me).pwr) - Math.abs(carStats(b).pwr - carStats(me).pwr));
+  // AI 는 내 차 다음 차들로 (성능은 모두 비슷하다 — 성격만 다르게 섞이도록)
+  const at = Math.max(0, CARS.findIndex(c => c.id === app.car));
+  const pool = [...CARS.slice(at + 1), ...CARS.slice(0, at)];
   for (let i = 0; i < app.bots; i++) players.push({ car: pool[i].id, name: `AI ${i + 1}`, bot: true, botSkill: 0.86 + i * 0.03, abs: true, tcs: true });
   launch({ track: app.track, laps: +$('l-laps').value || 3, players }, 0, null, 0, players.map(p => p.name));
 }
@@ -731,6 +723,12 @@ startBackground();
   bgView.v.update(tf - Math.floor(tf), 1 / 60, 0, false);
   gfx.render();
 })();
+
+// 레이스 중 탭을 닫으려 하면 한 번 묻는다 — 부스터가 Ctrl 이라 WASD 로 달리다 Ctrl+W 를 누르면
+// 크롬이 탭을 바로 닫는다(웹 페이지가 막을 수 없는 단축키). 시험 자동운전(?bot=)은 묻지 않는다.
+window.addEventListener('beforeunload', e => {
+  if (app.game && !app.game.bot && !Q.get('bot')) { e.preventDefault(); e.returnValue = ''; }
+});
 
 document.addEventListener('visibilitychange', () => {
   // 혼자 연습은 탭을 떠나면 일시정지, 소리는 멈춘다

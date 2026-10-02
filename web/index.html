@@ -41,11 +41,12 @@
     <div id="m-msg" class="msg"></div>
     <details class="keys"><summary>조작법</summary>
       <table>
-        <tr><td>↑ / W</td><td>가속</td><td>↓ / S</td><td>브레이크 · 멈춘 뒤 계속 누르면 후진</td></tr>
-        <tr><td>← → / A D</td><td>핸들</td><td>Space</td><td>사이드브레이크 (드리프트 시작)</td></tr>
+        <tr><td>↑ / W</td><td>가속 (떼면 속도가 확 준다)</td><td>↓ / S</td><td>브레이크 · 멈춘 뒤 계속 누르면 후진</td></tr>
+        <tr><td>← → / A D</td><td>핸들</td><td>Shift (또는 Space)</td><td>드리프트 — 누르는 동안만, 떼면 바로 펴진다. 게이지가 찬다</td></tr>
+        <tr><td>Ctrl (또는 Z)</td><td>부스터 (게이지가 차면 1개, 최대 2개)</td><td>순간 부스터</td><td>드리프트 중 ↑를 뗐다가, 드리프트가 끝나자마자 ↑를 다시 누른다 · 출발 신호 직후 ↑ = 출발 부스터</td></tr>
         <tr><td>R</td><td>차 되돌리기 (길 한가운데로)</td><td>C</td><td>시점 바꾸기</td></tr>
         <tr><td>B</td><td>뒤 보기</td><td>M</td><td>소리 켜기/끄기</td></tr>
-        <tr><td>게임패드</td><td colspan="3">왼스틱 핸들 · RT 가속 · LT 브레이크 · A 사이드 · Y 되돌리기 · X 뒤보기 · 스틱 누르기 시점</td></tr>
+        <tr><td>게임패드</td><td colspan="3">왼스틱 핸들 · RT 가속 · LT 브레이크 · A(또는 RB) 드리프트 · X(또는 LB) 부스터 · Y 되돌리기 · B 뒤보기 · 스틱 누르기 시점</td></tr>
       </table>
     </details>
   </div>
@@ -66,7 +67,7 @@
         <div id="l-tracks" class="tracks"></div>
         <div class="row">
           <label class="inline">랩 수 <select id="l-laps"><option>1</option><option>2</option><option selected>3</option><option>4</option><option>5</option></select></label>
-          <label class="inline"><input type="checkbox" id="l-assist" checked> 주행 보조(ABS·TCS·ESC)</label>
+          <label class="inline hidden"><input type="checkbox" id="l-assist" checked> 주행 보조(ABS·TCS·ESC)</label>
           <label class="inline solo-only"><span>AI 상대</span> <select id="l-bots"><option>0</option><option selected>2</option><option>3</option></select></label>
         </div>
       </div>
