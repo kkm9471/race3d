@@ -727,6 +727,10 @@ startBackground();
 
 // 레이스 중 탭을 닫으려 하면 한 번 묻는다 — 부스터가 Ctrl 이라 WASD 로 달리다 Ctrl+W 를 누르면
 // 크롬이 탭을 바로 닫는다(웹 페이지가 막을 수 없는 단축키). 시험 자동운전(?bot=)은 묻지 않는다.
+// 레이스 중 Ctrl(부스터)과 함께 눌린 글자키가 크롬 단축키(Ctrl+D 북마크·Ctrl+S 저장·Ctrl+R 새로고침·Ctrl+A 전체선택 등)로 새지 않게 (4차 독립검증)
+window.addEventListener('keydown', e => { if (app.game && e.ctrlKey && /^Key[A-Z]$/.test(e.code)) e.preventDefault(); });
+// 레이스 중 창이 비활성화되면(Shift 5번 → Windows 고정 키 창 등) 누르던 키가 풀린다 → 알려 준다
+window.addEventListener('blur', () => { if (app.game && app.game.hud) app.game.hud.message('게임 창이 비활성화됐어요 — 키를 다시 눌러 주세요', 2.5, false); });
 window.addEventListener('beforeunload', e => {
   if (app.game && !app.game.bot && !Q.get('bot')) { e.preventDefault(); e.returnValue = ''; }
 });

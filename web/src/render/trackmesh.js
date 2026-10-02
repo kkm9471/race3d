@@ -384,15 +384,16 @@ function buildKartFeatures(T, group) {
       (i, d, k) => base(i, d) + (k === 1 || k === 2 ? 0.9 : -0.05), (i, d, x, z, a2, k) => [k / 3, i * T.ds / 4], { closed: false, from: a, to: Math.min(b + 1, T.n) });
     const m = new THREE.Mesh(g, divM); m.castShadow = true; m.receiveShadow = true; group.add(m);
   }
-  // 점프대: 양옆 벽 + 경사 윗면 (끝은 다음 샘플에서 뚝 떨어진다)
+  // 점프대: 벽에서 벽까지 경사판 (물리도 가로 전체 — 옆면 계단에 걸려 뒤집히지 않게), 뒷면은 내리막
   for (const [a, b] of runs(i => T.ramp[i] > 0)) {
-    const g = ribbon(T, i => [-T.hw[i], -T.hw[i], T.hw[i], T.hw[i]],
-      (i, d, k) => base(i, d) + (k === 1 || k === 2 ? T.ramp[i] : -0.05) + 0.02, (i, d, x, z, a2, k) => [(d + T.hw[i]) / 3, i * T.ds / 3], { closed: false, from: Math.max(0, a - 1), to: Math.min(b + 1, T.n) });
+    const g = ribbon(T, i => [-T.wallR[i] - 0.3, -T.wallR[i] - 0.3, T.wallL[i] + 0.3, T.wallL[i] + 0.3],
+      (i, d, k) => base(i, d) + (k === 1 || k === 2 ? T.ramp[i] : -0.05) + 0.02, (i, d, x, z, a2, k) => [(d + T.wallR[i]) / 3, i * T.ds / 3], { closed: false, from: Math.max(0, a - 1), to: Math.min(b + 1, T.n) });
     const m = new THREE.Mesh(g, rampM); m.castShadow = true; m.receiveShadow = true; group.add(m);
   }
   // 가속 발판
   for (const [a, b] of runs(i => T.padW[i] > 0)) {
-    const g = ribbon(T, i => [T.padC[i] - T.padW[i], T.padC[i] + T.padW[i]], (i, d) => base(i, d) + 0.04,
+    // 닫는 행(b)은 마지막 발판 샘플(b-1) 폭으로 (아니면 끝 2m 가 길 가운데 한 점으로 찌그러져 그려졌다)
+    const g = ribbon(T, i => { const q = i === b ? b - 1 : i; return [T.padC[q] - T.padW[q], T.padC[q] + T.padW[q]]; }, (i, d) => base(i, d) + 0.04,
       (i, d, x, z, a2, k) => [k, (i - a) * T.ds / (2 * T.padW[a])], { closed: false, from: a, to: Math.min(b + 1, T.n) });
     group.add(new THREE.Mesh(g, padM));
   }

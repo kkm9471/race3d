@@ -145,7 +145,7 @@ TRACK_DEFS.push(
     palette: { ground: [0xe2cf98, 0xcdb47c, 0xead9ab, 0xc4b38a], runoff: 'sand' },
     sun: { elev: 42, azim: 160 },   // 한낮
     features: [
-      { t: 'pad', seg: 0, at: 0.45, d: 0, w: 5, len: 8 },
+      { t: 'pad', seg: 0, at: 0.3, d: 0, w: 5, len: 8 },        // 출발 자리(출발선 12~30m 뒤)와 겹치지 않게
       { t: 'ramp', seg: 2, at: 0.6, len: 14, h: 1.3 },
       { t: 'split', seg: 7, from: 0.08, to: 0.92, side: 1, extra: 10, lane: 5 },
       { t: 'pad', seg: 8, at: 0.5, d: -3, w: 5, len: 8 },
@@ -184,7 +184,7 @@ TRACK_DEFS.push(
     palette: { ground: [0xa86a42, 0x7e4a2c, 0xb98458, 0x8f6f5c], grass: 0xc89670, rock: 0xd88a5e, leaves: 0xb8a070, far: [0xa07a66, 0xb89a88] },
     sun: { elev: 30, azim: 250 },
     features: [
-      { t: 'ramp', seg: 2, at: 0.55, len: 12, h: 1.2 },
+      { t: 'ramp', seg: 2, at: 0.55, len: 12, h: 0.6 },     // 낮게: 부스터 속도로 넘어도 헤어핀 전에 착지
       { t: 'pad', seg: 4, at: 0.5, d: 0, w: 4, len: 8 },
       { t: 'split', seg: 5, from: 0.1, to: 0.9, side: -1, extra: 8, lane: 4.2 },
       { t: 'ramp', seg: 13, at: 0.3, len: 14, h: 1.4 },     // 착지 뒤 큰 코너까지 여유 (코너 직전 점프는 못 돌고 박는다)
@@ -223,7 +223,7 @@ TRACK_DEFS.push(
     sun: { elev: 20, azim: 200 },
     fog: 0.0016, fogColor: 0xd8e4ee,
     features: [
-      { t: 'pad', seg: 0, at: 0.5, d: 0, w: 4, len: 8 },
+      { t: 'pad', seg: 0, at: 0.3, d: 0, w: 4, len: 8 },        // 출발 자리와 겹치지 않게
       { t: 'ice', seg: 2, from: 0.05, to: 0.95 },
       { t: 'ramp', seg: 4, at: 0.3, len: 12, h: 1.2 },      // 착지 뒤 헤어핀까지 100m 남게
       { t: 'split', seg: 5, from: 0.12, to: 0.88, side: 1, extra: 7, lane: 3.8 },
