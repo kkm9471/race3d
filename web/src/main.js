@@ -871,6 +871,8 @@ startBackground();
 // 준비 끝: 첫 화면 단추를 살린다 (화면은 먼저 뜨는데 단추가 아직 안 먹던 1~2초 — 14회차)
 document.body.classList.remove('booting');
 window.__ready = true;
+// 첫 화면 배경 서킷도 실사로: 사진 자료를 뒤에서 받고, 다 받으면 배경을 다시 만든다 (15회차)
+preloadReal(realFor(TRACK_DEFS[0]), gfx.q).then(() => { if (bgView && !app.game) { stopBackground(); startBackground(); } }).catch(() => {});
 (function bgLoop() {
   requestAnimationFrame(bgLoop);
   if (!bgView || app.game || window.__garage) return;
