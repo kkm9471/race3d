@@ -122,3 +122,11 @@ button.small { padding: 5px 10px; font-size: 13px; }
 .carbtn .s + .bars + .s { display: none; }
 .carbtn.sel .s + .bars + .s { display: block; color: var(--text); }
 .cars { grid-template-columns: repeat(auto-fill, minmax(158px, 1fr)); }
+
+/* 대기실 차 미리보기 (끌어서 돌리기) */
+.pv { position: relative; height: 230px; margin-bottom: 8px; border-radius: 10px; overflow: hidden; background: radial-gradient(ellipse at 50% 65%, #3b4454 0%, #171b23 72%); }
+.pv canvas { width: 100%; height: 100%; display: block; cursor: grab; }
+.pv-name { position: absolute; left: 12px; top: 8px; font-size: 18px; font-weight: bold; pointer-events: none; text-shadow: 0 1px 3px #000; }
+.pv-name small { color: var(--accent2); font-size: 12px; margin-left: 6px; }
+.pv-hint { position: absolute; right: 10px; bottom: 6px; font-size: 11px; color: var(--dim); pointer-events: none; }
+@media (max-width: 700px) { .pv { height: 180px; } }

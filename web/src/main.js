@@ -18,6 +18,7 @@ import { pack, NEUTRAL } from './sim/input.js';
 import { FPS, GO_FRAME, getTrack } from './sim/race.js';
 import { botInput } from './sim/bot.js';
 import { PAINT, PAINT_NAME } from './render/carmesh.js';
+import { CarPreview } from './render/preview.js';
 import { VERSION } from './version.js';
 
 const Q = new URLSearchParams(location.search);
@@ -36,6 +37,21 @@ function toast(t, ms = 2500) {
 }
 function show(id) {
   for (const s of ['menu', 'lobby', 'loading', 'results', 'pause']) $(s).classList.toggle('hidden', s !== id);
+  // 차 미리보기는 대기실이 보일 때만 그린다
+  if (preview) { if (id === 'lobby') preview.start(); else preview.stop(); }
+}
+let preview = null;
+/** 대기실 차 미리보기: 고른 차를 내 자리 색으로 */
+function updatePreview() {
+  try {
+    if (!preview) preview = new CarPreview($('l-preview'));
+    const me = app.lobby?.players?.findIndex(p => p.id === app.myId) ?? -1;
+    preview.setCar(app.car, PAINT[Math.max(0, me) % PAINT.length]);
+    const spec = CAR_BY_ID[app.car] || CARS[0];
+    const nm = $('l-pv-name'); nm.textContent = spec.name;
+    const sm = document.createElement('small'); sm.textContent = spec.cls; nm.appendChild(sm);
+    if (!$('lobby').classList.contains('hidden')) preview.start();
+  } catch (e) { console.warn('미리보기를 못 띄웠습니다', e); }
 }
 function cleanName(s) { return String(s || '').replace(/[\u0000-\u001f\u007f<>&"'\\]/g, '').trim().slice(0, 12); }
 function randCode() { const a = 'ABCDEFGHJKLMNPQRSTUVWXYZ23456789'; let s = ''; for (let i = 0; i < 4; i++) s += a[Math.floor(Math.random() * a.length)]; return s; }
@@ -384,6 +400,7 @@ function renderCars() {
     b.onclick = () => { app.car = c.id; store.set('car', c.id); renderCars(); if (app.net) { app.net.car = c.id; app.net.send({ t: 'car', car: c.id }); } updateLobby(); };
     box.appendChild(b);
   }
+  updatePreview();
 }
 function renderTracks(isHost) {
   const box = $('l-tracks'); box.innerHTML = '';

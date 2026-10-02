@@ -2,7 +2,8 @@
 //
 // 키보드는 켜짐/꺼짐뿐이라 조향을 부드럽게 올리는 건 시뮬레이션이 한다(kb 플래그).
 // 게임패드는 아날로그 값을 그대로(양자화만) 보낸다.
-//   가속 ↑/W, 브레이크·후진 ↓/S, 조향 ←→/AD, 드리프트 Shift(또는 Space), 부스터 Ctrl(또는 Z),
+//   카트라이더 기본 키: 방향키 운전, Shift 드리프트, Ctrl 부스터 (2026-10-02 사용자 요청 — Space 드리프트는 뺐다)
+//   WASD·Z(부스터)는 보조로 남겨 둔다.
 //   차 되돌리기 R, 시점 C, 뒤보기 B   (카트라이더식 — 2026-10-02)
 
 export class Controls {
@@ -57,7 +58,7 @@ export class Controls {
     const up = K.has('ArrowUp') || K.has('KeyW'), down = K.has('ArrowDown') || K.has('KeyS');
     let steer = (right ? 1 : 0) - (left ? 1 : 0);
     let thr = up ? 1 : 0, brk = down ? 1 : 0;
-    let hb = K.has('ShiftLeft') || K.has('ShiftRight') || K.has('Space') ? 1 : 0, rst = K.has('KeyR') ? 1 : 0, look = K.has('KeyB') ? 1 : 0;
+    let hb = K.has('ShiftLeft') || K.has('ShiftRight') ? 1 : 0, rst = K.has('KeyR') ? 1 : 0, look = K.has('KeyB') ? 1 : 0;
     let bo = K.has('ControlLeft') || K.has('ControlRight') || K.has('KeyZ') ? 1 : 0;
     let kb = 1;
     const g = this.pad();

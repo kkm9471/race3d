@@ -45,7 +45,7 @@ export const KART = {
   RMIN: 2.8,          // 제자리 회전 방지: 최소 회전 반경 m
   TILT_K: 6,          // 땅에 닿아 있을 때 롤·피치 흔들림을 잡는 빠르기
   DRIFT_MIN_V: 8,     // 이보다 느리면 드리프트 안 됨 m/s
-  CHARGE: 0.40,       // 드리프트 게이지 기본 충전 속도(1/초, 미끄럼각·속도에 따라)
+  CHARGE: 0.60,       // 드리프트 게이지 기본 충전 속도(1/초) — 2026-10-02 사용자: 카트라이더만큼 잘 안 찬다 → 0.40 에서 올림(1초 드리프트 ≈ 65%)
   BOOST_V: 1.25, BOOST_TAU: 0.35, // 부스터: 최고속 ×, 그 속도까지 붙는 시간상수(초) — 누르자마자 확 밀어 준다
   INST_V: 1.14, INST_T: 0.55,    // 순간부스터
   INST_WIN: 0.35,                // 드리프트가 끝난 뒤 순간부스터 입력을 받아 주는 시간
@@ -397,9 +397,12 @@ export class Car {
       const sp = Math.sqrt(vf * vf + vl * vl);
       if (s.drift && sp > KART.DRIFT_MIN_V) {
         const ratio = Math.abs(vl) / sp;
-        s.gauge += dt * KART.CHARGE * P.charge * clamp(ratio / 0.3, 0.3, 1.2) * Math.min(1, sp / 25) * share;
+        // 드리프트를 막 시작해 미끄럼각이 작아도 꽤 찬다 (짧게 끊어 치는 드리프트도 보상)
+        s.gauge += dt * KART.CHARGE * P.charge * clamp(ratio / 0.15, 0.5, 1.2) * Math.min(1, sp / 25) * share;
         if (s.gauge >= 1) {
-          if (s.boosts < 2) { s.boosts++; s.gauge -= 1; } else s.gauge = 1;
+          // 가득 차면 부스터 1개(최대 2개), 게이지는 0부터 다시 (2개를 갖고 있으면 그냥 비운다 — 사용자 요청)
+          if (s.boosts < 2) s.boosts++;
+          s.gauge = 0;
         }
       }
       slipShow = sp > 3 ? Math.abs(vl) / sp : 0;

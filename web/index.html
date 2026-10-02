@@ -42,8 +42,8 @@
     <details class="keys"><summary>조작법</summary>
       <table>
         <tr><td>↑ / W</td><td>가속 (떼면 속도가 확 준다)</td><td>↓ / S</td><td>브레이크 · 멈춘 뒤 계속 누르면 후진</td></tr>
-        <tr><td>← → / A D</td><td>핸들</td><td>Shift (또는 Space)</td><td>드리프트 — 누르는 동안만, 떼면 바로 펴진다. 게이지가 찬다</td></tr>
-        <tr><td>Ctrl (또는 Z)</td><td>부스터 (게이지가 차면 1개, 최대 2개)</td><td>순간 부스터</td><td>드리프트 중 ↑를 뗐다가, 드리프트가 끝나자마자 ↑를 다시 누른다 · 출발 신호 직후 ↑ = 출발 부스터</td></tr>
+        <tr><td>← → / A D</td><td>핸들</td><td>Shift</td><td>드리프트 — 누르는 동안만, 떼면 바로 펴진다. 게이지가 찬다 (카트라이더 기본 키)</td></tr>
+        <tr><td>Ctrl</td><td>부스터 (게이지가 차면 1개, 최대 2개 — 차면 게이지는 0부터 다시)</td><td>순간 부스터</td><td>드리프트 중 ↑를 뗐다가, 드리프트가 끝나자마자 ↑를 다시 누른다 · 출발 신호 직후 ↑ = 출발 부스터</td></tr>
         <tr><td>R</td><td>차 되돌리기 (길 한가운데로)</td><td>C</td><td>시점 바꾸기</td></tr>
         <tr><td>B</td><td>뒤 보기</td><td>M</td><td>소리 켜기/끄기</td></tr>
         <tr><td>게임패드</td><td colspan="3">왼스틱 핸들 · RT 가속 · LT 브레이크 · A(또는 RB) 드리프트 · X(또는 LB) 부스터 · Y 되돌리기 · B 뒤보기 · 스틱 누르기 시점</td></tr>
@@ -73,6 +73,7 @@
       </div>
       <div>
         <h3>내 차 고르기</h3>
+        <div class="pv"><canvas id="l-preview"></canvas><div id="l-pv-name" class="pv-name"></div><div class="pv-hint">끌어서 360° 돌려 보기 · 휠로 확대 · 두 번 누르면 다시 자동 회전</div></div>
         <div id="l-cars" class="cars"></div>
       </div>
     </div>
