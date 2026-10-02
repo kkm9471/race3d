@@ -163,7 +163,7 @@ export class Sim {
     // 가속 발판: 차 중심이 발판 위에 들어오면 짧은 부스터 (0.4초 안엔 다시 안 켜진다)
     if (st.padT > 0) st.padT -= DTF;
     if (f >= GO_FRAME && T.padW[L.i] > 0 && Math.abs(L.d - T.padC[L.i]) < T.padW[L.i] && st.padT <= 0 && !st.fin) {
-      if (st.boostT < KART.PAD_T) { st.boostT = KART.PAD_T; st.boostK = 0.8; st.boostV = KART.PAD_V; }
+      if (st.boostT < KART.PAD_T) { const on = st.boostT > 0; st.boostV = on ? Math.max(st.boostV, KART.PAD_V) : KART.PAD_V; st.boostK = on ? Math.max(st.boostK, 0.8) : 0.8; st.boostT = KART.PAD_T; }
       st.padT = 0.4;
       this.events.push({ t: 'pad', a: c.slot });
     }

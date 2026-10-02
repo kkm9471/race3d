@@ -141,8 +141,11 @@ export function collideWall(car, R, world, events) {
       const dc = T.divW[i] > 0 && T.divW[j] > 0 ? T.div[i] + (T.div[j] - T.div[i]) * L.t : T.divW[i] > 0 ? T.div[i] : T.div[j];
       const rel = L.d - dc;
       if (dw > 0 && Math.abs(rel) < dw) {
-        depth = dw - Math.abs(rel);
-        const sg = rel >= 0 ? 1 : -1;
+        // 차 중심이 있는 쪽으로만 민다(점마다 가까운 쪽으로 밀면 코에 정면으로 들어간 차가 양쪽으로 밀려 올라탄 채 끌려갔다 — 4차 독립검증).
+        // 한 걸음에 3cm 까지 (먼 쪽 모서리를 한 번에 밀면 차가 옆으로 1m 순간이동한다)
+        const relC = rel - ((px - s.px) * L.lx + (pz - s.pz) * L.lz);
+        const sg = relC >= 0 ? 1 : -1;
+        depth = Math.min(dw - sg * rel, 0.03);
         nx = sg * L.lx; nz = sg * L.lz;
       }
     }

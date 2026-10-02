@@ -227,17 +227,20 @@ export class Car {
       }
     } else if (!s.hb || vf < KART.DRIFT_MIN_V * 0.6 || s.dc) {
       s.drift = 0; s.gripT = 0;
-      if (s.dT > 0.3) { s.instT = KART.INST_WIN; s.instKind = 1; }    // 충분히 길게 했으면 순간부스터 기회
+      // 순간부스터 기회: Shift 를 떼서, 충분한 속도로 끝낸 드리프트만 (벽에 박혀 멈춘 드리프트·끊김은 안 됨),
+      // 그리고 최고속의 90% 아래일 때만 (직선 지그재그로 계속 +11% 를 얻던 것 — 4차 독립검증)
+      if (s.dT > 0.3 && !s.hb && !s.dc && vf >= KART.DRIFT_MIN_V * 0.6 && vf < P.vtop * 0.9) { s.instT = KART.INST_WIN; s.instKind = 1; }
     }
     if (s.drift) s.dT += dtF; else s.gripT += dtF;
 
     // 순간부스터·출발부스터: 기회 시간 안에 가속 키를 "새로" 누르면
-    this.out.inst = 0;
+    // (out.inst 는 화면이 읽고 지운다 — 화면이 느려 한 번에 여러 프레임을 계산해도 알림이 안 빠지게)
     if (s.instT > 0) {
       s.instT -= dtF;
       if (tNow && !s.thrPrev) {
         const t = s.instKind === 2 ? KART.START_T : KART.INST_T;
-        if (s.boostT < t) { s.boostT = t; s.boostK = 0.7; s.boostV = KART.INST_V; }
+        // 더 센 부스터가 진행 중이면 약하게 덮어쓰지 않고 시간만 늘린다 (끝난 뒤 남은 boostV 1.25 와 섞이지 않게 진행 중일 때만)
+        if (s.boostT < t) { const on = s.boostT > 0; s.boostV = on ? Math.max(s.boostV, KART.INST_V) : KART.INST_V; s.boostK = on ? Math.max(s.boostK, 0.7) : 0.7; s.boostT = t; }
         s.instT = 0; this.out.inst = s.instKind;
       }
     }
@@ -402,8 +405,9 @@ export class Car {
       slipShow = sp > 3 ? Math.abs(vl) / sp : 0;
     } else {
       // 공중: 회전만 살짝 잡는다(착지 때 자세)
+      // 공중: 차체 위쪽을 하늘 쪽으로 되돌린다 (카트처럼 바퀴로 착지 — 점프대에서 기운 채 날아 뒤집히던 것, 4차 독립검증)
       const ia = (P.I[0] + P.I[2]) / 2;
-      Tx -= ia * 1.5 * ox; Ty -= ia * 1.5 * oy; Tz -= ia * 1.5 * oz;
+      Tx += ia * (30 * -r21 - 8 * ox); Tz += ia * (30 * r01 - 8 * oz); Ty -= ia * 1.5 * oy;
     }
     // 그리기용 바퀴 회전·미끄럼 (스키드마크·연기)
     for (let i = 0; i < 4; i++) {

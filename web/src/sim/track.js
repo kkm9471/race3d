@@ -197,7 +197,7 @@ export function buildTrack(def) {
  * def.features: 설계도 구간(seg 번호)과 그 안의 비율(from·to·at, 0~1)로 위치를 정한다.
  *   { t: 'split', seg, from, to, side: 1(왼쪽)|-1(오른쪽), extra, lane }  — 길을 extra m 넓히고 그쪽에 가운데 분리대.
  *        분리대 안쪽(side 쪽) 좁은 차선 = 지름길(코너 안쪽이라 짧다). lane = 지름길 차선 폭(m)
- *   { t: 'ramp', seg, at, len, h }   — at 지점에서 끝나는 점프대(길이 len m, 높이 h m, 끝은 뚝 떨어진다)
+ *   { t: 'ramp', seg, at, len, h }   — at 지점에서 끝나는 점프대(오르막 len m, 높이 h m, 뒷면은 12m 내리막 — 빠르면 날아오른다)
  *   { t: 'pad', seg, at, d, w, len } — 가속 발판(가로 위치 d, 폭 w, 길이 len)
  *   { t: 'ice', seg, from, to }      — 빙판(미끄럽다)
  * 결과는 샘플마다의 배열: div·divW(분리대 중심·반폭), ramp(높이), padC·padW, roadSurf
@@ -247,6 +247,9 @@ function applyFeatures(T, def, segs, nFine, shift) {
     } else if (f.t === 'ramp') {
       const e = idx(f.seg, f.at), m = Math.max(2, Math.round(f.len / T.ds));
       for (let k = 0; k <= m; k++) T.ramp[(e - m + k + n) % n] = Math.max(T.ramp[(e - m + k + n) % n], f.h * k / m);
+      // 뒷면은 12m 내리막 (2m 낭떠러지면 역주행으로 끝면에 들이받을 때 30m 넘게 치솟았다 — 4차 독립검증)
+      const mb = Math.max(2, Math.round((f.back ?? 12) / T.ds));
+      for (let k = 1; k < mb; k++) { const q = (e + k) % n; T.ramp[q] = Math.max(T.ramp[q], f.h * (1 - k / mb)); }
     } else if (f.t === 'pad') {
       const c = idx(f.seg, f.at), m = Math.max(1, Math.round((f.len ?? 8) / T.ds / 2));
       for (let k = -m; k <= m; k++) { const i = (c + k + n) % n; T.padC[i] = f.d ?? 0; T.padW[i] = (f.w ?? 4) / 2; }
@@ -394,8 +397,9 @@ export class TrackWorld {
       h = yc + sg * edge * b + (ad - edge) * rs;
       slope = sg * rs;
     }
-    // 점프대 (길 위에만) — 위 if/else 뒤에 둔다 (사이에 끼우면 else 가 이 줄에 붙어 노면 높이가 통째로 틀어진다 — 실제로 겪음)
-    if (ad <= hw && (T.ramp[i] > 0 || T.ramp[j] > 0)) h += T.ramp[i] + (T.ramp[j] - T.ramp[i]) * t;
+    // 점프대: 벽에서 벽까지 가로 전체 (길 위에만 붙이면 가장자리가 1.2m 계단이 돼 반쯤 걸친 차가 뒤집혔다 — 4차 독립검증)
+    // 위 if/else 뒤에 둔다 (사이에 끼우면 else 가 이 줄에 붙어 노면 높이가 통째로 틀어진다 — 실제로 겪음)
+    if (T.ramp[i] > 0 || T.ramp[j] > 0) h += T.ramp[i] + (T.ramp[j] - T.ramp[i]) * t;
     // 연석: 톱니 모양으로 살짝 솟아 덜컹거린다
     let surf;
     if (ad <= hw) surf = T.roadSurf ? T.roadSurf[i] : SURF.ASPHALT;
