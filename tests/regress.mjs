@@ -156,11 +156,12 @@ for (const track of ['circuit', 'mountain']) {
 // 7) 봇이 혼자 달릴 때 세게 벽에 박거나 되돌리기(스핀·역주행)가 없다
 //    (휘는 제동 구간 마찰원, 내리막 제동, 코너 탈출 가속, 카운터스티어 중 ESC — 2026-10-01)
 {
-  console.log('[봇 혼자 주행 30조합]');
+  console.log('[봇 혼자 주행 — 모든 맵 × 10대]');
   const { soloRun } = await import('./laps.mjs');
   let big = 0, rs = 0; const bad = [];
-  for (const t of ['circuit', 'mountain', 'city']) for (const cs of CARS) {
-    const r = soloRun(t, cs.id, 2);
+  const { TRACK_DEFS: TD } = await import('../web/src/sim/tracks.js');
+  for (const t of TD.map(d => d.id)) for (const cs of CARS) {
+    const r = soloRun(t, cs.id, TD.find(d => d.id === t).laps ? 1 : 2);   // 긴 맵은 1바퀴
     big += r.bigWall; rs += r.resets;
     if (r.bigWall || r.resets) bad.push(`${t}/${cs.name} 강한 벽 ${r.bigWall} 되돌리기 ${r.resets}`);
   }
@@ -341,6 +342,20 @@ console.log('[4차 검증: 점프대·부스터 규칙·분리대·출발 자리
     }
     ok(bad.length === 0, `출발 자리~출발선 사이 가속 발판: ${bad.join(', ') || '없음'}`);
   }
+}
+
+// 12) 부스터 게이지: 가득 차면 부스터 1개(최대 2개), 게이지는 0부터 다시 — 2개를 갖고 있어도 0으로 (2026-10-02 사용자 요청)
+console.log('[게이지 다시 0부터]');
+{
+  const fill = have => {
+    const { c, w } = newCar(CARS[1]);
+    c.setSpeed(120 / 3.6);
+    c.st.boosts = have; c.st.gauge = 0.97;
+    for (let f = 0; f < 30; f++) frame(c, w, pack({ thr: 1, steer: 1, hb: 1, kb: 1 }));
+    return [c.st.boosts, c.st.gauge];
+  };
+  const [b1, g1] = fill(1), [b2, g2] = fill(2);
+  ok(b1 === 2 && g1 < 0.5 && b2 === 2 && g2 < 0.5, `1개일 때 가득 → 부스터 ${b1}개·게이지 ${g1.toFixed(2)} / 2개일 때 가득 → 부스터 ${b2}개·게이지 ${g2.toFixed(2)}`);
 }
 
 console.log(fail ? `\n실패 ${fail}개` : '\n전부 통과');

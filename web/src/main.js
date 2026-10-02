@@ -411,10 +411,16 @@ function renderTracks(isHost) {
     b.innerHTML = '';
     const t = document.createElement('b'); t.textContent = `${d.name}`;
     // 난이도 별(★ 1~3) · 종류 · 길이
-    const sm = document.createElement('small'); sm.textContent = `${d.level ? '★'.repeat(d.level) + '☆'.repeat(3 - d.level) + ' ' : ''}${d.kind} · ${(T.L / 1000).toFixed(2)}km`;
+    const sm = document.createElement('small'); sm.textContent = `${d.level ? '★'.repeat(d.level) + '☆'.repeat(5 - d.level) + ' ' : ''}${d.kind} · ${(T.L / 1000).toFixed(2)}km`;
     b.append(t, sm);
     b.disabled = !isHost;
-    b.onclick = () => { app.track = d.id; if (app.net) app.net.send({ t: 'set', track: d.id }); updateLobby(); };
+    b.onclick = () => {
+      app.track = d.id;
+      if (app.net) app.net.send({ t: 'set', track: d.id });
+      // 긴 맵은 랩 수를 기본 2로 (한 바퀴가 2분 안팎)
+      if (d.laps) { $('l-laps').value = String(d.laps); $('l-laps').dispatchEvent(new Event('change')); }
+      updateLobby();
+    };
     box.appendChild(b);
   }
 }

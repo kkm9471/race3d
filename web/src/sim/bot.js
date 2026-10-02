@@ -169,7 +169,9 @@ export function botInput(sim, k, skill = 0.95, mem = sim.cars[k].st) {
     // 옆에 차가 있거나(15m 안) 피하는 중이면 드리프트하지 않는다 — 몰려 있을 때 드리프트하면 바깥으로 밀려 나가 자갈·벽에 갇혔다
     let crowd = want !== null;
     for (let q = 0; q < sim.cars.length && !crowd; q++) { if (q === k) continue; const o2 = sim.cars[q].st; if (o2.ghostT > 0 || o2.dc || o2.fin) continue; const dx2 = o2.px - st.px, dz2 = o2.pz - st.pz; if (dx2 * dx2 + dz2 * dz2 < 225) crowd = true; }
-    if (!crowd && ((Math.abs(v) > 16 && kk > 1 / 70 && Math.abs(steer) > 0.3) || (st.drift && Math.abs(steer) > 0.15 && kk > 1 / 90))) hb = 1;
+    // 반지름 26m 보다 좁은 헤어핀은 드리프트하면 바깥으로 밀려 벽에 닿는다(설원 급행·황혼 항구) → 그냥 꺾는다
+    const tight = kk > 1 / 26;
+    if (!crowd && !tight && ((Math.abs(v) > 16 && kk > 1 / 70 && Math.abs(steer) > 0.3) || (st.drift && Math.abs(steer) > 0.15 && kk > 1 / 90))) hb = 1;
     if (st.boosts > 0 && st.boostT === 0 && !st.drift) {
       let vmin = Infinity;
       const far = Math.round(90 / T.ds);

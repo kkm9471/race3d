@@ -23,7 +23,7 @@ const MAX_MSG = 8192;
 const RATE = 60, BURST = 150;
 const LOBBY_GRACE_MS = 45000;          // 대기실에서 끊긴 사람 자리 유지 (새로고침 대비)
 const RACE_MAX_MS = 25 * 60 * 1000;
-const TRACKS = ['circuit', 'mountain', 'city', 'beach', 'canyon', 'glacier'];   // web/src/sim/tracks.js 와 같아야 한다 (tests/room_unit.mjs 가 대조)
+const TRACKS = ['circuit', 'mountain', 'city', 'beach', 'canyon', 'glacier', 'harbor', 'express'];   // web/src/sim/tracks.js 와 같아야 한다 (tests/room_unit.mjs 가 대조)
 const CARS = ['kongal', 'masil', 'beongae', 'deundeun', 'jimkkun', 'baram', 'cheondung', 'yuseong', 'heukmeonji', 'chueok'];
 // 입력 정수 (web/src/sim/input.js 와 같은 규칙)
 const NEUTRAL = 128 | (1 << 20);
