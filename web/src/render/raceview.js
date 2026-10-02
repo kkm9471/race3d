@@ -75,6 +75,7 @@ export class RaceView {
         W[i].spin.rotation.x = v.spinA[i];
       }
       m.userData.setBrake(car.st.brk);
+      if (m.userData.setBoost) m.userData.setBoost(car.st.boostT > 0 ? Math.min(1, car.st.boostK || 1) : 0);
       const ghost = sim.isGhost(car);
       if (ghost !== v.ghost) { m.userData.setGhost(ghost || !!v.see); v.ghost = ghost; }
       // 연기·스키드마크
@@ -132,6 +133,8 @@ export class RaceView {
     fwd.y = 0; fwd.normalize();
     const vel = tmpV2.set(car.st.vx, 0, car.st.vz);
     const sp = vel.length();
+    // 부스터: 시야가 살짝 넓어져 속도감 (부드럽게)
+    this.boostFov = (this.boostFov || 0) + ((car.st.boostT > 0 ? 9 : 0) - (this.boostFov || 0)) * Math.min(1, dt * 6);
     // 드리프트할 때는 진행방향 쪽으로 카메라가 돌아 차 옆모습이 보이게
     const dir = sp > 4 ? fwd.clone().lerp(vel.normalize(), 0.35).normalize() : fwd.clone();
     if (look) dir.multiplyScalar(-1);
@@ -148,7 +151,7 @@ export class RaceView {
       const t = new THREE.Vector3(0, car.P.Hb - car.spec.cgH - 0.4, 30).applyQuaternion(m.quaternion).add(m.position);
       if (look) { t.sub(m.position).multiplyScalar(-1).add(m.position); }
       cam.lookAt(t);
-      cam.fov = md.fov + Math.min(10, sp * 0.12);
+      cam.fov = md.fov + Math.min(10, sp * 0.12) + this.boostFov;
       cam.updateProjectionMatrix();
       this.camInit = false;
       return;
@@ -175,7 +178,7 @@ export class RaceView {
     }
     cam.up.set(0, 1, 0);
     cam.lookAt(this.camLook);
-    cam.fov = md.fov + Math.min(12, sp * 0.14);
+    cam.fov = md.fov + Math.min(12, sp * 0.14) + this.boostFov;
     cam.updateProjectionMatrix();
   }
 

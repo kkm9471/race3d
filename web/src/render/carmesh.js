@@ -376,12 +376,21 @@ export function buildCar(spec, P, paintHex, quality = 1) {
     }
   }
   const exN = ex.includes('quadexhaust') ? 4 : ex.includes('twinexhaust') ? 2 : 1;
+  // 부스터 불꽃(파란 원뿔, 평소엔 숨김) — 빛나는 값(1 넘는 색)이라 번짐 효과로 반짝인다
+  const flameM = new THREE.MeshBasicMaterial({ color: new THREE.Color(1.2, 2.2, 3.6), transparent: true, opacity: 0.9, blending: THREE.AdditiveBlending, depthWrite: false });
+  const flameG = new THREE.ConeGeometry(0.16, 1.15, 10, 1, true);
+  flameG.rotateX(-Math.PI / 2); flameG.translate(0, 0, -0.57);   // 뒤로 뻗게
+  const flames = [];
   for (let k = 0; k < exN; k++) {
     const e = new THREE.Mesh(new THREE.CylinderGeometry(0.045, 0.045, 0.15, 10), chrome);
     e.rotation.x = Math.PI / 2;
     const sx = exN === 1 ? -hw * 0.5 : ((k % 2 ? -1 : 1) * hw * (0.3 + 0.12 * Math.floor(k / 2)));
     e.position.set(sx, fYb(0.03) - cg + 0.06, zRear + 0.03);
     car.add(e);
+    const f = new THREE.Mesh(flameG, flameM);
+    f.position.set(sx, fYb(0.03) - cg + 0.06, zRear - 0.03);
+    f.visible = false; f.userData.fx = true;
+    car.add(f); flames.push(f);
   }
 
   // ── 바퀴 ──
@@ -458,9 +467,16 @@ export function buildCar(spec, P, paintHex, quality = 1) {
   car.userData = {
     wheels, tails, tailM, headM, paint, blob, zFront, zRear, len,
     setBrake(b) { tailM.emissiveIntensity = 0.35 + b * 1.1; },
+    /** 부스터 중이면 배기구 불꽃 (b: 0~1 세기) */
+    setBoost(b) {
+      for (const f of flames) {
+        f.visible = b > 0;
+        if (b > 0) { const s = 0.7 + Math.random() * 0.5; f.scale.set(0.8 + b * 0.4, 0.8 + b * 0.4, s * (0.6 + b * 0.7)); }
+      }
+    },
     setGhost(g) {
       car.traverse(o => {
-        if (!o.isMesh || o === blob) return;
+        if (!o.isMesh || o === blob || o.userData.fx) return;
         const ms = Array.isArray(o.material) ? o.material : [o.material];
         for (const m of ms) { m.transparent = g; m.opacity = g ? 0.35 : 1; m.depthWrite = !g; }
       });
