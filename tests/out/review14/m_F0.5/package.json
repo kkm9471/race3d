@@ -1,0 +1,11 @@
+{
+  "name": "race3d",
+  "version": "0.1.0",
+  "private": true,
+  "type": "module",
+  "description": "브라우저 링크 하나로 셋이 함께 타는 3D 레이싱",
+  "dependencies": {
+    "puppeteer-core": "^23.11.1",
+    "three": "0.186.1"
+  }
+}

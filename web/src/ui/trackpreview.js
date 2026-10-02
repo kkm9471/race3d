@@ -122,10 +122,11 @@ export class TrackPreview {
   }
 }
 
-/** 설계도 요소 개수 → "지름길 2 · 점프 1 · …" */
-export function featureSummary(def) {
+/** 설계도 요소 개수 → "지름길 2 · 점프 1 · …" (터널은 이어진 구간 수 — 설계도에선 여러 조각으로 적기도 한다) */
+export function featureSummary(def, T = null) {
   const c = {};
   for (const f of def.features || []) c[f.t] = (c[f.t] || 0) + 1;
+  if (T && T.tunnel) { let n = 0; for (let i = 0; i < T.n; i++) if (T.tunnel[i] && !T.tunnel[(i + T.n - 1) % T.n]) n++; c.tunnel = n; }
   const out = [];
   if (c.split) out.push(`지름길 ${c.split}`);
   if (c.ramp) out.push(`점프대 ${c.ramp}`);

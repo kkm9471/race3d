@@ -1,0 +1,14 @@
+import puppeteer from 'puppeteer-core';
+const b = await puppeteer.launch({ executablePath: 'C:/Program Files/Google/Chrome/Application/chrome.exe', headless: 'new', args: ['--use-angle=d3d11', '--window-size=1366,768'], defaultViewport: { width: 1366, height: 768 } });
+const p = await b.newPage(); const errs = [];
+p.on('pageerror', e => errs.push(e.message));
+await p.goto('http://127.0.0.1:8790/index.html?q=low', { waitUntil: 'load' });
+await p.waitForFunction(() => window.__ready === true, { timeout: 30000 });
+await p.type('#m-name', '나');
+await p.click('#m-solo');
+await new Promise(r => setTimeout(r, 1500));
+await p.evaluate(() => { const bs = [...document.querySelectorAll('#l-tracks button')]; bs.find(x => x.textContent.includes('대저택'))?.click(); });
+await new Promise(r => setTimeout(r, 1200));
+await p.screenshot({ path: 'tests/out/lobby_solo.png' });
+console.log('오류', errs);
+await b.close();

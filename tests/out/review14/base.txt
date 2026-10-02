@@ -1,0 +1,33 @@
+village s0@764: 8.15s walls=0 strong=0 reset=0 minV=113 
+forest s0@754: 8.13s walls=0 strong=0 reset=0 minV=113 
+desert s0@882: 8.85s walls=0 strong=0 reset=0 minV=101 
+fairy s0@976: 7.62s walls=0 strong=0 reset=0 minV=90 
+nymph s0@844: 8.22s walls=0 strong=0 reset=0 minV=120 
+nymph s1@1708: 7.48s walls=0 strong=0 reset=0 minV=114 
+pirate s0@470: 8.73s walls=0 strong=0 reset=0 minV=82 
+pirate s1@2072: 9.73s walls=4 strong=3 reset=0 minV=82 -124m:17 -122m:14 -122m:10
+china s0@1400: 10.15s walls=6 strong=2 reset=0 minV=72 -132m:12 -130m:7
+china s1@2474: 7.03s walls=0 strong=0 reset=0 minV=104 
+ice s0@1022: 7.07s walls=0 strong=0 reset=0 minV=98 
+ice s1@1320: 8.65s walls=0 strong=0 reset=0 minV=75 
+cemetery s0@514: 8.70s walls=0 strong=0 reset=0 minV=79 
+cemetery s1@1714: 7.05s walls=0 strong=0 reset=0 minV=104 
+factory s0@984: 8.80s walls=0 strong=0 reset=0 minV=82 
+factory s1@2564: 8.83s walls=0 strong=0 reset=0 minV=88 
+mansion s0@340: 7.23s walls=0 strong=0 reset=0 minV=96 
+mansion s1@1056: 7.37s walls=8 strong=3 reset=0 minV=104 -118m:16 -114m:14 -66m:6
+mansion s2@2510: 9.00s walls=4 strong=2 reset=0 minV=78 -136m:12 -132m:7
+moonhill s0@1352: 9.55s walls=0 strong=0 reset=0 minV=88 
+moonhill s1@1834: 8.83s walls=0 strong=0 reset=0 minV=88 
+moonhill s2@2814: 8.78s walls=0 strong=0 reset=0 minV=88 
+golden s0@840: 8.80s walls=0 strong=0 reset=0 minV=85 
+golden s1@2030: 9.95s walls=2 strong=0 reset=0 minV=85 
+golden s2@2820: 8.83s walls=4 strong=1 reset=0 minV=86 -70m:9
+mine s0@770: 8.72s walls=0 strong=0 reset=0 minV=76 
+mine s1@2474: 7.10s walls=0 strong=0 reset=0 minV=104 
+mine s2@3410: 7.62s walls=4 strong=2 reset=0 minV=104 -116m:10 -112m:13
+space s0@672: 9.13s walls=0 strong=0 reset=0 minV=103 
+space s1@1318: 9.17s walls=0 strong=0 reset=0 minV=103 
+space s2@1964: 9.08s walls=0 strong=0 reset=0 minV=103 
+space s3@2720: 5.93s walls=0 strong=0 reset=0 minV=128 
+total 32 strong-bad 6 {"shortcut":0,"skill":1}

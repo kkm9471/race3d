@@ -457,7 +457,7 @@ function updateTrackPreview() {
     $('l-tp-name').textContent = d.name;
     const st = $('l-tp-stars'); st.replaceWith(Object.assign(starsEl(d.level), { id: 'l-tp-stars' }));
     const rise = T.bounds.y1 - T.bounds.y0;
-    $('l-tp-meta').textContent = `${d.kind} · 한 바퀴 ${(T.L / 1000).toFixed(2)}km · 고저차 ${rise.toFixed(0)}m · 기본 ${d.laps || 3}랩 · ${featureSummary(d)}`;
+    $('l-tp-meta').textContent = `${d.kind} · 한 바퀴 ${(T.L / 1000).toFixed(2)}km · 고저차 ${rise.toFixed(0)}m · 기본 ${d.laps || 3}랩 · ${featureSummary(d, T)}`;
     $('l-tp-desc').textContent = d.desc || '';
   } catch (e) { console.warn('트랙 미리보기를 못 그렸습니다', e); }
 }

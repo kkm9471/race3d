@@ -1,0 +1,218 @@
+[
+ {
+  "real": true,
+  "sev": "high",
+  "file": "server/src/room.js",
+  "line": 305,
+  "title": "If every racer quits a multiplayer race from the pause menu, the room stays in 'race' for 25 minutes",
+  "fix": "In input(), after the validity check at :320, add `if (v & (1 << 21)) (r.quit ||= new Set()).add(id); else r.quit?.delete(id);`. Then treat active racers as `[...r.slotOf.keys()].filter(pid => this.players.get(pid)?.conn && !r.quit?.has(pid))`. Use that list for `anyone` in tick() (:305) and for `racers` in done() (:358). tick()'s existing `!anyone` branch then ends the race within 250 ms once all racers have quit, provided the race is more than 10 s old.",
+  "reason": "Confirmed with a mock-DO repro. p-quit (main.js:462) only sends an 'in' entry with bit 21 set and leaves the socket open. input() never checks the DC bit, so the server logs it as an ordinary input. In tick() at room.js:305, `anyone = [...r.slotOf.keys()].some(pid => this.players.get(pid)?.conn)` stays true and firstDone stays 0, so only RACE_MAX ends the race. Until then 'ready' (the phase check at :194) and 'start' (:274) are ignored. Repro with 1 racer, and with 2 racers who both quit: phase is still 'race' after 10 simulated minutes, a new 'start' is not broadcast, and the race ends at exactly 25.00 min. Multiplayer hides '처음부터 다시', so 'let's redo it' means everyone presses '레이스 나가기', which is exactly this path. Partial case: with 2 racers, if A quits and B finishes, the race ends 15.25 s after B's report instead of at once, because done() at :358 still counts A as a connected racer. The only way out is leaving the room ('bye' sets conn=false)."
+ },
+ {
+  "real": true,
+  "sev": "high",
+  "file": "web/src/main.js",
+  "line": 462,
+  "title": "If every racer quits from the pause menu, the room stays stuck in 'race' for 25 minutes (no one can start a new race)",
+  "fix": "Server side, no protocol change. room.js:290, add `lastV: cfg.players.map(() => 0)` to the race object. room.js:329, after `r.log.push([s, f2, v]);` add `r.lastV[s] = v;`. Add a method `active(r) { return [...r.slotOf].filter(([pid, s]) => this.players.get(pid)?.conn && !(r.lastV[s] & (1 << 21))).map(([pid]) => pid); }`. room.js:305 becomes `const anyone = this.active(r).length > 0;` and room.js:358 becomes `const racers = this.active(r);`. A player who is pulled back in and sends a normal input is counted again automatically. I verified this on a scratch copy: all-quit now ends on the next tick, the host can start a new race, the one-quitter race ends as soon as B reports, and tests/room_unit.mjs still passes (14/14).",
+  "reason": "Confirmed with the real Room class (scratch f1_quit_stuck.mjs). I started 1 or 3 racers and had each send the exact p-quit input [seq, frame+2, NEUTRAL|1<<21] at +20 s, with sockets left open. After 24 simulated minutes: phase='race', ended=false. The host's ready+start produced no messages ('ready' and start are ignored while phase!=='lobby'). The race ended only at RACE_MAX_MS. Cause: room.js:305 `const anyone = [...r.slotOf.keys()].some(pid => this.players.get(pid)?.conn);` and room.js:358 `const racers = [...r.slotOf.keys()].filter(pid => this.players.get(pid)?.conn);` look only at p.conn. The server never interprets DC_INPUT, and p-quit (main.js:462-466) keeps the socket open, so leave() never runs. No client can end the race either: every Game is stopped, so nobody sends 'done', and firstDone stays 0. The only escape is for every racer to leave the room (bye → conn=false → !anyone → endRace), which non-developer users won't know. Triggers are plausible: a host testing alone in a room, or friends aborting a race on the wrong track. The milder form is also confirmed: with 2 racers, A quits and B reports done; phase stays 'race' until +15 s instead of ending on B's report."
+ },
+ {
+  "real": true,
+  "sev": "medium",
+  "file": "server/src/room.js",
+  "line": 307,
+  "title": "One early 'done' still ends everyone's race after 15 s and sets the room record by itself",
+  "fix": "Run the 15 s fallback only when a strict majority of active racers (connected and not quit, as defined in the first finding) have reported. At :307: `else if (r.firstDone && r.done.size * 2 > active.length && Date.now() - r.firstDone > 15000) this.endRace();`. At :369, accept a lone report only when there is at most one active racer: `const agreed = reports.length === 1 && active.length <= 1 ? reports[0] : reports.find((x, i) => reports.indexOf(x) !== i);`. Trade-off: in a 2-racer race where the other player's tab is hidden, the race waits for that client to report (or for RACE_MAX).",
+  "reason": "Confirmed. Three racers, three laps. C sends {t:'done',r:[[2,1,601]]} at serverFrame 2946; the minimum allowed is 2940. 15 s later tick() at :307 ends the race at 64.3 s. endRace() at :369 accepts the lone report (`reports.length === 1 ? reports[0]`) and writes records.circuit={best:601,name:'C'}. A's inputs after that are rejected because r.ended is set. The honest clients' Game keeps running, because the lobby handler in main.js only redraws when !app.game. dropStale() then discards their unconfirmed inputs after 120 frames, and their cars run on the last confirmed input. The trigger needs deliberate cheating, but window.__app turns it into one console line. The comment at room.js:350 says this forced end and forged record are exactly what the last fix was meant to prevent. I rate it medium, not high, because a legitimate client reports only at the sim's gs.over, which every client reaches at the same frame."
+ },
+ {
+  "real": true,
+  "sev": "medium",
+  "file": "server/src/room.js",
+  "line": 362,
+  "title": "A record set when tick() ends the race is never saved and is lost when the DO hibernates",
+  "fix": "Save inside endRace(): after the records loop, before `this.phase = 'lobby'` (:382), add `this.saveSoon();`. The pending timer also keeps the DO awake until the write happens. The `await this.trySave()` at :359 can stay or be removed.",
+  "reason": "Confirmed. A reports and B does not; the 15 s fallback in tick() calls endRace(), which updates this.settings.records in memory only. Afterwards storage still had records={}, there were 0 puts during the race end, and no saveSoon timer was pending. After a simulated wake (a new Room on the same storage and sockets), the lobby showed records={}, and the next save() would write that empty value back. Only the all-reported branch of done() (:359 `this.endRace(); await this.trySave();`) saves. The tick path is common: hidden tabs, racers who quit from the pause menu (first finding) and slow reporters all lead to it. The idle time on the results screen makes hibernation before any other save likely. Only the room best-lap board is affected, but it disappears with no warning."
+ },
+ {
+  "real": true,
+  "sev": "medium",
+  "file": "server/src/room.js",
+  "line": 293,
+  "title": "start() clears 'ready' only in memory; socket attachments restore ready:true after hibernation",
+  "fix": "In start(), right after `for (const p of ps) p.ready = false;` (:293), rewrite the attachments: `for (const w of this.ctx.getWebSockets()) { const a = att(w); const q = a.id && this.players.get(a.id); if (q) this.attach(w, q); }`.",
+  "reason": "Confirmed. After start(), B's in-memory ready is false, but B's attachment still says ready:true. Only car, assist, ready, back and hello call attach(). The race ended, A pressed Back, and B stayed on the results screen. After a simulated wake, the constructor (:74 `{ ...a.p, conn: true }`) restored B as ready. The lobby showed [[p1,true],[p2,true]], the host's start went through with no 'err', and 'start' was broadcast. B's client (start -> enterRace) is pulled off the results screen into a race B never readied for. This comes up in normal play: every non-host must ready before race 1, and players sit idle on the results screen. The finding's alternative fix (forcing ready:false in the constructor) is wrong. It would clear real lobby ready states whenever the DO sleeps while players wait for the host."
+ },
+ {
+  "real": true,
+  "sev": "medium",
+  "file": "web/src/main.js",
+  "line": 586,
+  "title": "Reconnect 'welcome' pulls a player who quit the race, or who is reading the results, back into the running race",
+  "fix": "main.js: remember the race this client left or finished. In p-quit, set `app.leftRace = g.startAt;` inside the `if (g && g.net)` branch. In the launch onEnd, add `if (net) app.leftRace = startAt;`. In welcome, after `if (g) { g.stop(); ... }`, add `if (msg.race && msg.race.startAt === app.leftRace) msg.race = null;` and then `if (!msg.race && !$('results').classList.contains('hidden')) { $('l-conn').textContent = '연결됨'; $('l-conn').className = 'conn ok'; return; }`, which keeps the results screen. Otherwise proceed with openLobby/enterRace as today. Page-refresh rejoin still works, because app.leftRace resets on reload.",
+  "reason": "Reproduced in headless Chrome with the real web client and a fake WebSocket. (a) After clicking p-quit, the last 'in' sent had the DC bit set (v=3145856) and app.game was null, with the lobby showing. I then dropped the socket with code 1006. NetClient reconnected, and a welcome carrying the same race (room.js:258-261 sends race+log to any same-version member of slotOf) created a new Game with local=0 and running=true, with all screens hidden. Its first input was 1048704 (NEUTRAL, DC bit clear). The server accepts it (the id is still in slotOf) and relays it, so every sim clears st.dc (car.js:179). The quitter's car stops being a ghost and becomes a collidable car parked where it stopped, and race.js:118 `allDone` becomes false again, so the others wait out the whole finish window. Cause: main.js:587-595 only checks `g && ... startAt === g.startAt`, and app.game is null after p-quit (464) and after onEnd (498). (b) Also reproduced: on the results screen, a reconnect welcome that still carries the race hides the results and launches a replay Game. One correction: (b)'s window is at most 15 s after the first report (room.js:307), not longer for hidden tabs. (a)'s window is the rest of the race, and up to 25 min combined with finding 1."
+ },
+ {
+  "real": true,
+  "sev": "medium",
+  "file": "web/src/main.js",
+  "line": 581,
+  "title": "Unreachable server: menu shows only '서버에 연결하는 중…' forever; stale text after leaving a room",
+  "fix": "In joinRoom's status handler add: `if (app.net === net && !$('menu').classList.contains('hidden') && net.tries >= 3) { $('m-msg').textContent = '서버에 연결되지 않습니다 — 회사 네트워크가 막았을 수 있습니다. 휴대폰 핫스팟으로 해 보거나 [혼자 연습하기]를 쓰세요.'; $('m-msg').className = 'msg err'; }`. Add `$('m-msg').textContent = '';` at the top of welcome() and inside leaveToMenu().",
+  "reason": "Reproduced in headless Chrome with the real page and an unreachable ws URL (scratchpad judge/f1.cjs). After 8 failed attempts (33 s) the visible menu still showed only '서버에 연결하는 중…'. The real status ('연결 끊김 — 8초 뒤 다시 연결') was written to #l-conn inside the hidden lobby by main.js:581 `status(txt, ok) { $('l-conn').textContent = txt; ...}`. Retries never stop (client.js:63-67: 8 s cap, no limit). Second defect, also reproduced: after a successful join and 나가기, the menu shows the stale '서버에 연결하는 중…' while app.net is null. #m-msg is set at main.js:566 and never cleared on welcome or in leaveToMenu(). I rate it medium, not high: there is no wrong game state, but the user gets no failure signal in the realistic cross-company case."
+ },
+ {
+  "real": true,
+  "sev": "medium",
+  "file": "web/src/main.js",
+  "line": 376,
+  "title": "Reconnect that re-creates the player uses the join-time car/assist (stale NetClient fields)",
+  "fix": "main.js:376: `if (app.net) { app.net.car = c.id; app.net.send({ t: 'car', car: c.id }); }`. main.js:438: `if (app.net) { app.net.assist = app.assist; app.net.send({ t: 'assist', on: app.assist }); }`. Optional server hardening: in load(), use `leftAt: p.leftAt || Date.now()` so a restart grants the 45 s grace.",
+  "reason": "Reproduced against server/src/room.js in Node (scratchpad judge/srv.mjs). The player picks cheondung and turns assist off. The socket closes, and 60 s later the reconnect sends the constructor values (client.js:30 `car: this.car, assist: this.assist`). prune() has removed the slot, so the result is a new player p3 with car 'baram' and assist true. Within the 45 s grace the car is kept, so the bug needs the new-player branch. I found a second, more common trigger in the neighbourhood of the load() fix. After a restart that drops sockets (a server deploy), load() restores players who were connected at the last save with the stored leftAt of 0 (room.js:98 saves `p.conn ? 0 : ...`). prune() in load() then deletes them at once (now - 0 > 45 s). Every reconnect takes the new-player branch, and every lobby member falls back to their join-time car and assist. main.js:376 and :438 never update net.car or net.assist. openLobby → renderCars re-highlights app.car, so the grid shows the newer car while race.cfg uses the server value."
+ },
+ {
+  "real": true,
+  "sev": "medium",
+  "file": "server/src/room.js",
+  "line": 307,
+  "title": "Room best lap not saved when the race ends via tick (15 s / timeout); lost on hibernation; results screen shows the pre-race record",
+  "fix": "In tick(), replace each `this.endRace()` with `{ this.endRace(); this.trySave(); }`, or call `this.trySave()` at the end of endRace() and drop the save in done(). In main.js lobby(l), when `!$('results').classList.contains('hidden')`, re-render the '이 방 최고 랩' line from l.records (move main.js:550-555 into a helper).",
+  "reason": "Reproduced in Node (scratchpad judge/srv.mjs). Three racers; C quits through the pause menu (DC input, socket stays open); A and B report identical results. Phase is still 'race' at +10 s, and tick ends it at +16 s. Memory then holds records {\"circuit\":{\"best\":2000,...}} but storage holds {}. After 'back' messages (which do not save) and a simulated hibernation wake, records are {} and the lobby shows none. All three endRace() calls in tick() (room.js:306-307) skip saving; only done() at room.js:359 saves. The second claim is confirmed by code: finish() sends 'done' and synchronously calls showResults, which reads app.lobby.records at main.js:550 before the server's post-endRace pushLobby arrives. The lobby handler never re-renders #r-rec, so a record set in this race is never shown there."
+ },
+ {
+  "real": true,
+  "sev": "low",
+  "file": "server/src/room.js",
+  "line": 327,
+  "title": "The cap of 4 inputs per frame keeps the oldest inputs and drops the newest when late inputs share one frame stamp",
+  "fix": "When an input lands on the same frame, overwrite the slot's last log entry instead of adding a new one. Keep that entry's index in r.perFrame[s][2]. In input(): `if (pf[0] === f2) { r.log[pf[2]][2] = v; out.push(isInt(q) ? [f2, v, q] : [f2, v]); continue; } pf[0] = f2; ... r.log.push([s, f2, v]); pf[2] = r.log.length - 1;` (the counter is no longer needed). In leave(), after pushing DC_INPUT, set `r.perFrame[s] = [f2, 1, r.log.length - 1]`. The broadcast still sends every value in order, so clients end on the same last value as the log.",
+  "reason": "Confirmed. Nine late entries (f from F-70 to F-30, values 1000..1008) were sent as three 3-entry messages, the way the client batches every 45 ms, and arrived together at F=600. All were clamped to frame 570, and the counter in r.perFrame carries across messages. The log ended as [[0,570,1000],[0,570,1001],[0,570,1002],[0,570,1003]]; 1008 was lost. Clients merge events on the same frame with the last value winning (session.addConfirmed), so the car runs on the 4th value, not the newest. It stays that way until the player changes input again, because sampleInput only sends when v !== lastSent. The player's own client also loses the dropped entry: it is either ignored (p.f < vf) or removed later by dropStale, which causes a rollback jump. Without the cap, the same burst would have kept the correct final value, so the cap caused this. It needs a delivery delay over 0.5 s (LATE=30), at least 5 input changes inside the late part of that delay, and no newer change after them. So it is infrequent (Wi-Fi stalls), and the result is briefly wrong steering or throttle."
+ },
+ {
+  "real": true,
+  "sev": "low",
+  "file": "server/src/room.js",
+  "line": 275,
+  "title": "A newcomer who joins during a race, plus a racer who reconnects, gives 5 connected players and a 5-car next race",
+  "fix": "Cap the race at start. At :275: `const ps = [...this.players.values()].filter(p => p.conn).sort((a, b) => a.order - b.order).slice(0, MAX_PLAYERS);`. The newest joiner then watches that race, and the ready check at :277 applies only to the capped list.",
+  "reason": "Confirmed. In a 4-racer race, D's socket closes (webSocketClose -> leave). E then joins: the count at :243 is 3, because D is a disconnected racer and is excluded. D reconnects with its token through the reclaim branch (:230-238), which has no limit check, so 5 players are connected. After the race everyone readies, and start() (:275, no cap) builds a 5-slot race (A,B,C,D,E). The sim and client handle any number of cars (gridSlot, audio, PAINT index modulo), so nothing crashes. The effects are going over the 4-player free-tier cap, and `res.slice(0, MAX_PLAYERS)` in done() and endRace() ignoring the 5th-place car's best lap. It needs a coincidence: a racer drops, a newcomer joins during that gap, and the racer comes back."
+ },
+ {
+  "real": true,
+  "sev": "low",
+  "file": "tests/room_unit.mjs",
+  "line": 19,
+  "title": "The unit-test Sock starts with att=null, so reconnect identity (reclaim and 'still') is untested and behaves like the old bug in tests",
+  "fix": "At tests/room_unit.mjs:19, set `this.att = { id: null, c: crypto.randomUUID() };`. Add a reconnection test: hi with the same token on a second socket, expect the old socket closed with 4000, then `await room.webSocketClose(old)`, and expect the player still conn:true with no DC input logged.",
+  "reason": "Test-only; no runtime impact, but confirmed. With the test mock (att=null), a second socket with the same token leaves the old socket open (closed=null), because `a.c !== me` evaluates as `undefined !== undefined`. When the old socket's close event then arrives, it sets p1.conn=false, which is the pre-fix bug. With a mock that matches production ({id:null,c:uuid}, as fetch() sets at :119), the old socket is closed with 4000 and marked gone, and p1 stays connected. No existing test covers reconnection, and every mock socket shares the rate bucket 'x'. The rewritten identity logic therefore has no regression coverage, even though room_unit.mjs is cited as verification for it."
+ },
+ {
+  "real": true,
+  "sev": "low",
+  "file": "web/src/sim/car.js",
+  "line": 308,
+  "title": "Engine rpm is taken from the backward-turning wheels in the half-clutch branch, so the rev counter pins and the engine sound goes above redline for seconds after a spin",
+  "fix": "In car.js, compute half-clutch engine speed whenever the wheels turn against the gear, and keep the traction-control estimate consistent with it:\n- line 308: `rpm = rpmW < 0 ? e.idle + (e.launch - e.idle) * thr : Math.max(Math.abs(rpmW), e.idle + (e.launch - e.idle) * thr);`\n- line 299: `const rpmNow = (rpmW < 0 && (g === 1 || g === -1)) ? e.idle + (e.launch - e.idle) * thr : Math.max(Math.abs(rpmW), e.idle + (e.launch - e.idle) * thr);`\nThen bump VERSION in web/src/version.js, because s.rpm is hashed and the recovery torque changes.\n\nI checked a patched scratch copy. Time above redline in this branch drops to 0 for all cars (coasting backward now shows idle). 0-100 frame counts are identical for all 10 cars, so measured.js is unaffected. Regress checks 1-2 (speed after spin + release; braking while rolling backward) still pass. A brief 0.1-0.2 s above redline remains during the downshift cascade (lines 283-284 and the gear>=2 branch); that predates the fix and is transient. Optionally add a regress assertion that s.rpm <= redline after spin + release.",
+  "reason": "I could not refute this, and I reproduced it in Node (scratch scripts f1_probe.mjs and f1_compare.mjs). Reproduction with the same spin procedure tests/regress.mjs uses: setSpeed(108 km/h), then steer+handbrake for 1.5 s, then release everything. Kongal cascades 4->3->1, because wheelRpm < 0 makes controls() at car.js:239 keep downshifting. It then rolls backward at 62->56 km/h in gear 1, and s.rpm stays at 8,300-9,250 (1.28-1.44x its 6,500 redline) for 9.9 s. Masil reaches 1.20x for 9.4 s and jimkkun 1.24x for 8.8 s. The car keeps rolling for so long because the half-clutch branch gives Te=0 when throttle is off (no engine braking). In the forced case (80 km/h backward in gear 1), 9 of 10 cars exceed redline: coasting, up to 2.33x for the whole 10 s; with throttle, 0.8-3 s. Both consumers leave the value unclamped. audio/engine.js:75 `const rpm = Math.max(600, st.rpm);` sets the oscillator pitch from it, and hud.js:110 clamps the bar to 1 and :112 turns on the red 'hot' state. This is a real regression in the fix's neighborhood. The line-304 comment says the engine is not dragged by the wheels here (half-clutch). Before the fix, this branch only ran when |rpmW| < launch, so line 308 could never exceed launch rpm. Widening the condition with `|| rpmW < 0` (line 305) lets |rpmW| through without limit. The effect is not only on display and sound. With throttle held, line 309 `lerpTable(e.rpm, e.tq, rpm)` reads past the end of the torque table (beongae 220 instead of 370 Nm; deundeun 270 instead of 422 Nm). Line 299 (`rpmNow` for traction control) does the same. As a result, recovery from a backward roll is slower (deundeun, traction control on: forward again after 3.67 s, versus 2.98 s once fixed). s.rpm is included in hash() (race.js:239 hashes every st key), but all clients compute the same value, so this causes no desync."
+ },
+ {
+  "real": true,
+  "sev": "low",
+  "file": "web/src/render/city.js",
+  "line": 68,
+  "title": "City buildings overlap each other, although the header comment says they must not",
+  "fix": "Do NOT just switch to the full radius: I measured that it drops the city from 237 to 169 buildings (-29%, visibly sparser). Replace overlaps() with an exact oriented-rectangle separating-axis test that keeps the 1.5 m gap. A box's width axis is (T.lx[i], T.lz[i]) and its depth axis is (T.tx[i], T.tz[i]), matching the yaw=atan2(tx,tz) rotation.\n\nCode:\n`const ext = (b, ax, az) => b.w / 2 * Math.abs(b.ux * ax + b.uz * az) + b.d / 2 * Math.abs(b.vx * ax + b.vz * az);`\n`const overlaps = c => boxes.some(b => { const dx = c.x - b.x, dz = c.z - b.z; for (const [ax, az] of [[b.ux, b.uz], [b.vx, b.vz], [c.ux, c.uz], [c.vx, c.vz]]) if (Math.abs(dx * ax + dz * az) >= ext(b, ax, az) + ext(c, ax, az) + 1.5) return false; return true; });`\n\nAt :79, build `const c = { x, z, w, d, ux: T.lx[i], uz: T.lz[i], vx: T.tx[i], vz: T.tz[i] };` and test `overlaps(c)`. At :82, push `{ ...c, h: hgt, yaw, y: T.y[i] - 1 }`.\n\nChecked in Node (f2_fixcheck.mjs): 250 buildings, 0 overlaps.",
+  "reason": "The claim holds, but the numbers are off. I ran the real buildCity() in Node (three from the project's node_modules, T from buildTrack(city), exactly the path raceview uses) and read back the instance matrices (f2_real.mjs). It places 237 buildings, not 241. An exact oriented-box separating-axis test finds 21 overlapping pairs, not 31, involving 39 buildings; 5 pairs overlap by more than 2 m (max 5.9 m, #7 vs #111). One pair (#39 at station 342 vs #133 at station 369) crosses at a 53-degree yaw difference with 3.0 m of penetration. The cause is as described. Line 68 `boxes.some(b => Math.hypot(b.x - x, b.z - z) < b.r + r + 1.5)` is called at :79 with `r * 0.75` and stores `r: r * 0.75` at :82, while the footprint reaches the full half-diagonal hypot(w,d)/2. That contradicts the stated intent at :5 ('빌딩끼리·도로와 겹치지 않게', buildings must not overlap each other or the road). The z-fighting part is not supported: the overlapping same-yaw pairs have no coplanar faces (closest parallel faces are 0.12 m apart). 15 of the 21 overlaps are same-yaw front-row/back-row pairs that read as one combined building and are mostly hidden behind the front row. Road clearance is fine (0 buildings reach wall + 0.4 m). The effect is cosmetic, render-only and deterministic, with no effect on the simulation."
+ },
+ {
+  "real": true,
+  "sev": "low",
+  "file": "web/src/main.js",
+  "line": 493,
+  "title": "Two Games can run at once if 'welcome' arrives during the 30 ms launch delay (zombie render/audio loop)",
+  "fix": "Use a launch token. In launch(), start with `const id = app.launchId = (app.launchId || 0) + 1;`. As the first lines of the setTimeout callback, add `if (id !== app.launchId) return; if (app.game) { app.game.stop(); app.game = null; }`. Also bump `app.launchId++` in leaveToMenu() and in the error handler's full/version/badroom/replaced branch. Otherwise an error inside the same 30 ms window builds a Game over the menu using the closed NetClient.",
+  "reason": "Confirmed, and the trigger is concrete. broadcast() (room.js:124-127) sends to every accepted socket, including one whose 'hi' has not been processed yet. With the real Room, a joiner accepted before the host's start receives `start → lobby → welcome(same race.startAt)`. The same happens when a racer refreshes the page or reconnects right as the host starts. If the start lands within about 25 ms before that 'hi' is processed, both messages arrive inside launch's 30 ms setTimeout. The 'start' path enterRace→launch leaves app.game null for 30 ms, so the welcome sees g===null and launches again. Reproduced in headless Chrome: start, then welcome 10 ms later, left 2 track groups and 2 car meshes in the scene (two live Games). The control case with a 300 ms gap had 1. Nothing ever stops the orphan, because enterRace, welcome and error only stop app.game. One correction: audio.start() calls stop() first, so there is no extra audio voice. The real effects are worse, though. The duplicate track and cars stay in the scene (z-fighting), and there is double sim and render cost. The orphan gets no inputs, so its sim reaches MAX_FRAMES 20 min after that start. It then calls finish(), which sends a garbage 'done' (which can register for a later race), clears #hud, stops audio, nulls controls.onAction, sets app.game=null and shows results, hijacking whatever is running at that moment. In the refresh case the orphan uses the racer's own connection, so hash() accepts its divergent hashes and every player gets a false desync alert. Rated low only because the trigger window is about 25 ms around a join, refresh or reconnect."
+ },
+ {
+  "real": true,
+  "sev": "low",
+  "file": "web/src/main.js",
+  "line": 236,
+  "title": "Changing quality mid-race (manually or via autoScale) leaves car shadow blobs in the wrong state",
+  "fix": "After every setQuality while a view exists, sync the blobs. In Game.autoScale after `gfx.setQuality(next); ...` add `for (const c of this.view.cars) c.mesh.userData.blob.visible = !gfx.q.shadow;`. In the p-q onchange handler add `if (app.game) for (const c of app.game.view.cars) c.mesh.userData.blob.visible = !gfx.q.shadow;`. Do the same for `bgView.v.cars` in the m-q handler.",
+  "reason": "Confirmed in headless Chrome. In a race started at medium: blob.visible=false and shadowMap on. I then ran exactly what autoScale does (setQuality('low'); scaleDyn=0.8; resize()). Afterwards shadowMap.enabled=false and sun.castShadow=false, but blob.visible was still false, so cars have no shadow at all for the rest of the race. The blob is set only in the RaceView constructor (raceview.js:26 `m.userData.blob.visible = !gfx.q.shadow;`), and setQuality (scene.js:80-104) does not touch it. Going low→medium/high from the pause menu gives the opposite: blob plus shadow map. This is realistic on office integrated-GPU PCs: detectQuality picks medium, and autoScale drops to low. Cosmetic only."
+ },
+ {
+  "real": true,
+  "sev": "low",
+  "file": "web/src/main.js",
+  "line": 335,
+  "title": "혼자 연습하기 does not cancel a pending join: a late welcome kills the solo race and adds the player to the room",
+  "fix": "In m-solo: `app.joinSeq = (app.joinSeq || 0) + 1; if (app.net) { app.net.close(); app.net = null; }`. In joinRoom: `const seq = app.joinSeq = (app.joinSeq || 0) + 1;` before the await and `if (seq !== app.joinSeq) return;` after it. Start each net.on handler (welcome/lobby/start/input/status) with `if (app.net !== net) return;`.",
+  "reason": "Reproduced in headless Chrome with a mock server that sends welcome 8 s late (scratchpad judge/client_flows.cjs f2). Steps: 방 들어가기 → 혼자 연습하기 → 출발. The solo race ran (net=false, frame 246). When the welcome arrived, main.js:592 `if (g) { g.stop(); app.game = null; ...}` stopped it (running=false). openLobby then showed a hybrid lobby: code '혼자', l-conn '연결됨', app.solo still true, while the socket is a member of room ABCD. The m-solo handler (main.js:335-339) never calls app.net.close(). In the hybrid lobby #l-ready is hidden, so in a friends' room this player is connected and never ready, and room.js:277 refuses the host's start until they leave. There is a smaller race too: clicking solo during the `await fetch('data/net.json')` lets joinRoom continue and set app.solo=false under the solo lobby. Rated low because the connection must succeed only after the user has already switched to solo (slow or flaky network)."
+ },
+ {
+  "real": true,
+  "sev": "low",
+  "file": "web/index.html",
+  "line": 115,
+  "title": "'새로고침(F5)' does not load a new deploy for up to 10 min (max-age=600 modules); racever text promises joining that start() refuses",
+  "fix": "Change the texts at room.js:223/280 to '... Ctrl+Shift+R(강력 새로고침) 해 주세요.' and at room.js:265 to '버전이 달라 이번 레이스는 함께 못 탑니다. 모두 Ctrl+Shift+R 로 새로고침하면 다음 레이스부터 같이 탈 수 있습니다.' Optionally name the players whose ver differs from the host's in the 'mixed' message. Changing only main.js?v= would not help, because its relative imports (version.js, sim/*) carry no query. A robust client fix: before reloading, run `fetch(url, {cache:'reload'})` on each loaded .js URL (from performance.getEntriesByType('resource')), then call location.reload().",
+  "reason": "Measured the live site with curl: GitHub Pages serves index.html, src/main.js?v=1 and src/version.js with `Cache-Control: max-age=600`. pages.yml uploads web/ unchanged, so nothing stamps the URLs. Reproduced in headless Chrome with a server sending the same header (scratchpad judge/f5.cjs). After changing version.js, a normal reload (CDP Page.reload ignoreCache:false, which is what F5 does) sent only a conditional request for index.html and kept VERSION='OLD'. Ctrl+Shift+R fetched every file and got 'NEW'. So the advice in the 'mixed' message (room.js:280) and the 'version' message (room.js:223) can fail for up to 10 minutes. The 'racever' text (room.js:265, '지금 레이스가 끝나면 함께 탈 수 있습니다') is also false: start() rejects mixed versions (room.js:278-281) unless someone refreshes. The problem is temporary and has a workaround, so low."
+ },
+ {
+  "real": true,
+  "sev": "low",
+  "file": "web/src/main.js",
+  "line": 462,
+  "title": "Pause-menu quitter still counts as a connected racer: race end waits 15 s; '(관전 가능)' has no UI",
+  "fix": "In room.js input(), after validating v: `if (v & (1 << 21)) (r.quit ||= new Set()).add(id); else r.quit?.delete(id);`. In done(), filter racers with `this.players.get(pid)?.conn && !r.quit?.has(pid)`. In tick(), also end the race (and save) when r.firstDone is set and every such racer has reported. Remove ' (관전 가능)' from main.js:434.",
+  "reason": "Reproduced in Node (scratchpad judge/srv.mjs). After C sends the DC input from p-quit (main.js:462) with the socket open, done() still counts C in `racers` (room.js:358 filters only on conn). A and B's reports do not end the race; only the 15 s tick does. Meanwhile, players who return to the lobby see phase 'race' with 출발 disabled (main.js:433), and through the F4 bug the record from that race is not saved. This contradicts the stated intent at main.js:461 ('완주 판정을 막지 않는다'). The '(관전 가능)' text at main.js:434 is shown only to people already in the lobby (quitters, early finishers), and no control lets them spectate."
+ },
+ {
+  "real": true,
+  "sev": "low",
+  "file": "web/src/main.js",
+  "line": 592,
+  "title": "Reconnect while results are shown replaces them with the lobby (or replays the finished race)",
+  "fix": "In welcome, before openLobby: `if (!g && !$('results').classList.contains('hidden') && (!msg.race || msg.race.startAt === app.lastStartAt)) { updateLobby(); $('l-conn').textContent = '연결됨'; $('l-conn').className = 'conn ok'; return; }`. In enterRace(), set `app.lastStartAt = race.startAt;`.",
+  "reason": "Reproduced in headless Chrome with a mock server (scratchpad judge/client_flows.cjs f9). Results were visible at 97.3 s ('1위로 완주!'). The socket was terminated at 98.7 s, and by 99.7 s the reconnect welcome's unconditional openLobby() (main.js:592-593) had hidden #results and shown the lobby without any click. A worse variant was also reproduced (f9open): if the server race is still open when the reconnect happens (for example, waiting up to 15 s for other reports), the welcome carries msg.race. enterRace() then relaunches the race this client already finished: loading → replay from frame 600 → results again about 9 s later, with a second 'done' sent."
+ },
+ {
+  "real": false,
+  "sev": "none",
+  "file": "server/src/room.js",
+  "line": 414,
+  "title": "The rate map keeps entries for sockets that never got a player id",
+  "fix": "Optional cleanup: call `this.rate.delete(att(ws).c)` unconditionally at the start of webSocketClose and webSocketError.",
+  "reason": "The claim is accurate: after 1000 ping-only sockets close, 1000 entries remain, because leave() (which deletes the entry) runs only when the attachment has an id. It causes no real problem. Each entry is about 200 bytes. The map is discarded when the DO hibernates or is evicted. Legitimate clients never reconnect in a loop: codes 4000, 4001 and 4002 end reconnection in client.js:55-61, and a socket that sends nothing creates no entry. Reaching memory pressure would take hundreds of thousands of upgrade requests, which would hit the Worker request quota first."
+ },
+ {
+  "real": false,
+  "sev": "none",
+  "file": "server/src/room.js",
+  "line": 243,
+  "title": "Room code typo creates a new empty room",
+  "fix": "",
+  "reason": "This is working as designed: rooms are created on demand per code, and the result is shown accurately. #l-code shows the code she typed, and the player list shows only her with 👑. There is no incorrect state, only a missing 'this room is empty' hint. That is a UX enhancement, not a defect."
+ },
+ {
+  "real": false,
+  "sev": "none",
+  "file": "web/src/main.js",
+  "line": 431,
+  "title": "Host must press 준비 before 출발 enables",
+  "fix": "",
+  "reason": "The client check is stricter than the server (room.js:277 exempts the host), but the flow works and the UI shows what to do. The host's own row shows '고르는 중' next to the guests' '준비 완료', and the host's 준비 button is visible, so one click enables 출발. The claim that nothing tells them is inaccurate. At most this is a one-line consistency tweak (`every(p => p.ready || p.id === app.myId)`), not a defect."
+ },
+ {
+  "real": false,
+  "sev": "none",
+  "file": "web/src/ui/controls.js",
+  "line": 53,
+  "title": "Phone users get no touch controls or warning",
+  "fix": "",
+  "reason": "It is correct that there is no touch input: grep finds none, and Controls.read() (controls.js:53; the cited :170-202 does not exist, since the file has 87 lines) reads only the keyboard and gamepad. But this is an unsupported platform, not a defect in the reviewed code. A car that never moves only runs into the designed finish window (race.js:122), the same as any AFK player. A `(pointer: coarse)` notice and 'PC' in the invite text would be cheap enhancements."
+ }
+]
