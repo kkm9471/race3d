@@ -117,7 +117,7 @@ export const getSky = id => skyCache.get(id) || null;
 
 /**
  * 질감 세트를 재질에 입힌다. 같은 사진을 여러 재질이 쓰므로 반복 배율(repeat)은 사진 하나를 복제해 따로 둔다.
- * spec = { tex, scale(가로·세로 몇 m 마다 한 번), tint, rough(거칠기 배율), normal(울퉁불퉁 세기) }
+ * spec = { tex, scale(가로·세로 몇 m 마다 한 번), tint, bright(밝기 배율), rough(거칠기 배율), normal(울퉁불퉁 세기), ao, metal }
  * uvMeters = 이 메쉬의 UV 1 이 몇 m 인지 [u, v]
  */
 export function applyTexSet(mat, spec, uvMeters, aniso = 8) {
@@ -133,7 +133,7 @@ export function applyTexSet(mat, spec, uvMeters, aniso = 8) {
   mat.roughnessMap = arm; mat.aoMap = arm; mat.aoMapIntensity = spec.ao ?? 0.8;
   mat.metalnessMap = null; mat.metalness = spec.metal ?? 0;
   mat.roughness = spec.rough ?? 1;
-  mat.color = new THREE.Color(spec.tint ?? 0xffffff);
+  mat.color = new THREE.Color(spec.tint ?? 0xffffff).multiplyScalar(spec.bright ?? 1);   // bright: 1 보다 크게 하면 사진보다 밝게(어두운 아스팔트 등)
   mat.needsUpdate = true;
   return true;
 }

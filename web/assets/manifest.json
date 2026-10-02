@@ -41,6 +41,78 @@
    "w": 15,
    "h": 15,
    "url": "https://polyhaven.com/a/aerial_grass_rock"
+  },
+  "worn_asphalt": {
+   "name": "Worn Asphalt",
+   "w": 2,
+   "h": 2,
+   "url": "https://polyhaven.com/a/worn_asphalt"
+  },
+  "clean_asphalt": {
+   "name": "Clean Asphalt",
+   "w": 2.0999999046325684,
+   "h": 2.0999999046325684,
+   "url": "https://polyhaven.com/a/clean_asphalt"
+  },
+  "asphalt_02": {
+   "name": "Asphalt 02",
+   "w": 3.000000238418579,
+   "h": 3,
+   "url": "https://polyhaven.com/a/asphalt_02"
+  },
+  "asphalt_snow": {
+   "name": "Asphalt Snow",
+   "w": 2,
+   "h": 2,
+   "url": "https://polyhaven.com/a/asphalt_snow"
+  },
+  "forest_ground_04": {
+   "name": "Forest Ground 04",
+   "w": 3.1500000953674316,
+   "h": 3.1500000953674316,
+   "url": "https://polyhaven.com/a/forest_ground_04"
+  },
+  "rock_face_03": {
+   "name": "Rock Face 03",
+   "w": 2.6999995708465576,
+   "h": 2.6999995708465576,
+   "url": "https://polyhaven.com/a/rock_face_03"
+  },
+  "coast_sand_01": {
+   "name": "Coast Sand 01",
+   "w": 15,
+   "h": 15,
+   "url": "https://polyhaven.com/a/coast_sand_01"
+  },
+  "red_sand": {
+   "name": "Red Sand",
+   "w": 2.999999523162842,
+   "h": 2.999999523162842,
+   "url": "https://polyhaven.com/a/red_sand"
+  },
+  "red_sandstone_wall": {
+   "name": "Red Sandstone Wall",
+   "w": 2,
+   "h": 2,
+   "url": "https://polyhaven.com/a/red_sandstone_wall"
+  },
+  "snow_02": {
+   "name": "Snow 02",
+   "w": 2,
+   "h": 2,
+   "url": "https://polyhaven.com/a/snow_02"
+  },
+  "cliff_side": {
+   "name": "Cliff Side",
+   "w": 1.8300000429153442,
+   "h": 1.8300000429153442,
+   "url": "https://polyhaven.com/a/cliff_side"
+  },
+  "concrete_pavement": {
+   "name": "Concrete Pavement",
+   "w": 1.8000000715255737,
+   "h": 1.8000000715255737,
+   "url": "https://polyhaven.com/a/concrete_pavement"
   }
  },
  "sky": {
@@ -49,6 +121,48 @@
    "time": "afternoon",
    "weather": "clear",
    "url": "https://polyhaven.com/a/syferfontein_18d_clear_puresky"
+  },
+  "kloofendal_misty_morning_puresky": {
+   "name": "Kloofendal Misty Morning (Pure Sky)",
+   "time": "morning",
+   "weather": "fog",
+   "url": "https://polyhaven.com/a/kloofendal_misty_morning_puresky"
+  },
+  "evening_road_01_puresky": {
+   "name": "Evening Road 01 (Pure Sky)",
+   "time": "sunset",
+   "weather": "partly_cloudy",
+   "url": "https://polyhaven.com/a/evening_road_01_puresky"
+  },
+  "kloofendal_43d_clear_puresky": {
+   "name": "Kloofendal 43d Clear (Pure Sky)",
+   "time": "midday",
+   "weather": "clear",
+   "url": "https://polyhaven.com/a/kloofendal_43d_clear_puresky"
+  },
+  "qwantani_late_afternoon_puresky": {
+   "name": "Qwantani Late Afternoon (Pure Sky)",
+   "time": "afternoon",
+   "weather": "clear",
+   "url": "https://polyhaven.com/a/qwantani_late_afternoon_puresky"
+  },
+  "snow_field_puresky": {
+   "name": "Snow Field (Pure Sky)",
+   "time": "afternoon",
+   "weather": "overcast",
+   "url": "https://polyhaven.com/a/snow_field_puresky"
+  },
+  "qwantani_dusk_2_puresky": {
+   "name": "Qwantani Dusk 2 (Pure Sky)",
+   "time": "dusk",
+   "weather": "partly_cloudy",
+   "url": "https://polyhaven.com/a/qwantani_dusk_2_puresky"
+  },
+  "kloppenheim_06_puresky": {
+   "name": "Kloppenheim 06 (Pure Sky)",
+   "time": "sunset",
+   "weather": "partly_cloudy",
+   "url": "https://polyhaven.com/a/kloppenheim_06_puresky"
   }
  }
 }
