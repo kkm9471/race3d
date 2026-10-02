@@ -11,4 +11,4 @@ for (let k = 0; k < +waitS; k++) {
   console.log(k + 1, JSON.stringify(r)); if (process.env.SNAP && k+1 >= +process.env.SNAP) await page.screenshot({ path: 'tests/out/review14/snap_' + map + '_' + (k+1) + '.png' });
 }
 console.log(logs.filter(l=>!/X4122|Program Info/.test(l)).slice(0,8).join('\n'));
-awa
+await browser.close();
