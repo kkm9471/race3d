@@ -76,6 +76,15 @@ export const look = {
   trees: false,
   far: [0x1f1633, 0x33244d],
   banner: { bg: '#2a1a48', fg: '#ffd9a0' },
+  // 실사: 보랏빛 밤은 코드 그대로(sky 안 씀), 달빛에 젖은 실제 돌길·이끼 땅·자갈
+  real: {
+    road: { tex: 'mossy_cobblestone', scale: 2.5, tint: 0xb8a8e8, bright: 1.6, env: 1.0 },
+    runoff: { tex: 'forest_ground_04', scale: 3, tint: 0x9080c0, bright: 1.5 },
+    terrain: { tex: 'forest_ground_04', scale: 5, tint: 0x8070b0, bright: 1.4 },
+    gravel: { tex: 'gravel_floor', scale: 2.5, tint: 0xa898d0, bright: 1.4 },
+    rock: { tex: 'rock_face_03', scale: 4, tint: 0x9c8cc8, bright: 1.5 },
+    wall: { tex: 'mossy_cobblestone', scale: 2.5, tint: 0xc0b0f0, bright: 1.5 },
+  },
 };
 
 export function build(ctx) {

@@ -287,6 +287,24 @@
    "w": 1.7999999523162842,
    "h": 1.7999999523162842,
    "url": "https://polyhaven.com/a/rock_wall_08"
+  },
+  "marble_01": {
+   "name": "Marble 01",
+   "w": 1.5,
+   "h": 1.5,
+   "url": "https://polyhaven.com/a/marble_01"
+  },
+  "granite_tile": {
+   "name": "Granite Tile",
+   "w": 2.299999952316284,
+   "h": 2.299999952316284,
+   "url": "https://polyhaven.com/a/granite_tile"
+  },
+  "gravel_road": {
+   "name": "Gravel Road",
+   "w": 2,
+   "h": 2,
+   "url": "https://polyhaven.com/a/gravel_road"
   }
  },
  "sky": {

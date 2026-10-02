@@ -2,6 +2,8 @@
 // 미끄럼방지 무늬 철판 노면, 노랑·검정 경고 줄무늬 벽, 청록 터널, 공장 건물(톱날 지붕)·굴뚝(연기)·굵은 파이프·
 // 돌아가는 톱니바퀴·움직이는 로봇 팔·드럼통·상자, 기름 바닥(빙판 구간을 검은 기름막으로 다시 칠함)
 
+import { applyTexSet } from '../assets.js';
+
 /** 미끄럼방지 무늬 철판 (u = 길 폭, v = 10m 마다 1) */
 function plateTex(ctx) {
   return ctx.canvasTex(256, 256, (g, w, h) => {
@@ -163,6 +165,15 @@ export const look = {
   far: [0x5f6b6a, 0x7b8786],
   banner: { bg: '#174a45', fg: '#f2c21b' },
   tunnel: { color: 0x46cdb9, map: tunnelTex, light: 0xc8fff6, emissive: 0x0e3f39, portal: 0x1d5f57 },
+  // 실사(15회차): 흐린 산업 하늘 + 실제 철판·콘크리트·녹슨 금속 (보통·높음 화질)
+  real: {
+    sky: 'kloofendal_misty_morning_puresky', exposure: 1.0, fogMul: 0.8,
+    road: { tex: 'metal_plate', scale: 0.9, env: 1.2, bright: 2.0, tint: 0xd8dcd8, rough: 0.9 },
+    runoff: { tex: 'concrete_floor_worn_001', scale: 3 },
+    terrain: { tex: 'concrete_floor_worn_001', scale: 5 },
+    wall: { tex: 'metal_plate_02', scale: 3, bright: 1.4 },
+    props: { tex: 'rusty_metal_02' },
+  },
 };
 
 export function build(ctx) {
@@ -225,7 +236,9 @@ export function build(ctx) {
   }
   {
     const g = new THREE.CylinderGeometry(1, 1, 1, 12, 1, true);
-    const im = new THREE.InstancedMesh(g, ctx.mat({ color: 0xffffff, roughness: 0.35, metalness: 0.6, side: THREE.DoubleSide }), Math.max(1, pipes.length));
+    const pipeM = ctx.mat({ color: 0xffffff, roughness: 0.35, metalness: 0.6, side: THREE.DoubleSide });
+    if (ctx.q.detail >= 1 && applyTexSet(pipeM, { tex: 'rusty_metal_02', scale: 1.5, metal: 0.6, rough: 0.9, bright: 1.1 }, [3, 12])) pipeM.side = THREE.DoubleSide;
+    const im = new THREE.InstancedMesh(g, pipeM, Math.max(1, pipes.length));
     const A = new THREE.Vector3(), B = new THREE.Vector3(), D = new THREE.Vector3();
     pipes.forEach((p, k) => {
       A.set(p.a.x, p.a.y, p.a.z); B.set(p.b.x, p.b.y, p.b.z); D.subVectors(B, A);
@@ -263,7 +276,9 @@ export function build(ctx) {
   gearPair(36, 0.75, 1, 8, 4.5, 12);
   gearPair(38, 0.3, -1, 6, 3.5);
   gearPair(42, 0.5, -1, 9, 5, 14);
-  const gearIM = new THREE.InstancedMesh(gearGeo(THREE), ctx.mat({ color: 0xffffff, roughness: 0.35, metalness: 0.75 }), Math.max(1, gears.length));
+  const gearM = ctx.mat({ color: 0xffffff, roughness: 0.35, metalness: 0.75 });
+  if (ctx.q.detail >= 1) applyTexSet(gearM, { tex: 'rusty_metal_02', scale: 2, metal: 0.75, rough: 0.8, bright: 1.0 }, [1, 1]);
+  const gearIM = new THREE.InstancedMesh(gearGeo(THREE), gearM, Math.max(1, gears.length));
   gears.forEach((g, k) => gearIM.setColorAt(k, col.setHex(g.c)));
   gearIM.count = gears.length; gearIM.frustumCulled = false; gearIM.castShadow = ctx.q.detail >= 1;
   ctx.group.add(gearIM);

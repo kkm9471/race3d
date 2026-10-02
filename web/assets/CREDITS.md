@@ -62,3 +62,6 @@
 - Rocky Terrain 02 (90×90m) — https://polyhaven.com/a/rocky_terrain_02
 - Red Laterite Soil Stones (2×2m) — https://polyhaven.com/a/red_laterite_soil_stones
 - Rock Wall 08 (1.8×1.8m) — https://polyhaven.com/a/rock_wall_08
+- Marble 01 (1.5×1.5m) — https://polyhaven.com/a/marble_01
+- Granite Tile (2.3×2.3m) — https://polyhaven.com/a/granite_tile
+- Gravel Road (2×2m) — https://polyhaven.com/a/gravel_road

@@ -183,6 +183,16 @@ export const look = {
   far: [0x2c5a3a, 0x5d8a72],
   banner: { bg: '#2c4a22', fg: '#f2c94c' },
   tunnel: { color: 0xd8c8a0, map: tunnelTex, light: 0xffa850, emissive: 0x3a2610, portal: 0x8a8468 },
+  // 실사: 이끼 낀 사암 길·벽, 진한 정글 땅, 활엽수 가득한 숲, 따뜻한 오후 하늘
+  real: {
+    sky: 'qwantani_late_afternoon_puresky', exposure: 1.0,
+    road: { tex: 'mossy_sandstone', scale: 2.5, tint: 0xe8dcc0, bright: 1.3, env: 1.0 },
+    runoff: { tex: 'forest_ground_04', scale: 3, tint: 0xb8d098 },
+    terrain: { tex: 'forest_ground_04', scale: 5, tint: 0xa8c888 },
+    rock: { tex: 'mossy_sandstone', scale: 3.5, tint: 0xc8d4a8 },
+    wall: { tex: 'mossy_sandstone', scale: 2.5, tint: 0xe0d4b0 },
+    trees: { con: ['island_tree_02'], broad: ['island_tree_01', 'island_tree_02'], h: [9, 17], n: 0.9, tint: 0xd8e8c0 },
+  },
 };
 
 export function build(ctx) {
