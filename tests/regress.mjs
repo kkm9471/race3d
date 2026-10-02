@@ -221,5 +221,127 @@ for (const track of ['circuit', 'mountain']) {
   }
 }
 
+// 11) 4차 독립검증 항목 (2026-10-02)
+console.log('[4차 검증: 점프대·부스터 규칙·분리대·출발 자리]');
+{
+  const { GO_FRAME } = await import('../web/src/sim/race.js');
+  const { datan2 } = await import('../web/src/sim/dmath.js');
+  const { KART } = await import('../web/src/sim/car.js');
+  const { TRACK_DEFS } = await import('../web/src/sim/tracks.js');
+  const upY = st => 1 - 2 * (st.qx * st.qx + st.qz * st.qz);
+  const ready = (track, car) => {
+    const sim = new Sim({ track, laps: 3, players: [{ car, name: 'p' }] });
+    while (sim.gs.frame < GO_FRAME + 30) sim.step([pack({ kb: 1 })]);
+    return sim;
+  };
+  const put = (sim, i, d, back, v) => {
+    const T = sim.T, c = sim.cars[0];
+    const x = T.x[i] + T.lx[i] * d, z = T.z[i] + T.lz[i] * d;
+    const yaw = datan2(T.tx[i], T.tz[i]) + (back ? Math.PI : 0);
+    sim.world.ground(x, z, i);
+    c.place(x, sim.world.g.h + c.P.spec.cgH + 0.1, z, yaw);
+    c.st.hint = i; for (let q = 0; q < 4; q++) c.st.w[q].hint = i;
+    c.st.sPrev = i * T.ds;
+    c.setSpeed(v); c.finishFrame();
+  };
+  // (가) 점프대 가장자리·한쪽 바퀴만 걸쳐도 안 뒤집힘  (나) 역주행으로 끝면에 들어가도 6m 넘게 안 치솟음
+  let flips = 0, worstUp = 1, maxRise = 0, runs = 0;
+  for (const tr of ['beach', 'canyon', 'glacier']) {
+    for (const car of ['kongal', 'yuseong']) {
+      const sim0 = ready(tr, car), T = sim0.T, snap = sim0.snapshot();
+      const ends = [];
+      for (let i = 0; i < T.n; i++) if (T.ramp[i] > 0 && T.ramp[(i + 1) % T.n] < T.ramp[i] && T.ramp[(i - 1 + T.n) % T.n] < T.ramp[i]) ends.push(i);
+      for (const e of ends) {
+        const i0 = (e - 20 + T.n) % T.n;
+        for (const side of [1, -1]) for (const dd of [-1.0, -0.5, 0, 0.4, 0.8]) for (const v of [25, 40]) {
+          sim0.restore(snap); put(sim0, i0, side * (T.hw[i0] + dd), false, v);
+          let mu = 1;
+          for (let f = 0; f < 200; f++) { sim0.step([pack({ thr: 1, kb: 1 })]); mu = Math.min(mu, upY(sim0.cars[0].st)); }
+          runs++; worstUp = Math.min(worstUp, mu); if (mu < 0) flips++;
+        }
+        // 역주행: 끝면 40m 뒤에서 거꾸로 40m/s
+        sim0.restore(snap); const i1 = (e + 20) % T.n; put(sim0, i1, 0, true, 40);
+        const y0 = sim0.cars[0].st.py; let top = 0;
+        for (let f = 0; f < 150; f++) { sim0.step([pack({ thr: 1, kb: 1 })]); top = Math.max(top, sim0.cars[0].st.py - y0); }
+        maxRise = Math.max(maxRise, top);
+      }
+    }
+  }
+  ok(flips === 0, `점프대 가장자리·한쪽 걸침 ${runs}번: 뒤집힘 ${flips}번 (가장 기운 upY ${worstUp.toFixed(2)})`);
+  ok(maxRise < 6, `점프대 역주행: 가장 높이 솟은 ${maxRise.toFixed(1)}m (<6)`);
+  // (다) 브레이크로 속도가 무너져 끝난 드리프트는 순간부스터 기회가 없다
+  {
+    const { c, w } = newCar(CARS[1]);
+    c.setSpeed(108 / 3.6);
+    for (let f = 0; f < 24; f++) frame(c, w, pack({ thr: 0, steer: 1, hb: 1, kb: 1 }));
+    for (let f = 0; f < 240 && c.st.drift; f++) frame(c, w, pack({ thr: 0, brk: 1, steer: 1, hb: 1, kb: 1 }));
+    let inst = 0;
+    for (let f = 0; f < 20; f++) { frame(c, w, pack({ thr: 1, hb: 1, kb: 1 })); if (c.out.inst) inst = 1; }
+    ok(!inst && c.out.fwd * 3.6 < 60, `브레이크로 멈춘 드리프트 뒤 순간부스터 ${inst ? '나옴' : '없음'}, 0.33초 뒤 ${(c.out.fwd * 3.6).toFixed(0)}km/h`);
+  }
+  // (라) 최고속에서 직선 지그재그 드리프트로 순간부스터를 이어 붙여도 그냥 달리기보다 빠르지 않다
+  {
+    const dist = zig => {
+      const { c, w } = newCar(CARS[1]);
+      for (let f = 0; f < FPS * 25; f++) frame(c, w, pack({ thr: 1, kb: 1 }));
+      let x = 0, dir = 1, ph = 0;
+      for (let f = 0; f < 600; f++) {
+        let inp = { thr: 1, kb: 1 };
+        if (zig) {
+          ph++;
+          if (ph <= 19) inp = { thr: 1, steer: dir, hb: 1, kb: 1 };
+          else if (ph === 20) inp = { thr: 0, kb: 1 };
+          else if (ph <= 23) inp = { thr: 1, steer: -dir, kb: 1 };
+          else { ph = 0; dir = -dir; }
+        }
+        frame(c, w, pack(inp)); x += c.out.speed / FPS;
+      }
+      return x;
+    };
+    const a = dist(false), b = dist(true);
+    ok(b <= a * 1.005, `직선 지그재그 10초: ${b.toFixed(0)}m vs 그냥 달리기 ${a.toFixed(0)}m`);
+  }
+  // (마) 끝나 가는 부스터에 순간부스터가 겹치면 센 쪽(1.25)을 유지하고 시간만 는다
+  {
+    const { c, w } = newCar(CARS[1]);
+    c.setSpeed(40);
+    c.st.boostT = 0.4; c.st.boostV = KART.BOOST_V; c.st.boostK = 1; c.st.instT = 0.3; c.st.instKind = 1; c.st.thrPrev = 0;
+    frame(c, w, pack({ thr: 1, kb: 1 }));
+    ok(c.st.boostV >= KART.BOOST_V && c.st.boostT > 0.45, `부스터 끝무렵 순간부스터: 세기 ${c.st.boostV}, 남은 시간 ${c.st.boostT.toFixed(2)}초`);
+  }
+  // (바) 분리대 코에 정면으로 들어가도 올라탄 채 끌려가지 않는다
+  {
+    let stuck = 0, tries = 0;
+    for (const tr of ['beach', 'canyon', 'glacier']) {
+      const sim0 = ready(tr, 'masil'), T = sim0.T, snap = sim0.snapshot();
+      let a = -1;
+      for (let i = 0; i < T.n; i++) if (T.divW[i] > 0 && !(T.divW[(i - 1 + T.n) % T.n] > 0)) { a = i; break; }
+      for (const off of [-0.6, -0.3, 0, 0.3, 0.6]) for (const v of [15, 30]) {
+        sim0.restore(snap); const i0 = (a - 12 + T.n) % T.n; put(sim0, i0, T.div[a] + off, false, v);
+        let on = 0;
+        for (let f = 0; f < 240; f++) {
+          sim0.step([pack({ thr: 1, kb: 1 })]);
+          const st = sim0.cars[0].st, L = sim0.world.locate(st.px, st.pz, st.hint);
+          if (T.divW[L.i] > 0 && Math.abs(L.d - T.div[L.i]) < T.divW[L.i] + 0.2) on++;
+        }
+        tries++; if (on > 60) stuck++;
+      }
+    }
+    ok(stuck === 0, `분리대 코 정면 진입 ${tries}번: 1초 넘게 올라탄 경우 ${stuck}번`);
+  }
+  // (사) 출발 자리에서 출발선까지 가속 발판이 없다 (뒷줄만 출발하자마자 부스터를 받으면 불공평)
+  {
+    const bad = [];
+    for (const def of TRACK_DEFS) {
+      const sim0 = new Sim({ track: def.id, laps: 1, players: [{ car: 'masil' }] }), T = sim0.T;
+      for (let k = 0; k < 4; k++) {
+        const g = sim0.world.gridSlot(k);
+        for (let s = g.s; s < T.L + 4; s += 1) { const i = Math.floor(s / T.ds) % T.n; if (T.padW[i] > 0) { bad.push(`${def.name} ${k}번 자리`); break; } }
+      }
+    }
+    ok(bad.length === 0, `출발 자리~출발선 사이 가속 발판: ${bad.join(', ') || '없음'}`);
+  }
+}
+
 console.log(fail ? `\n실패 ${fail}개` : '\n전부 통과');
 process.exit(fail ? 1 : 0);
