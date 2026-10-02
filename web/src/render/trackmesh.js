@@ -442,8 +442,7 @@ function buildKartFeatures(T, group, look = {}, ctx = null) {
   const divM = new THREE.MeshStandardMaterial({ map: stripes, roughness: 0.6, side: THREE.DoubleSide });
   const rampM = new THREE.MeshStandardMaterial({ map: stripes, roughness: 0.5, metalness: 0.2, side: THREE.DoubleSide });
   const padM = new THREE.MeshBasicMaterial({ map: arrowTex(), color: new THREE.Color(0.4, 1.6, 2.4), transparent: true, depthWrite: false, polygonOffset: true, polygonOffsetFactor: -4, polygonOffsetUnits: -4 });
-  // 빙판: 거울처럼 매끈하면(0.08) 해·달빛이 길 위에 긴 띠로 번져 앞이 안 보였다(오로라 얼음왕국 — 15회차) → 0.32
-  const iceM = new THREE.MeshStandardMaterial({ color: 0xd6ecff, roughness: 0.32, metalness: 0.0, transparent: true, opacity: 0.55, envMapIntensity: 1.1, polygonOffset: true, polygonOffsetFactor: -2, polygonOffsetUnits: -2 });
+  const iceM = new THREE.MeshStandardMaterial({ color: 0xd6ecff, roughness: 0.08, metalness: 0.0, transparent: true, opacity: 0.55, envMapIntensity: 1.4, polygonOffset: true, polygonOffsetFactor: -2, polygonOffsetUnits: -2 });
   // 분리대: 왼벽·윗면·오른벽을 한 띠로 (높이 0.9m)
   for (const [a, b] of runs(i => T.divW[i] > 0)) {
     const g = ribbon(T, i => { const c = T.div[i], w = Math.max(T.divW[i], 0.05); return [c - w, c - w, c + w, c + w]; },

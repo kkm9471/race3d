@@ -307,12 +307,12 @@ class Effects {
         } else this.trail.set(key, { x: hx, y: hy, z: hz, first: true, lx: tmpV.x, lz: tmpV.z });
         void fx;
       } else this.trail.delete(key);
-      // 연기 (아스팔트) / 흙먼지 (잔디·자갈)
+      // 연기 (아스팔트) / 흙먼지 (잔디·자갈·흙) / 옅은 눈가루 (빙판 = 5 — 흙먼지로 치면 길 위가 갈색 구름으로 뒤덮인다)
       if (sliding && Math.random() < Math.min(1, (slip - 1.2) * dt * 30)) {
-        const dust = w.surf >= 2;
-        const c = dust ? (w.surf === 3 ? [0.62, 0.56, 0.46] : [0.45, 0.42, 0.3]) : [0.85, 0.85, 0.85];
+        const dust = w.surf >= 2 && w.surf !== 5;
+        const c = w.surf === 5 ? [0.9, 0.94, 1.0] : dust ? (w.surf === 3 ? [0.62, 0.56, 0.46] : [0.45, 0.42, 0.3]) : [0.85, 0.85, 0.85];
         this.emit(w.cx, w.cy + 0.2, w.cz, (Math.random() - 0.5) * 1.5 + car.st.vx * 0.15, 0.6 + Math.random(), (Math.random() - 0.5) * 1.5 + car.st.vz * 0.15, dust ? 1.4 : 1.0, 1.6 + Math.random(), ...c);
-      } else if (lateral && w.surf >= 2 && car.out.speed > 8 && Math.random() < dt * 20) {
+      } else if (lateral && w.surf >= 2 && w.surf !== 5 && car.out.speed > 8 && Math.random() < dt * 20) {
         const c = w.surf === 3 ? [0.62, 0.56, 0.46] : [0.4, 0.38, 0.28];
         this.emit(w.cx, w.cy + 0.15, w.cz, car.st.vx * 0.2, 0.8, car.st.vz * 0.2, 1.2, 1.2, ...c);
       }
