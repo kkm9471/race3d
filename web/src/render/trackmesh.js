@@ -607,8 +607,8 @@ function buildTrees(T, def, natural, q) {
     sc.set(s, s * (0.85 + r() * 0.4), s);
     m.compose(p, qn, sc);
     iTrunk.setMatrixAt(kt, m);
-    if (isCon) { iCon.setMatrixAt(kc, m); col.setHSL(0.27 + r() * 0.06, 0.45, 0.22 + r() * 0.08); iCon.setColorAt(kc, col); kc++; }
-    else { iBlob.setMatrixAt(kb, m); col.setHSL(0.18 + r() * 0.1, 0.45 + r() * 0.15, 0.28 + r() * 0.1); iBlob.setColorAt(kb, col); kb++; }
+    if (isCon) { iCon.setMatrixAt(kc, m); if (snowy) col.setHSL(0.58, 0.15, 0.78 + r() * 0.15); else col.setHSL(0.27 + r() * 0.06, 0.45, 0.22 + r() * 0.08); iCon.setColorAt(kc, col); kc++; }
+    else { iBlob.setMatrixAt(kb, m); if (snowy) col.setHSL(0.58, 0.12, 0.8 + r() * 0.12); else col.setHSL(0.18 + r() * 0.1, 0.45 + r() * 0.15, 0.28 + r() * 0.1); iBlob.setColorAt(kb, col); kb++; }
     kt++;
   }
   iTrunk.count = kt; iCon.count = kc; iBlob.count = kb;
