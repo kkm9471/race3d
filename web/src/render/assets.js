@@ -34,9 +34,14 @@ function fetchTex(id) {
   if (!pending.has(key)) pending.set(key, (async () => {
     const m = (await loadManifest()).tex[id];
     if (!m) { console.warn('목록에 없는 질감:', id); return null; }
-    const [map, normalMap, arm] = await Promise.all([loadImageTex(`${BASE}tex/${id}/diff.jpg`, true), loadImageTex(`${BASE}tex/${id}/nor.jpg`, false), loadImageTex(`${BASE}tex/${id}/arm.jpg`, false)]);
+    // Poly Haven = diff·nor·arm(AO·거칠기·금속 묶음) / ambientCG = diff·nor·rough(+창 불빛 emis)
+    const [map, normalMap, arm, rough, emis] = await Promise.all([
+      loadImageTex(`${BASE}tex/${id}/diff.jpg`, true), loadImageTex(`${BASE}tex/${id}/nor.jpg`, false),
+      m.rough ? null : loadImageTex(`${BASE}tex/${id}/arm.jpg`, false),
+      m.rough ? loadImageTex(`${BASE}tex/${id}/rough.jpg`, false) : null,
+      m.emis ? loadImageTex(`${BASE}tex/${id}/emis.jpg`, true) : null]);
     if (!map) return null;
-    const set = { id, map, normalMap, arm, w: m.w, h: m.h };
+    const set = { id, map, normalMap, arm, rough, emis, w: m.w, h: m.h };
     texCache.set(id, set);
     return set;
   })());
@@ -107,6 +112,7 @@ export async function preloadReal(real, q) {
   for (const v of Object.values(real)) {
     if (v && typeof v === 'object' && v.tex) ids.add(v.tex);
   }
+  for (const id of real.facades || []) ids.add(id);
   const jobs = [...ids].map(fetchTex);
   if (real.sky) jobs.push(fetchSky(real.sky));
   if (real.trees) for (const id of [...(real.trees.con || []), ...(real.trees.broad || [])]) jobs.push(loadTreeSet(id));
@@ -131,8 +137,8 @@ export function applyTexSet(mat, spec, uvMeters, aniso = 8) {
   mat.map = clone(set.map);
   mat.normalMap = clone(set.normalMap);
   if (mat.normalMap) { const n = spec.normal ?? 1; mat.normalScale = new THREE.Vector2(n, n); }
-  const arm = clone(set.arm);
-  mat.roughnessMap = arm; mat.aoMap = arm; mat.aoMapIntensity = spec.ao ?? 0.8;
+  const arm = clone(set.arm || set.rough);
+  mat.roughnessMap = arm; mat.aoMap = set.arm ? arm : null; mat.aoMapIntensity = spec.ao ?? 0.8;
   mat.metalnessMap = null; mat.metalness = spec.metal ?? 0;
   mat.roughness = spec.rough ?? 1;
   mat.color = new THREE.Color(spec.tint ?? 0xffffff).multiplyScalar(spec.bright ?? 1);   // bright: 1 보다 크게 하면 사진보다 밝게(어두운 아스팔트 등)

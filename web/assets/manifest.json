@@ -113,6 +113,42 @@
    "w": 1.8000000715255737,
    "h": 1.8000000715255737,
    "url": "https://polyhaven.com/a/concrete_pavement"
+  },
+  "Facade006": {
+   "name": "Facade006",
+   "w": 12,
+   "h": 12,
+   "rough": true,
+   "emis": false,
+   "src": "ambientCG",
+   "url": "https://ambientcg.com/view?id=Facade006"
+  },
+  "Facade001": {
+   "name": "Facade001",
+   "w": 12,
+   "h": 12,
+   "rough": true,
+   "emis": false,
+   "src": "ambientCG",
+   "url": "https://ambientcg.com/view?id=Facade001"
+  },
+  "Facade005": {
+   "name": "Facade005",
+   "w": 28,
+   "h": 28,
+   "rough": true,
+   "emis": false,
+   "src": "ambientCG",
+   "url": "https://ambientcg.com/view?id=Facade005"
+  },
+  "Facade009": {
+   "name": "Facade009",
+   "w": 20,
+   "h": 20,
+   "rough": true,
+   "emis": true,
+   "src": "ambientCG",
+   "url": "https://ambientcg.com/view?id=Facade009"
   }
  },
  "sky": {

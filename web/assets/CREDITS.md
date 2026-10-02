@@ -1,6 +1,6 @@
 # 실사 자료 출처
 
-모두 [Poly Haven](https://polyhaven.com) 자료이며 CC0(퍼블릭 도메인 — 누구나 상업용까지 무료, 출처 표기 의무 없음)입니다.
+[Poly Haven](https://polyhaven.com)·[ambientCG](https://ambientcg.com) 자료이며 모두 CC0(퍼블릭 도메인 — 누구나 상업용까지 무료, 출처 표기 의무 없음)입니다.
 
 ## 하늘
 - Syferfontein 18d Clear (Pure Sky) — https://polyhaven.com/a/syferfontein_18d_clear_puresky
@@ -21,14 +21,18 @@
 - Grass Path 2 (1×1m) — https://polyhaven.com/a/grass_path_2
 - Aerial Grass Rock (15×15m) — https://polyhaven.com/a/aerial_grass_rock
 - Worn Asphalt (2×2m) — https://polyhaven.com/a/worn_asphalt
-- Clean Asphalt (2.0999999046325684×2.0999999046325684m) — https://polyhaven.com/a/clean_asphalt
-- Asphalt 02 (3.000000238418579×3m) — https://polyhaven.com/a/asphalt_02
+- Clean Asphalt (2.1×2.1m) — https://polyhaven.com/a/clean_asphalt
+- Asphalt 02 (3×3m) — https://polyhaven.com/a/asphalt_02
 - Asphalt Snow (2×2m) — https://polyhaven.com/a/asphalt_snow
-- Forest Ground 04 (3.1500000953674316×3.1500000953674316m) — https://polyhaven.com/a/forest_ground_04
-- Rock Face 03 (2.6999995708465576×2.6999995708465576m) — https://polyhaven.com/a/rock_face_03
+- Forest Ground 04 (3.15×3.15m) — https://polyhaven.com/a/forest_ground_04
+- Rock Face 03 (2.7×2.7m) — https://polyhaven.com/a/rock_face_03
 - Coast Sand 01 (15×15m) — https://polyhaven.com/a/coast_sand_01
-- Red Sand (2.999999523162842×2.999999523162842m) — https://polyhaven.com/a/red_sand
+- Red Sand (3×3m) — https://polyhaven.com/a/red_sand
 - Red Sandstone Wall (2×2m) — https://polyhaven.com/a/red_sandstone_wall
 - Snow 02 (2×2m) — https://polyhaven.com/a/snow_02
-- Cliff Side (1.8300000429153442×1.8300000429153442m) — https://polyhaven.com/a/cliff_side
-- Concrete Pavement (1.8000000715255737×1.8000000715255737m) — https://polyhaven.com/a/concrete_pavement
+- Cliff Side (1.83×1.83m) — https://polyhaven.com/a/cliff_side
+- Concrete Pavement (1.8×1.8m) — https://polyhaven.com/a/concrete_pavement
+- Facade006 (12×12m, ambientCG) — https://ambientcg.com/view?id=Facade006
+- Facade001 (12×12m, ambientCG) — https://ambientcg.com/view?id=Facade001
+- Facade005 (28×28m, ambientCG) — https://ambientcg.com/view?id=Facade005
+- Facade009 (20×20m, ambientCG) — https://ambientcg.com/view?id=Facade009

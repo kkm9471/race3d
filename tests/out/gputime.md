@@ -6,3 +6,5 @@
 | medium | mountain | 1920x1080 | 3.80 | 5.62 | 1499 |
 | low | mountain | 1920x1080 | 2.96 | 4.70 | 1498 |
 | medium | circuit | 1920x1080 | 4.03 | 5.71 | 1499 |
+| medium | mountain | 1920x1080 | 4.49 | 6.26 | 1500 |
+| high | mountain | 1920x1080 | 4.37 | 6.85 | 1495 |

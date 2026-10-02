@@ -24,6 +24,7 @@ export const REAL = {
     terrain: { tex: 'forest_ground_04', scale: 5, tint: 0xc8d8b0 },
     rock: { tex: 'rock_face_03', scale: 4 },
     wall: { tex: 'concrete_wall_006', scale: 3 },
+    trees: { con: ['fir_tree_01'], broad: ['island_tree_02'], h: [10, 20] },
   },
   city: {       // 해 질 녘 시내
     sky: 'evening_road_01_puresky', exposure: 1.1,
@@ -31,6 +32,7 @@ export const REAL = {
     walk: { tex: 'concrete_pavement', scale: 2 },
     terrain: { tex: 'concrete_pavement', scale: 3 },
     wall: { tex: 'concrete_wall_006', scale: 3 },
+    facades: ['Facade006', 'Facade001', 'Facade005'],
   },
   beach: {      // 한낮 해변
     sky: 'kloofendal_43d_clear_puresky', exposure: 0.95,
@@ -38,6 +40,7 @@ export const REAL = {
     runoff: { tex: 'coast_sand_01', scale: 6 },
     terrain: { tex: 'coast_sand_01', scale: 10 },
     wall: { tex: 'concrete_wall_006', scale: 3 },
+    trees: { con: ['island_tree_02'], broad: ['island_tree_01'], h: [5, 9] },
   },
   canyon: {     // 늦은 오후 붉은 협곡
     sky: 'qwantani_late_afternoon_puresky', exposure: 1.0,
@@ -47,6 +50,7 @@ export const REAL = {
     terrain: { tex: 'red_sand', scale: 5 },
     rock: { tex: 'rock_face_03', scale: 5, tint: 0xf0b088 },   // red_sandstone_wall 은 돌담(벽돌)처럼 보였다
     wall: { tex: 'concrete_wall_006', scale: 3, tint: 0xf0dcd0 },
+    trees: { con: ['quiver_tree_02'], broad: ['tree_small_02'], h: [3, 7], n: 0.35 },
   },
   glacier: {    // 흐린 날 빙하
     sky: 'snow_field_puresky', exposure: 1.0, sun: 2.0,
@@ -55,6 +59,7 @@ export const REAL = {
     terrain: { tex: 'snow_02', scale: 5 },
     rock: { tex: 'snow_02', scale: 4, tint: 0xeef4fa, bright: 1.45, normal: 2 },   // 눈 덮인 절벽 (갈색 바위 질감은 얼음·눈 맵에 안 맞았다)
     wall: { tex: 'concrete_wall_006', scale: 3 },
+    trees: { con: ['fir_tree_01'], broad: ['fir_tree_01'], h: [9, 18] },
   },
   harbor: {     // 해 질 녘 항구 도시
     sky: 'qwantani_dusk_2_puresky', exposure: 1.15,
@@ -62,6 +67,7 @@ export const REAL = {
     walk: { tex: 'concrete_pavement', scale: 2 },
     terrain: { tex: 'concrete_pavement', scale: 3 },
     wall: { tex: 'concrete_wall_006', scale: 3 },
+    facades: ['Facade006', 'Facade005', 'Facade001'],
   },
   express: {    // 눈 덮인 저녁
     sky: 'kloppenheim_06_puresky', exposure: 1.1,
@@ -70,6 +76,7 @@ export const REAL = {
     terrain: { tex: 'snow_02', scale: 5 },
     rock: { tex: 'snow_02', scale: 4, tint: 0xeef4fa, bright: 1.45, normal: 2 },   // 눈 덮인 절벽 (갈색 바위 질감은 얼음·눈 맵에 안 맞았다)
     wall: { tex: 'concrete_wall_006', scale: 3 },
+    trees: { con: ['fir_tree_01'], broad: ['fir_tree_01'], h: [9, 18] },
   },
 };
 /** 맵 설계도·테마로 실사 설정 찾기 */

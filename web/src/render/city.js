@@ -42,9 +42,42 @@ function facadeMaterial() {
 }
 
 /**
- * T: 트랙, H(i,d): 노면 높이, group: 붙일 곳
+ * 실사 외벽(15회차): 건물 사진(ambientCG 외벽, CC0)을 월드 좌표로 붙인다 — 상자 크기가 달라도 층·창 크기가 실제와 같다.
+ * set = { map, rough, emis, w, h(사진 한 장의 실제 크기 m) }. 지붕은 어두운 콘크리트 색. emis 가 있으면 창 불빛(밤).
  */
-export function buildCity(T, H, group, disposables, q) {
+function photoFacadeMaterial(set, emisI) {
+  const m = new THREE.MeshStandardMaterial({ color: 0xffffff, roughness: 0.65, metalness: 0.15 });
+  m.onBeforeCompile = sh => {
+    sh.uniforms.uFMap = { value: set.map }; sh.uniforms.uFRough = { value: set.rough || set.map }; sh.uniforms.uFEmis = { value: set.emis || set.map };
+    sh.uniforms.uFSize = { value: new THREE.Vector2(set.w, set.h) }; sh.uniforms.uFEmisI = { value: set.emis ? emisI : 0 };
+    sh.vertexShader = sh.vertexShader
+      .replace('#include <common>', '#include <common>\nvarying vec3 vWp; varying vec3 vWn; flat varying float vBase;')
+      .replace('#include <worldpos_vertex>', `#include <worldpos_vertex>
+        vec4 wpI = modelMatrix * instanceMatrix * vec4(transformed, 1.0);
+        vWp = wpI.xyz;
+        vWn = normalize(mat3(modelMatrix * instanceMatrix) * objectNormal);
+        vBase = (modelMatrix * instanceMatrix * vec4(0.0, 0.0, 0.0, 1.0)).y;`);
+    sh.fragmentShader = sh.fragmentShader
+      .replace('#include <common>', '#include <common>\nvarying vec3 vWp; varying vec3 vWn; flat varying float vBase;\nuniform sampler2D uFMap, uFRough, uFEmis; uniform vec2 uFSize; uniform float uFEmisI;')
+      .replace('#include <map_fragment>', `
+        bool wall = abs(vWn.y) < 0.5;
+        float u = abs(vWn.x) > abs(vWn.z) ? vWp.z : vWp.x;
+        vec2 fuv = wall ? vec2(u / uFSize.x, (vWp.y - vBase + 1.0) / uFSize.y) : vWp.xz / 6.0;
+        vec4 fc = texture2D(uFMap, fuv);
+        diffuseColor.rgb *= wall ? fc.rgb : vec3(0.28);`)
+      .replace('#include <roughnessmap_fragment>', `#include <roughnessmap_fragment>
+        if (wall) roughnessFactor = clamp(texture2D(uFRough, fuv).g, 0.05, 1.0);`)
+      .replace('#include <emissivemap_fragment>', `#include <emissivemap_fragment>
+        if (wall) totalEmissiveRadiance += texture2D(uFEmis, fuv).rgb * uFEmisI;`);
+  };
+  m.customProgramCacheKey = () => 'photo-facade';
+  return m;
+}
+
+/**
+ * T: 트랙, H(i,d): 노면 높이, group: 붙일 곳, facades: 실사 외벽 사진 세트 목록(없으면 예전처럼 셰이더 창문)
+ */
+export function buildCity(T, H, group, disposables, q, facades = null, emisI = 1.5) {
   // 트랙 중심선 격자 (겹침 검사용)
   const cell = 25, grid = new Map();
   for (let i = 0; i < T.n; i++) {
@@ -95,20 +128,26 @@ export function buildCity(T, H, group, disposables, q) {
   }
   const geo = new THREE.BoxGeometry(1, 1, 1);
   geo.translate(0, 0.5, 0);
-  const mat = facadeMaterial();
-  disposables.push(mat);
-  const im = new THREE.InstancedMesh(geo, mat, boxes.length);
   const m4 = new THREE.Matrix4(), qn = new THREE.Quaternion(), col = new THREE.Color();
   const tones = [0x8b8f96, 0x9e958a, 0x6f7784, 0xa7a9ad, 0x5d6168, 0x8c7f73, 0x77838e];
-  boxes.forEach((b, k) => {
-    qn.setFromAxisAngle(new THREE.Vector3(0, 1, 0), b.yaw);
-    m4.compose(new THREE.Vector3(b.x, b.y, b.z), qn, new THREE.Vector3(b.w, b.h, b.d));
-    im.setMatrixAt(k, m4);
-    col.setHex(tones[Math.floor(hash(k + 3) * tones.length)]);
-    im.setColorAt(k, col);
+  // 실사 외벽이면 사진마다 InstancedMesh 하나(건물마다 번갈아), 아니면 예전 셰이더 창문 하나
+  const kinds = facades && facades.length ? facades : [null];
+  kinds.forEach((set, fk) => {
+    const mine = boxes.filter((_, k) => k % kinds.length === fk);
+    if (!mine.length) return;
+    const mat = set ? photoFacadeMaterial(set, emisI) : facadeMaterial();
+    disposables.push(mat);
+    const im = new THREE.InstancedMesh(geo, mat, mine.length);
+    mine.forEach((b, k) => {
+      qn.setFromAxisAngle(new THREE.Vector3(0, 1, 0), b.yaw);
+      m4.compose(new THREE.Vector3(b.x, b.y, b.z), qn, new THREE.Vector3(b.w, b.h, b.d));
+      im.setMatrixAt(k, m4);
+      if (set) { const v = 0.85 + hash(k + fk * 31) * 0.25; col.setRGB(v, v, v); } else col.setHex(tones[Math.floor(hash(k + 3) * tones.length)]);
+      im.setColorAt(k, col);
+    });
+    im.castShadow = q.detail >= 1; im.receiveShadow = true;
+    group.add(im);
   });
-  im.castShadow = q.detail >= 1; im.receiveShadow = true;
-  group.add(im);
   // 옥상 난간·기계실 (작은 상자)
   // 가로등: 20m 마다 번갈아
   const lamps = [];

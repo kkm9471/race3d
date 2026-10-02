@@ -209,6 +209,8 @@ export class Gfx {
     const real = !nd && this.q.detail >= 1 ? realFor(def, THEMES[def.theme]) : null;
     const ps = real && real.sky ? getSky(real.sky) : null;
     this.photoSky = !!ps;
+    // 번짐(블룸): 실사 하늘은 해가 실제 밝기라 차·연석이 하얗게 날아갔다 → 문턱을 올리고 약하게
+    if (this.bloom) { this.bloom.threshold = ps ? (real.bloomT ?? 1.8) : 1.0; this.bloom.strength = ps ? (real.bloomS ?? 0.09) : 0.14; }
     if (ps) {
       // 사진 속 해 방위를 설계도의 해 방위(sun.azim)로 돌린다(고도는 사진 그대로) — 맵마다 정해 둔 '해를 마주 보지 않는 방향'을 지키려고
       const want = Math.atan2(this.sunDir.z, this.sunDir.x), have = Math.atan2(ps.sunDir.z, ps.sunDir.x);

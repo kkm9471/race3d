@@ -9,7 +9,7 @@ import { mergeGeometries } from 'three/addons/utils/BufferGeometryUtils.js';
 import { buildCity } from './city.js';
 import { THEMES } from './themes/index.js';
 import { makeCtx } from './themes/kit.js';
-import { applyTexSet } from './assets.js';
+import { applyTexSet, getTex } from './assets.js';
 import { getTreeSet, makeTreeMesh } from './trees.js';
 import { realFor } from './realism.js';
 
@@ -375,12 +375,12 @@ export function buildTrackScene(T, world, q, def) {
   const lights = { gantry: null };
   if (def.theme) {
     buildCircuitProps(T, world, group, disposables, lights, q, { stands: false, pit: false, ads: false, label: def.name });
-    if (def.style === 'city' && look.city !== false) buildCity(T, H, group, disposables, q);
+    if (def.style === 'city' && look.city !== false) buildCity(T, H, group, disposables, q, real && real.facades ? real.facades.map(getTex).filter(Boolean) : null, real?.facadeGlow ?? 1.5);
     if (def.style === 'mountain' && look.chevrons !== false) buildMountainProps(T, world, group, disposables, q, def, false);
     if (look.banner) buildBanner(T, group, `${def.name} · 출발`, look.banner.bg || '#1c2a52', look.banner.fg);
   }
   else if (def.style === 'circuit') buildCircuitProps(T, world, group, disposables, lights, q);
-  else if (def.style === 'city') { buildCity(T, H, group, disposables, q); buildBanner(T, group, `${def.name} · 출발`, '#1c2a52'); }
+  else if (def.style === 'city') { buildCity(T, H, group, disposables, q, real && real.facades ? real.facades.map(getTex).filter(Boolean) : null, real?.facadeGlow ?? 1.5); buildBanner(T, group, `${def.name} · 출발`, '#1c2a52'); }
   else buildMountainProps(T, world, group, disposables, q, def, true);
 
   // ── 카트식 지형 요소: 지름길 분리대·점프대·가속 발판·빙판·터널 ──

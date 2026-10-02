@@ -40,7 +40,28 @@ async function shrinkJpg(src, dst, w, q = 0.86) {
   await b.close();
 }
 
-for (const id of ids) {
+// ambientCG(ambientcg.com, CC0) 질감: 'acg Facade006:12' = id:실제 크기(m). zip 을 받아 윈도우 tar 로 푼다
+if (kind === 'acg') {
+  const { execFileSync } = await import('node:child_process');
+  for (const arg of ids) {
+    const [id, sz] = arg.split(':'); const m = +(sz || 4);
+    try {
+      const tmp = path.join(process.env.TEMP || '/tmp', 'acg_' + id); fs.mkdirSync(tmp, { recursive: true });
+      const zip = path.join(tmp, id + '.zip');
+      await dl(`https://ambientcg.com/get?file=${id}_1K-JPG.zip`, zip);
+      execFileSync('C:/Windows/System32/tar.exe', ['-xf', zip, '-C', tmp]);
+      const dir = path.join(ROOT, 'tex', id); fs.mkdirSync(dir, { recursive: true });
+      const f = k => path.join(tmp, `${id}_1K-JPG_${k}.jpg`);
+      fs.copyFileSync(f('Color'), path.join(dir, 'diff.jpg'));
+      fs.copyFileSync(f('NormalGL'), path.join(dir, 'nor.jpg'));
+      if (fs.existsSync(f('Roughness'))) fs.copyFileSync(f('Roughness'), path.join(dir, 'rough.jpg'));
+      const emis = fs.existsSync(f('Emission')); if (emis) fs.copyFileSync(f('Emission'), path.join(dir, 'emis.jpg'));
+      man.tex[id] = { name: id, w: m, h: m, rough: true, emis, src: 'ambientCG', url: `https://ambientcg.com/view?id=${id}` };
+      console.log(`질감 ${id}(ambientCG): 실제 크기 ${m}m${emis ? ', 창 불빛 있음' : ''}`);
+    } catch (e) { console.log(`❌ ${id}: ${e.message}`); }
+  }
+}
+for (const id of kind === 'acg' ? [] : ids) {
   try {
     const info = await api(`https://api.polyhaven.com/info/${id}`);
     const files = await api(`https://api.polyhaven.com/files/${id}`);
@@ -72,5 +93,5 @@ for (const id of ids) {
 fs.mkdirSync(ROOT, { recursive: true });
 fs.writeFileSync(MAN, JSON.stringify(man, null, 1));
 // 출처 목록 (CC0 라 의무는 없지만 고마움 표시·나중에 확인용)
-const lines = ['# 실사 자료 출처', '', '모두 [Poly Haven](https://polyhaven.com) 자료이며 CC0(퍼블릭 도메인 — 누구나 상업용까지 무료, 출처 표기 의무 없음)입니다.', '', '## 하늘', ...Object.entries(man.sky).map(([k, v]) => `- ${v.name} — ${v.url}`), '', '## 질감', ...Object.entries(man.tex).map(([k, v]) => `- ${v.name} (${v.w}×${v.h}m) — ${v.url}`), ''];
+const lines = ['# 실사 자료 출처', '', '[Poly Haven](https://polyhaven.com)·[ambientCG](https://ambientcg.com) 자료이며 모두 CC0(퍼블릭 도메인 — 누구나 상업용까지 무료, 출처 표기 의무 없음)입니다.', '', '## 하늘', ...Object.entries(man.sky).map(([k, v]) => `- ${v.name} — ${v.url}`), '', '## 질감', ...Object.entries(man.tex).map(([k, v]) => `- ${v.name} (${+v.w.toFixed(2)}×${+v.h.toFixed(2)}m${v.src ? ', ' + v.src : ''}) — ${v.url}`), ''];
 fs.writeFileSync(path.join(ROOT, 'CREDITS.md'), lines.join('\n'));
