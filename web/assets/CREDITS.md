@@ -11,6 +11,9 @@
 - Snow Field (Pure Sky) — https://polyhaven.com/a/snow_field_puresky
 - Qwantani Dusk 2 (Pure Sky) — https://polyhaven.com/a/qwantani_dusk_2_puresky
 - Kloppenheim 06 (Pure Sky) — https://polyhaven.com/a/kloppenheim_06_puresky
+- Qwantani Night (Pure Sky) — https://polyhaven.com/a/qwantani_night_puresky
+- Kloppenheim 02 (Pure Sky) — https://polyhaven.com/a/kloppenheim_02_puresky
+- Qwantani Noon (Pure Sky) — https://polyhaven.com/a/qwantani_noon_puresky
 
 ## 질감
 - Asphalt Track (2×2m) — https://polyhaven.com/a/asphalt_track
@@ -36,3 +39,26 @@
 - Facade001 (12×12m, ambientCG) — https://ambientcg.com/view?id=Facade001
 - Facade005 (28×28m, ambientCG) — https://ambientcg.com/view?id=Facade005
 - Facade009 (20×20m, ambientCG) — https://ambientcg.com/view?id=Facade009
+- Brick Pavement (2×2m) — https://polyhaven.com/a/brick_pavement
+- Coast Sand 02 (15×15m) — https://polyhaven.com/a/coast_sand_02
+- Castle Brick 02 Red (1.5×1.5m) — https://polyhaven.com/a/castle_brick_02_red
+- Stone Tiles (3.17×3.17m) — https://polyhaven.com/a/stone_tiles
+- Mossy Sandstone (1.89×1.89m) — https://polyhaven.com/a/mossy_sandstone
+- Mossy Cobblestone (2×2m) — https://polyhaven.com/a/mossy_cobblestone
+- Rocky Trail (2×2m) — https://polyhaven.com/a/rocky_trail
+- Cobblestone Floor 04 (1.5×1.5m) — https://polyhaven.com/a/cobblestone_floor_04
+- Sand 01 (1.5×1.5m) — https://polyhaven.com/a/sand_01
+- Mossy Rock (3×3m) — https://polyhaven.com/a/mossy_rock
+- Forest Leaves 02 (3×3m) — https://polyhaven.com/a/forest_leaves_02
+- Brick Pavement 02 (2×2m) — https://polyhaven.com/a/brick_pavement_02
+- Sandstone Cracks (2×2m) — https://polyhaven.com/a/sandstone_cracks
+- Metal Plate (0.5×0.5m) — https://polyhaven.com/a/metal_plate
+- Metal Plate 02 (2×2m) — https://polyhaven.com/a/metal_plate_02
+- Blue Metal Plate (2.5×2.5m) — https://polyhaven.com/a/blue_metal_plate
+- Rusty Metal 02 (1×1m) — https://polyhaven.com/a/rusty_metal_02
+- Concrete Floor Worn 001 (3×3m) — https://polyhaven.com/a/concrete_floor_worn_001
+- Castle Brick 07 (2.5×2.5m) — https://polyhaven.com/a/castle_brick_07
+- Marble Tiles (2×2m) — https://polyhaven.com/a/marble_tiles
+- Rocky Terrain 02 (90×90m) — https://polyhaven.com/a/rocky_terrain_02
+- Red Laterite Soil Stones (2×2m) — https://polyhaven.com/a/red_laterite_soil_stones
+- Rock Wall 08 (1.8×1.8m) — https://polyhaven.com/a/rock_wall_08

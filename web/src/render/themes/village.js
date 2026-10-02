@@ -44,6 +44,14 @@ export const look = {
   line: 0xffffff,
   wall: { color: 0xb4ac9c, map: fenceTex, roughness: 0.85, stripe: false },
   trees: false,                       // 나무는 build 에서 (연못에 빠지지 않게)
+  real: {   // 맑은 낮 마을 — 돌길·회벽
+    sky: 'kloofendal_43d_clear_puresky', exposure: 0.95,
+    road: { tex: 'cobblestone_floor_04', scale: 2, env: 1.0, bright: 1.25, tint: 0xf2ece0 },
+    runoff: { tex: 'leafy_grass', scale: 3, tint: 0xb4d896 },
+    terrain: { tex: 'leafy_grass', scale: 5, tint: 0xb4d896 },
+    wall: { tex: 'concrete_wall_006', scale: 3, tint: 0xe6dcc6 },
+    trees: { con: ['island_tree_02'], broad: ['island_tree_01', 'island_tree_02'], h: [6, 11], n: 0.5 },
+  },
   far: [0x84a8c2, 0xa3bed4],
   banner: { bg: '#e2533c', fg: '#fff8e6' },
 };

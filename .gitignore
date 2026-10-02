@@ -79,3 +79,4 @@ desktop.ini
 /tmp/
 /tests/out/models/
 /tests/out/review14/*.png
+/web/assets/.manifest.lock

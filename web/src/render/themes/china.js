@@ -59,6 +59,14 @@ export const look = {
   far: [0x7a5a64, 0xb27b6e],
   banner: { bg: '#b3261e', fg: '#ffe9a8' },
   tunnel: { color: 0x8a2a1c, light: 0xffb060 },
+  // 실사: 실제 돌판 노면, 붉게 물들인 실제 벽돌 성벽, 노을 하늘, 먼 땅은 붉은 모래
+  real: {
+    sky: 'qwantani_dusk_2_puresky', exposure: 1.1,
+    road: { tex: 'stone_tiles', scale: 3, tint: 0xe8d4c0, bright: 1.35, env: 1.0 },
+    terrain: { tex: 'red_sand', scale: 5, tint: 0xe0b8a0 },
+    runoff: { tex: 'red_sand', scale: 3, tint: 0xd8b098 },
+    wall: { tex: 'castle_brick_02_red', scale: 2.4, tint: 0xff9080, bright: 1.1 },
+  },
 };
 
 export function build(ctx) {

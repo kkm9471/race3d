@@ -79,6 +79,14 @@ export const look = {
   trees: false,
   far: [0x3a5a8e, 0x5878ae],
   banner: { bg: '#1f5fa8', fg: '#ffffff' },
+  // 실사: 오로라 밤하늘은 코드 그대로(sky 안 씀), 눈·얼음 사진 질감
+  real: {
+    road: { tex: 'asphalt_snow', scale: 3, tint: 0xcfe2ff, bright: 1.3, env: 1.0 },
+    runoff: { tex: 'snow_02', scale: 3, tint: 0xdce8ff, bright: 1.1 },
+    terrain: { tex: 'snow_02', scale: 5, tint: 0xdce8ff, bright: 1.1 },
+    rock: { tex: 'snow_02', scale: 4, tint: 0xbcd8ff, bright: 1.3, normal: 2 },
+    wall: { tex: 'snow_02', scale: 2.5, tint: 0x9cc4ff, bright: 1.2, rough: 0.35 },
+  },
 };
 
 export function build(ctx) {

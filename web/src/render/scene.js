@@ -206,8 +206,10 @@ export class Gfx {
     // ── 실사 하늘(15회차): 하늘 사진(Poly Haven HDR)으로 조명·반사·보이는 하늘. 보통·높음 화질, 미리 받아 둔 경우만 ──
     this.scene.background = null;
     this.scene.backgroundRotation.set(0, 0, 0); this.scene.environmentRotation.set(0, 0, 0);
-    const real = !nd && this.q.detail >= 1 ? realFor(def, THEMES[def.theme]) : null;
-    const ps = real && real.sky ? getSky(real.sky) : null;
+    // 밤 맵(def.night)은 real.overrideNight 일 때만 실제 밤하늘 사진으로 바꾼다 (아니면 코드로 그린 밤하늘 그대로)
+    const real = this.q.detail >= 1 ? realFor(def, THEMES[def.theme]) : null;
+    const ps = real && real.sky && (!nd || real.overrideNight) ? getSky(real.sky) : null;
+    if (ps && this.nightSky) { this.scene.remove(this.nightSky); this.nightSky.traverse(o => { o.geometry?.dispose(); o.material?.dispose(); }); this.nightSky = null; }
     this.photoSky = !!ps;
     // 번짐(블룸): 실사 하늘은 해가 실제 밝기라 차·연석이 하얗게 날아갔다 → 문턱을 올리고 약하게
     if (this.bloom) { this.bloom.threshold = ps ? (real.bloomT ?? 1.8) : 1.0; this.bloom.strength = ps ? (real.bloomS ?? 0.09) : 0.14; }

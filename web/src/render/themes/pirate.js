@@ -133,6 +133,13 @@ export const look = {
   city: false,
   far: [0x3c9a8e, 0x6bb0b4],
   banner: { bg: '#0f3f5c', fg: '#ffd36a' },
+  // 실사(보통·높음 화질): 파란 칠을 한 실제 벽돌 노면, 실제 모래, 맑은 카리브해 낮 하늘 (나무는 테마가 직접 그린 야자수 그대로)
+  real: {
+    sky: 'kloofendal_43d_clear_puresky', exposure: 0.95,
+    road: { tex: 'brick_pavement', scale: 2.4, tint: 0x5f8fe0, bright: 1.25, env: 1.0 },
+    runoff: { tex: 'coast_sand_01', scale: 6 },
+    terrain: { tex: 'coast_sand_01', scale: 10 },
+  },
 };
 
 export function build(ctx) {

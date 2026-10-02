@@ -91,7 +91,20 @@ for (const id of kind === 'acg' ? [] : ids) {
   } catch (e) { console.log(`❌ ${id}: ${e.message}`); }
 }
 fs.mkdirSync(ROOT, { recursive: true });
-fs.writeFileSync(MAN, JSON.stringify(man, null, 1));
+// 여러 작업자가 동시에 돌려도 목록이 서로 덮어쓰지 않게: 잠금 파일을 잡고, 그때의 목록을 다시 읽어 내 것만 합쳐 쓴다
+{
+  const LOCK = path.join(ROOT, '.manifest.lock');
+  let fd = null;
+  for (let t = 0; t < 300 && fd === null; t++) {
+    try { fd = fs.openSync(LOCK, 'wx'); } catch { await new Promise(r => setTimeout(r, 200)); }
+  }
+  try {
+    const cur = fs.existsSync(MAN) ? JSON.parse(fs.readFileSync(MAN, 'utf8')) : { tex: {}, sky: {} };
+    cur.tex = { ...cur.tex, ...man.tex }; cur.sky = { ...cur.sky, ...man.sky };
+    Object.assign(man, cur);
+    fs.writeFileSync(MAN, JSON.stringify(man, null, 1));
+  } finally { if (fd !== null) { fs.closeSync(fd); fs.rmSync(LOCK, { force: true }); } }
+}
 // 출처 목록 (CC0 라 의무는 없지만 고마움 표시·나중에 확인용)
 const lines = ['# 실사 자료 출처', '', '[Poly Haven](https://polyhaven.com)·[ambientCG](https://ambientcg.com) 자료이며 모두 CC0(퍼블릭 도메인 — 누구나 상업용까지 무료, 출처 표기 의무 없음)입니다.', '', '## 하늘', ...Object.entries(man.sky).map(([k, v]) => `- ${v.name} — ${v.url}`), '', '## 질감', ...Object.entries(man.tex).map(([k, v]) => `- ${v.name} (${+v.w.toFixed(2)}×${+v.h.toFixed(2)}m${v.src ? ', ' + v.src : ''}) — ${v.url}`), ''];
 fs.writeFileSync(path.join(ROOT, 'CREDITS.md'), lines.join('\n'));
