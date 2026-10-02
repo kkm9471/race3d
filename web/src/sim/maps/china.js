@@ -2,8 +2,8 @@
 import { SURF } from '../car.js';
 
 export default {
-  id: 'china', name: '붉은 등롱 성', kind: '옛 성곽 도시', level: 3, theme: 'china', wip: true,
-  desc: '등롱이 흔들리는 해 질 녘 성곽 도시. 직각 골목과 용 꼬리 S자, 지그재그 헤어핀 2개, 헤어핀·마지막 코너 안쪽 지름길, 점프대 2개. 한 바퀴 약 N초.',
+  id: 'china', name: '붉은 등롱 성', kind: '옛 성곽 도시', level: 3, theme: 'china',
+  desc: '등롱이 흔들리는 해 질 녘 성곽 도시. 직각 골목과 용 꼬리 S자, 지그재그 헤어핀 2개, 헤어핀·마지막 코너 안쪽 지름길, 점프대 2개. 한 바퀴 약 1분 25초.',
   segs: [
     ['S', 320],          // 0 출발 직선 (가속 발판)
     ['A', 22, 90],       // 1

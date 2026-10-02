@@ -3,7 +3,7 @@
 import { SURF } from '../car.js';
 
 export default {
-  id: 'forest', name: '이끼숲 오솔길', kind: '숲', level: 1, theme: 'forest', wip: true,
+  id: 'forest', name: '이끼숲 오솔길', kind: '숲', level: 1, theme: 'forest',
   desc: '울창한 숲 사이로 오르내리는 넓은 길. 완만한 코너, 긴 왼쪽 코너 안쪽 지름길, 통나무 점프대 1개, 가속 발판 2개. 한 바퀴 약 47초.',
   segs: [
     ['S', 280],          // 0 출발 직선

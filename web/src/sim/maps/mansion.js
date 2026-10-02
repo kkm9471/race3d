@@ -3,7 +3,7 @@
 import { SURF } from '../car.js';
 
 export default {
-  id: 'mansion', name: '달빛 대저택', kind: '저택', level: 4, laps: 2, theme: 'mansion', wip: true,
+  id: 'mansion', name: '달빛 대저택', kind: '저택', level: 4, laps: 2, theme: 'mansion',
   desc: '보름달 아래 고딕 저택. 정원 산울타리 시케인을 지나 붉은 벽지 복도로 들어가면 직각 코너가 쉬지 않고 이어진다. 복도 구간 3곳, 현관·뒷문 안쪽 지름길 3곳, 점프대 2개. 한 바퀴 약 2분.',
   segs: [
     ['S', 480],           // 0 출발 직선 (정원 진입로, 길이 자동)

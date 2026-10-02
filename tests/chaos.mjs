@@ -23,6 +23,8 @@ async function open(query, name = 'x') {
   p.errs = [];
   p.on('pageerror', e => p.errs.push(e.message));
   await p.goto(`${BASE}index.html?${query}${WS && !query.includes('ws=') ? '&ws=' + encodeURIComponent(WS) : ''}`, { waitUntil: 'load' });
+  // 화면은 먼저 뜨고 게임 준비(모듈 실행)는 1~2초 뒤에 끝난다 → 준비가 끝난 뒤에 누른다 (14회차)
+  await p.waitForFunction(() => window.__ready === true, { timeout: 30000 }).catch(() => {});
   p.label = name;
   return p;
 }

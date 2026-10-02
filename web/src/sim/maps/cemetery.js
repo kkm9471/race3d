@@ -3,8 +3,8 @@
 import { SURF } from '../car.js';
 
 export default {
-  id: 'cemetery', name: '달빛 묘지 언덕', kind: '묘지', level: 3, theme: 'cemetery', wip: true,
-  desc: '보랏빛 밤의 묘지 언덕. 좁은 U턴으로 언덕을 오른 뒤 가파른 내리막 점프, 아래 묘지의 U턴 두 번. 지름길 2곳, 점프대 2개. 한 바퀴 약 80초.',
+  id: 'cemetery', name: '달빛 묘지 언덕', kind: '묘지', level: 3, theme: 'cemetery',
+  desc: '보랏빛 밤의 묘지 언덕. 좁은 U턴으로 언덕을 오른 뒤 가파른 내리막 점프, 아래 묘지의 U턴 두 번. 지름길 2곳, 점프대 2개. 한 바퀴 약 1분 25초.',
   segs: [
     ['S', 320],          // 0 출발 직선
     ['A', 35, 90],       // 1

@@ -2,8 +2,8 @@
 import { SURF } from '../car.js';
 
 export default {
-  id: 'desert', name: '불볕 피라미드', kind: '사막', level: 2, theme: 'desert', wip: true,
-  desc: '피라미드를 끼고 도는 사막 길. 계단처럼 이어지는 직각 코너와 가파른 모래 언덕, 언덕 위 헤어핀 안쪽 지름길, 내리막 끝 점프대. 한 바퀴 약 60초.',
+  id: 'desert', name: '불볕 피라미드', kind: '사막', level: 2, theme: 'desert',
+  desc: '피라미드를 끼고 도는 사막 길. 계단처럼 이어지는 직각 코너와 가파른 모래 언덕, 언덕 위 헤어핀 안쪽 지름길, 내리막 끝 점프대. 한 바퀴 약 1분 5초.',
   segs: [
     ['S', 320],          // 0 출발 직선 (가속 발판)
     ['A', 30, 90],       // 1

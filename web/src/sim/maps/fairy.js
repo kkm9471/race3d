@@ -3,7 +3,7 @@
 import { SURF } from '../car.js';
 
 export default {
-  id: 'fairy', name: '구름사탕 동화길', kind: '동화 나라', level: 2, theme: 'fairy', wip: true,
+  id: 'fairy', name: '구름사탕 동화길', kind: '동화 나라', level: 2, theme: 'fairy',
   desc: '과자 집과 무지개 성 사이를 도는 쿠키 길. 구불구불 사탕 S자와 직각 코너, 큰 왼쪽 코너 안쪽 지름길, 점프대·가속 발판. 한 바퀴 약 1분.',
   segs: [
     ['S', 340],          // 0 출발 직선 (무지개 아치)

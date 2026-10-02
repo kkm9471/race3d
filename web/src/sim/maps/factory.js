@@ -3,8 +3,8 @@
 import { SURF } from '../car.js';
 
 export default {
-  id: 'factory', name: '강철 톱니 공장', kind: '공장', level: 4, laps: 2, theme: 'factory', wip: true,
-  desc: '철판 바닥 공장 단지. 계단식 직각 지그재그, 청록 터널 3곳, 미끄러운 기름 바닥, 헤어핀 지름길 2곳. 한 바퀴 약 N초.',
+  id: 'factory', name: '강철 톱니 공장', kind: '공장', level: 4, laps: 2, theme: 'factory',
+  desc: '철판 바닥 공장 단지. 계단식 직각 지그재그, 청록 터널 3곳, 미끄러운 기름 바닥, 헤어핀 지름길 2곳. 한 바퀴 약 2분 5초.',
   segs: [
     ['S', 300],          // 0 출발 (길이 자동, 가속 발판)
     ['A', 24, 90],       // 1

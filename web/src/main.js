@@ -20,6 +20,7 @@ import { botInput } from './sim/bot.js';
 import { PAINT, PAINT_NAME } from './render/carmesh.js';
 import { CarPreview } from './render/preview.js';
 import { TrackPreview, featureSummary } from './ui/trackpreview.js';
+import { loadTheme } from './render/themes/index.js';
 import { VERSION } from './version.js';
 
 const Q = new URLSearchParams(location.search);
@@ -451,6 +452,7 @@ function updateTrackPreview() {
     if (!tpv) tpv = new TrackPreview($('l-tp'));
     const T = getTrack(d.id);
     tpv.set(d, T);
+    loadTheme(d.theme);                 // 레이스 시작 전에 테마 그림을 미리 받아 둔다
     if (!$('lobby').classList.contains('hidden')) tpv.start();
     $('l-tp-name').textContent = d.name;
     const st = $('l-tp-stars'); st.replaceWith(Object.assign(starsEl(d.level), { id: 'l-tp-stars' }));
@@ -594,8 +596,12 @@ function launch(cfg, localSlot, net, startAt, names, log = []) {
   show('loading');
   $('ld-bar').style.width = '30%';
   const id = app.launchId = (app.launchId || 0) + 1;
-  setTimeout(() => {
+  setTimeout(async () => {
     if (id !== app.launchId) return;              // 그사이 다른 출발·취소가 있었다
+    // 맵 테마 그림을 먼저 불러온다 (대기실에서 미리 불러 두므로 보통 바로 끝난다. 실패해도 기본 모습으로 진행)
+    // 멀티: 그동안 온 남의 입력은 app.early 에 쌓였다가 아래에서 넣는다
+    await loadTheme(TRACK_BY_ID[cfg.track]?.theme);
+    if (id !== app.launchId) return;
     if (app.game) { app.game.stop(); app.game = null; }
     try {
       app.game = new Game({
@@ -853,6 +859,9 @@ function enterRace(race, log) {
 // ── 시작 ──
 show('menu');
 startBackground();
+// 준비 끝: 첫 화면 단추를 살린다 (화면은 먼저 뜨는데 단추가 아직 안 먹던 1~2초 — 14회차)
+document.body.classList.remove('booting');
+window.__ready = true;
 (function bgLoop() {
   requestAnimationFrame(bgLoop);
   if (!bgView || app.game || window.__garage) return;

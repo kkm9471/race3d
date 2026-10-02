@@ -3,7 +3,7 @@
 import { SURF } from '../car.js';
 
 export default {
-  id: 'nymph', name: '반딧불 요정숲', kind: '요정 숲', level: 2, theme: 'nymph', wip: true,
+  id: 'nymph', name: '반딧불 요정숲', kind: '요정 숲', level: 2, theme: 'nymph',
   desc: '빛나는 꽃과 수정 기둥 사이로 크게 휘어 흐르는 밤의 숲길. 연못가 S자, 왼쪽 코너 두 곳 안쪽 지름길, 점프대·가속 발판. 한 바퀴 약 1분.',
   segs: [
     ['S', 300],          // 0 출발 직선

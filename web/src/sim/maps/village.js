@@ -2,7 +2,7 @@
 import { SURF } from '../car.js';
 
 export default {
-  id: 'village', name: '꽃마을 운하길', kind: '마을', level: 1, theme: 'village', wip: true,
+  id: 'village', name: '꽃마을 운하길', kind: '마을', level: 1, theme: 'village',
   desc: '알록달록한 지붕 사이를 도는 넓고 완만한 길. 큰 왼쪽 코너 안쪽 지름길, 낮은 점프대 1개, 가속 발판 2개. 한 바퀴 약 48초.',
   segs: [
     ['S', 320],          // 0 출발 직선 (시계탑)

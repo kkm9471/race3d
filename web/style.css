@@ -164,3 +164,7 @@ button.small { padding: 5px 10px; font-size: 13px; }
 .paints button.sel { outline: 3px solid var(--accent2); outline-offset: 2px; border-color: #fff; }
 .chat-log .ln .who { color: #ffe3a6; }
 .chat-log .ln .who i { display: inline-block; width: 9px; height: 9px; border-radius: 50%; margin-right: 4px; vertical-align: 0; border: 1px solid rgba(255,255,255,0.5); }
+
+/* 준비 중(모듈·그래픽 초기화)에는 첫 화면 단추를 누를 수 없게 (14회차) */
+body.booting #menu button, body.booting #menu input { pointer-events: none; opacity: 0.55; }
+body.booting #menu::after { content: '준비 중…'; position: fixed; left: 50%; bottom: 18px; transform: translateX(-50%); color: var(--dim); font-size: 13px; }

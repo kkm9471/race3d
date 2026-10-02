@@ -3,8 +3,8 @@
 import { SURF } from '../car.js';
 
 export default {
-  id: 'pirate', name: '해적선 만', kind: '해변', level: 3, theme: 'pirate', wip: true,
-  desc: '해적선이 정박한 카리브해 해변을 도는 파란 벽돌 길. 헤어핀 지그재그 두 곳, 안쪽 지름길 2곳, 모래 언덕을 넘는 점프대 2개. 한 바퀴 약 84초.',
+  id: 'pirate', name: '해적선 만', kind: '해변', level: 3, theme: 'pirate',
+  desc: '해적선이 정박한 카리브해 해변을 도는 파란 벽돌 길. 헤어핀 지그재그 두 곳, 안쪽 지름길 2곳, 모래 언덕을 넘는 점프대 2개. 한 바퀴 약 1분 30초.',
   segs: [
     ['S', 330],          // 0 출발 직선 (길이 자동, 가속 발판)
     ['A', 45, 90],       // 1

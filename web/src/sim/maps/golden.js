@@ -3,7 +3,7 @@
 import { SURF } from '../car.js';
 
 export default {
-  id: 'golden', name: '황금 문명 유적', kind: '정글 유적', level: 4, laps: 2, theme: 'golden', wip: true,
+  id: 'golden', name: '황금 문명 유적', kind: '정글 유적', level: 4, laps: 2, theme: 'golden',
   desc: '정글 속 계단식 피라미드 신전을 도는 길. 유적을 뚫는 돌 터널 3곳, U자 헤어핀 3곳(안쪽 지름길), 큰 오르내림과 점프대 2개. 한 바퀴 약 2분.',
   segs: [
     ['S', 300],          // 0 출발 (가속 발판)

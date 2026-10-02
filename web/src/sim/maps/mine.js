@@ -3,7 +3,7 @@
 import { SURF } from '../car.js';
 
 export default {
-  id: 'mine', name: '붉은 갱도 내리막', kind: '광산', level: 5, laps: 1, theme: 'mine', wip: true,
+  id: 'mine', name: '붉은 갱도 내리막', kind: '광산', level: 5, laps: 1, theme: 'mine',
   desc: '산꼭대기 갱구에서 헤어핀 6개 지그재그로 끝없이 내려가 용암 협곡을 지나, 긴 오르막 갱도로 되돌아온다. 좁은 길, 지름길 3곳, 점프대 2개, 연속 가속 발판. 한 바퀴 약 2분 40초.',
   segs: [
     ['S', 260],          // 0 꼭대기 출발 직선
