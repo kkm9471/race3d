@@ -21,6 +21,9 @@ export class Controls {
         if (k === 'KeyM' && this.onAction) this.onAction('mute');
         if (k === 'Escape' && this.onAction) this.onAction('menu');
         if (k === 'Tab' && this.onAction) { e.preventDefault(); this.onAction('board'); }
+        // 드리프트 손맛 1·2·3 (혼자 연습에서만 바뀐다 — 2026-10-03)
+        const n = /^(Digit|Numpad)([1-3])$/.exec(k);
+        if (n && this.onAction) this.onAction('preset' + (+n[2] - 1));
       }
       this.keys.add(k);
     };

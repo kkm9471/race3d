@@ -71,9 +71,11 @@ console.log('[카트 손맛]');
   for (const spec of CARS) {
     const r = measure(spec);
     // 14회차: 사용자 요구(오래 누르면 U자·드리프트 감속·카운터 빠르게)와 동우 피드백(탈출 속도)도 단언 (전엔 보고서에만 찍혀 퇴행을 못 잡았다 — 독립검증)
-    ok(inR(r.coast1, 'coast1') && inR(r.straighten, 'straighten') && inR(r.driftBeta, 'driftBeta') && inR(r.gripBeta, 'gripBeta') && inR(r.boostTop, 'boostTop') && r.instOk && !r.instHold
-      && inR(r.uturn, 'uturn') && inR(r.dLoss, 'dLoss') && inR(r.counter, 'counter') && inR(r.exitD25, 'exitD25') && inR(r.exitMax, 'exitMax'),
-      `${spec.name}: 액셀 떼고 1초 -${r.coast1.toFixed(0)}km/h · 드리프트 ${r.driftBeta.toFixed(0)}° · 뗀 뒤 펴짐 ${r.straighten.toFixed(2)}초 · U자 ${r.uturn.toFixed(2)}초 · 드리프트 2초 -${r.dLoss.toFixed(0)}km/h · 카운터 ${r.counter.toFixed(2)}초 · 탈출 0.25초 ${r.exitD25.toFixed(1)}/최대 +${r.exitMax.toFixed(1)}km/h · 부스터 ${r.boostTop.toFixed(0)}km/h · 순간부스터 새로누름 ${r.instOk}/계속누름 ${r.instHold}`);
+    // 2026-10-03 3차: 카트라이더 공식 가이드 영상에서 잰 값 (톡·풀·카운터·관성 유지·감속)
+    const keys = ['coast1', 'gripBeta', 'boostTop', 'tapPeak', 'tapPeakT', 'tapEnd', 'tapLoss', 'fullB015', 'fullB07', 'fullHold', 'counterT', 'fullLoss', 'uturn', 'exitD25', 'exitMax'];
+    const bad = keys.filter(k => !inR(r[k], k));
+    ok(!bad.length && r.instOk && !r.instHold,
+      `${spec.name}: 톡 최대 ${r.tapPeak.toFixed(0)}°(${r.tapPeakT.toFixed(2)}초)·펴짐 ${r.tapEnd.toFixed(2)}초 · 풀 0.15초 ${r.fullB015.toFixed(0)}°·0.7초 ${r.fullB07.toFixed(0)}°·뗀 뒤 유지 ${r.fullHold.toFixed(2)} · 카운터 ${r.counterT.toFixed(2)}초 · 풀 감속 ${r.fullLoss.toFixed(0)}% · U자 ${r.uturn.toFixed(2)}초 · 탈출 0.25초 ${r.exitD25.toFixed(1)}/최대 +${r.exitMax.toFixed(1)}km/h · 순간부스터 새로누름 ${r.instOk}/계속누름 ${r.instHold}${bad.length ? ' · 벗어남: ' + bad.join(',') : ''}`);
   }
 }
 // 2) 드리프트를 끝까지 붙잡고 있어도 스핀하지 않는다 (미끄럼각이 목표각으로 모인다)
@@ -85,8 +87,9 @@ console.log('[드리프트 붙잡기]');
     c.setSpeed(150 / 3.6);
     let mb = 0;
     for (let f = 0; f < FPS * 5; f++) { frame(c, w, pack({ thr: 1, steer: 1, hb: 1, kb: 1 })); mb = Math.max(mb, Math.abs(beta(c))); }
-    // 2026-10-02 2차 드리프트: 오래 누를수록 미끄럼각이 커지는 게 의도(최대 50°). 팽이처럼 도는 스핀만 막는다 → 65° 상한, 계속 앞으로 간다
-    ok(mb < 66 && c.out.fwd > 8, `${spec.name}: 5초 꽉 붙잡아도 최대 미끄럼 ${mb.toFixed(0)}°(<66), 속도 ${(c.out.fwd * 3.6).toFixed(0)}km/h`);
+    // 2026-10-03 3차 드리프트: 오래 누를수록 미끄럼각이 커지는 게 의도(최대 60°). 팽이처럼 도는 스핀만 막는다 → 66° 상한, 멈춰 서지 않는다
+    // (카트라이더처럼 오래 붙잡으면 크게 느려지므로 앞 속도 대신 실제 속력으로 본다)
+    ok(mb < 66 && c.out.speed > 8, `${spec.name}: 5초 꽉 붙잡아도 최대 미끄럼 ${mb.toFixed(0)}°(<66), 속력 ${(c.out.speed * 3.6).toFixed(0)}km/h`);
   }
 }
 // 3) 출발부스터는 신호 직후 새로 누를 때만 / 부스터가 없으면 부스터 키는 아무 일 없음 / 부스터는 2개까지만

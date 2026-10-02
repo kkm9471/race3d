@@ -24,6 +24,7 @@ import { loadTheme } from './render/themes/index.js';
 import { preloadReal } from './render/assets.js';
 import { realFor } from './render/realism.js';
 import { VERSION } from './version.js';
+import { setDriftPreset, DRIFT_PRESETS } from './sim/car.js';
 
 const Q = new URLSearchParams(location.search);
 const $ = id => document.getElementById(id);
@@ -148,6 +149,7 @@ class Game {
     if (net) { net.fast = true; this.sent0 = net.sent; for (let i = 0; i < 4; i++) setTimeout(() => net.ping(), i * 150); }
     this.slow = 0;
     controls.onAction = a => this.action(a);
+    if (!net) this.hud.help.textContent += ' · 1·2·3 드리프트 손맛';
     if (Q.get('cam')) this.view.camMode = +Q.get('cam');
     audio.start(cfg.players.map(p => CAR_BY_ID[p.car] || CARS[0]), localSlot);
     window.__game = this;
@@ -172,6 +174,13 @@ class Game {
     if (a === 'camera') { this.view.camMode = (this.view.camMode + 1) % 3; toast(['추적 시점', '먼 추적 시점', '보닛 시점'][this.view.camMode], 1000); }
     if (a === 'mute') toast(audio.toggle() ? '소리 켬' : '소리 끔', 1000);
     if (a === 'menu') this.togglePause();
+    // 드리프트 손맛 1·2·3: 혼자 연습에서만 (같이 타는 방은 세 화면 계산이 같아야 해서 늘 1번)
+    if (a.startsWith('preset')) {
+      if (this.net) { toast('같이 타는 방에서는 드리프트 손맛이 1번(영상 그대로)으로 고정입니다', 2000); return; }
+      const i = +a.slice(6), p = setDriftPreset(i);
+      store.set('driftPreset', String(i));
+      toast(`드리프트 손맛 ${i + 1}: ${p.name}`, 1500);
+    }
   }
 
   togglePause() {
@@ -612,6 +621,8 @@ function launch(cfg, localSlot, net, startAt, names, log = []) {
     await preloadReal(realFor(TRACK_BY_ID[cfg.track], theme), gfx.q);
     if (id !== app.launchId) return;
     if (app.game) { app.game.stop(); app.game = null; }
+    // 드리프트 손맛: 같이 타는 방은 늘 1번, 혼자 연습은 마지막에 고른 것
+    setDriftPreset(net ? 0 : Math.min(DRIFT_PRESETS.length - 1, Math.max(0, +store.get('driftPreset', '0') || 0)));
     try {
       app.game = new Game({
         cfg, localSlot, net, startAt, names, bot: Q.get('bot') === '1' || Q.get('bot') === 'ram',

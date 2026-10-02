@@ -19,5 +19,5 @@ function run(name, plan, frames, marks) {
   console.log(`\n■ ${name}`); rows.forEach(r => console.log('  ' + r));
 }
 run('짧게 톡: Shift+→ 0.13초, 뒤엔 ↑만', f => ({ steer: f < 8 ? 1 : 0, hb: f < 8 ? 1 : 0 }), 108);
-run('풀: Shift+→ 0.7초 → 0.25초 아무것도 → ← 0.75초 → ↑ 뗐다 누름', f => ({ steer: f < 42 ? 1 : f < 57 ? 0 : f < 102 ? -1 : 0, hb: f < 42 ? 1 : 0, thr: f >= 102 && f < 106 ? 0 : 1 }), 150);
+run('풀: Shift+→ 0.7초 → 0.25초 아무것도 → ← 0.75초 → ↑ 뗐다 누름', f => ({ steer: f < 42 ? 1 : f < 57 ? 0 : f < 102 ? -1 : 0, hb: f < 42 ? 1 : 0, thr: f >= 105 && f < 109 ? 0 : 1 }), 150);
 run('풀인데 카운터 안 함(키 다 뗌)', f => ({ steer: f < 42 ? 1 : 0, hb: f < 42 ? 1 : 0 }), 180);

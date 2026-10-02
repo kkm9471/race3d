@@ -1,0 +1,27 @@
+// 실제 크롬: 혼자 연습에서 숫자키 2 → 알림·값 바뀜, 1 → 되돌림, 영상 순서 드리프트(Shift+→ 0.7초 → 0.25초 → ← 0.75초) 중 상태·화면
+import puppeteer from 'puppeteer-core';
+const b = await puppeteer.launch({ executablePath: 'C:/Program Files/Google/Chrome/Application/chrome.exe', headless: 'new', args: ['--use-angle=d3d11', '--enable-gpu', '--window-size=1280,720'], defaultViewport: { width: 1280, height: 720 } });
+const p = await b.newPage();
+const errs = []; p.on('pageerror', e => errs.push(e.message));
+await p.goto('http://127.0.0.1:8790/index.html?solo=1&track=circuit&bots=0&q=low', { waitUntil: 'load' });
+await p.waitForFunction(() => window.__game && window.__game.session.frame > 240, { timeout: 90000, polling: 100 });
+const st = () => p.evaluate(() => { const g = window.__game, c = g.session.sim.cars[g.local]; return { f: g.session.frame, drift: c.st.drift, dB: +c.st.dB.toFixed(3), kmh: +(c.out.speed * 3.6).toFixed(0), toast: document.getElementById('toast').textContent, help: g.hud.help.textContent }; });
+await p.keyboard.press('Digit2'); await new Promise(r => setTimeout(r, 150));
+const k2 = await p.evaluate(async () => (await import('./src/sim/car.js')).KART.D_WN);
+console.log('2번 뒤:', JSON.stringify(await st()), 'D_WN', k2);
+await p.keyboard.press('Digit1'); await new Promise(r => setTimeout(r, 150));
+const k1 = await p.evaluate(async () => (await import('./src/sim/car.js')).KART.D_WN);
+console.log('1번 뒤:', (await st()).toast, 'D_WN', k1);
+await p.keyboard.down('ArrowUp'); await new Promise(r => setTimeout(r, 6000));
+console.log('6초 가속:', JSON.stringify(await st()));
+await p.keyboard.down('ArrowRight'); await p.keyboard.down('ShiftLeft');
+await new Promise(r => setTimeout(r, 350)); console.log('Shift 0.35초:', JSON.stringify(await st()));
+await new Promise(r => setTimeout(r, 350)); await p.screenshot({ path: 'tests/out/drift3_a.png' });
+await p.keyboard.up('ShiftLeft'); await p.keyboard.up('ArrowRight');
+await new Promise(r => setTimeout(r, 250)); console.log('키 다 뗀 뒤 0.25초:', JSON.stringify(await st()));
+await p.screenshot({ path: 'tests/out/drift3_b.png' });
+await p.keyboard.down('ArrowLeft'); await new Promise(r => setTimeout(r, 750)); await p.keyboard.up('ArrowLeft');
+console.log('카운터 0.75초 뒤:', JSON.stringify(await st()));
+await p.screenshot({ path: 'tests/out/drift3_c.png' });
+console.log('화면 오류:', errs.length ? errs.join(' | ') : '없음');
+await b.close();
