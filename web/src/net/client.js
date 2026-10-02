@@ -4,7 +4,7 @@
 // 시계: 서버 시각을 여러 번 물어 왕복시간이 가장 짧았던 값들로 차이를 구한다(NTP 방식).
 
 import { VERSION } from '../version.js';
-export const PROTOCOL = 4;     // 서버 room.js 와 같아야 한다 (4: 카트식, 부스터 키)
+export const PROTOCOL = 5;     // 서버 room.js 와 같아야 한다 (4: 카트식, 부스터 키 / 5: 차 색·대기실 대화)
 
 export class NetClient {
   constructor(url, room, name, token, car, assist) {
@@ -27,7 +27,9 @@ export class NetClient {
     this.ws = ws;
     this.status(this.tries ? `다시 연결하는 중… (${this.tries})` : '연결 중…', false);
     ws.onopen = () => {
-      this.send({ t: 'hi', v: PROTOCOL, ver: VERSION, name: this.name, tok: this.token, car: this.car, assist: this.assist });
+      const hi = { t: 'hi', v: PROTOCOL, ver: VERSION, name: this.name, tok: this.token, car: this.car, assist: this.assist };
+      if (Number.isInteger(this.paint) && this.paint >= 0) hi.paint = this.paint;     // 스스로 고른 색이 있을 때만 (없으면 서버가 빈 색을 준다)
+      this.send(hi);
       this.samples = [];
       for (let i = 0; i < 6; i++) setTimeout(() => this.ping(), 60 + i * 120);
       clearInterval(this._pi);
@@ -105,6 +107,7 @@ export class NetClient {
         this.on.welcome && this.on.welcome(m);
         break;
       case 'lobby': this.on.lobby && this.on.lobby(m.lobby); break;
+      case 'chat': if (m.m && typeof m.m.text === 'string') this.on.chat && this.on.chat(m.m); break;
       case 'start': this.on.start && this.on.start(m.race); break;
       case 'in':
         if (Array.isArray(m.e) && Number.isInteger(m.p)) for (const e of m.e) {

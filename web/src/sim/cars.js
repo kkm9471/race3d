@@ -1,4 +1,4 @@
-// 차량 10종 — 카트식 (2026-10-02 사용자 결정: 성능은 비슷하게, 성격만 다르게 — 실력으로 겨룬다)
+// 차량 18종 — 카트식 (2026-10-02 사용자 결정: 성능은 비슷하게, 성격만 다르게 — 실력으로 겨룬다)
 //
 // 능력치 stats 는 1~5점, 다섯 개 합이 모두 15점. 1점 차이가 주는 효과는 작다(car.js kartParams):
 //   speed 최고속 ±1%/점 · accel 가속 ±5%/점 · corner 코너 접지 ±4%/점 · drift 드리프트 회전 ±5%/점
@@ -69,6 +69,55 @@ export const CARS = [
     stats: { speed: 2, accel: 3, corner: 3, drift: 2, boost: 5 },
     mass: 1200, wb: 2.27, wf: 0.41, tF: 1.37, tR: 1.35, cgH: 0.50, dims: [4.15, 1.65, 1.32], R: 0.300,
     susp: SUSP(1.8, 1.9, 0.42, 0.10), tire: { rear: 1.08 }, engine: { idle: 900, redline: 7200 },
+  },
+  // ── 2026-10-02 추가 8종 (미래지향 · 차급만 떠올리게, 실제 상표·모델명 없음) ──
+  {
+    id: 'seongchae', name: '모놀리스', cls: '코너·부스터형', desc: '크고 묵직한 고급 SUV. 코너에서 안 밀리고 부스터가 오래 간다. 출발 가속은 가장 느리다.',
+    stats: { speed: 3, accel: 1, corner: 5, drift: 2, boost: 4 },
+    mass: 1490, wb: 2.98, wf: 0.53, tF: 1.70, tR: 1.70, cgH: 0.72, dims: [4.95, 1.98, 1.84], R: 0.400,
+    susp: SUSP(1.6, 1.7, 0.45, 0.13), tire: {}, engine: { idle: 650, redline: 5800 },
+  },
+  {
+    id: 'changkkeut', name: '스피어헤드', cls: '최고속·가속형', desc: '낮고 날카로운 쐐기형 슈퍼카. 최고속과 가속이 모두 좋다. 코너·드리프트·부스터는 약하다.',
+    stats: { speed: 5, accel: 4, corner: 2, drift: 2, boost: 2 },
+    mass: 1400, wb: 2.70, wf: 0.43, tF: 1.72, tR: 1.68, cgH: 0.40, dims: [4.70, 2.02, 1.12], R: 0.352,
+    susp: SUSP(2.8, 2.9, 0.48, 0.06), tire: { rear: 1.12 }, engine: { idle: 1000, redline: 8700 },
+  },
+  {
+    id: 'gaeguri', name: '백버너', cls: '고속·드리프트형', desc: '엔진이 뒤에 있는 스포츠 쿠페. 꼬리가 잘 돌아 드리프트가 좋고 최고속도 높은 편이다. 코너 접지·부스터는 약하다.',
+    stats: { speed: 4, accel: 3, corner: 2, drift: 4, boost: 2 },
+    mass: 1300, wb: 2.45, wf: 0.39, tF: 1.59, tR: 1.56, cgH: 0.45, dims: [4.50, 1.85, 1.29], R: 0.330,
+    susp: SUSP(2.4, 2.5, 0.46, 0.07), tire: { rear: 1.10 }, engine: { idle: 900, redline: 8400 },
+  },
+  {
+    id: 'dungdung', name: '문 글라이더', cls: '드리프트·부스터형', desc: '바닥에서 떠서 달리는 호버카. 코너 접지는 가장 약하지만 드리프트가 가장 잘 돌고 게이지가 빨리 찬다.',
+    stats: { speed: 3, accel: 2, corner: 1, drift: 5, boost: 4 },
+    mass: 1250, wb: 2.70, wf: 0.50, tF: 1.66, tR: 1.66, cgH: 0.52, dims: [4.60, 1.95, 1.22], R: 0.320,
+    susp: SUSP(1.9, 2.0, 0.45, 0.10), tire: {}, engine: { idle: 1200, redline: 9600 },
+  },
+  {
+    id: 'hwasal', name: '슬립스트림', cls: '코너·최고속형', desc: '바퀴가 드러난 포뮬러. 날개가 눌러 줘서 코너 접지가 가장 좋고 최고속도 높다. 드리프트는 가장 둔하다.',
+    stats: { speed: 4, accel: 3, corner: 5, drift: 1, boost: 2 },
+    mass: 1150, wb: 2.70, wf: 0.42, tF: 1.52, tR: 1.46, cgH: 0.30, dims: [4.40, 1.80, 0.98], R: 0.290,
+    susp: SUSP(3.0, 3.1, 0.50, 0.04), tire: { rear: 1.15 }, engine: { idle: 1800, redline: 11000 },
+  },
+  {
+    id: 'moseori', name: '폴리곤', cls: '가속·부스터형', desc: '평평한 판을 접은 듯한 각진 전기차. 출발이 바로 튀어 나가고 부스터 게이지가 빨리 찬다. 최고속은 조금 낮다.',
+    stats: { speed: 2, accel: 5, corner: 2, drift: 2, boost: 4 },
+    mass: 1480, wb: 2.95, wf: 0.52, tF: 1.70, tR: 1.70, cgH: 0.58, dims: [4.85, 1.98, 1.50], R: 0.375,
+    susp: SUSP(1.8, 1.9, 0.45, 0.12), tire: {}, engine: { idle: 600, redline: 9000 },
+  },
+  {
+    id: 'bitjul', name: '애프터글로우', cls: '부스터·드리프트형', desc: '차체를 따라 빛줄기가 흐르는 미래 쿠페. 드리프트로 게이지를 빨리 채우고 부스터가 오래 간다. 최고속·가속·코너는 약하다.',
+    stats: { speed: 2, accel: 2, corner: 2, drift: 4, boost: 5 },
+    mass: 1280, wb: 2.80, wf: 0.46, tF: 1.70, tR: 1.68, cgH: 0.42, dims: [4.70, 1.96, 1.18], R: 0.345,
+    susp: SUSP(2.4, 2.5, 0.46, 0.07), tire: { rear: 1.06 }, engine: { idle: 1100, redline: 9200 },
+  },
+  {
+    id: 'kkoma', name: '스캠퍼', cls: '가속·드리프트형', desc: '작은 경주용 카트. 출발·재가속이 가장 빠르고 드리프트가 잘 돈다. 부스터 게이지는 느리게 찬다.',
+    stats: { speed: 2, accel: 5, corner: 3, drift: 4, boost: 1 },
+    mass: 1100, wb: 1.80, wf: 0.42, tF: 1.26, tR: 1.34, cgH: 0.34, dims: [2.80, 1.60, 1.05], R: 0.240,
+    susp: SUSP(2.8, 2.9, 0.50, 0.05), tire: { rear: 1.18 }, engine: { idle: 1600, redline: 10500 },
   },
 ];
 

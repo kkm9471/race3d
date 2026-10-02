@@ -22,7 +22,8 @@ export class RaceView {
     this.terrain = terrain;
     for (const o of this.track.children) if (o.userData.placeOn && terrain) o.userData.placeOn(terrain.userData.heightAt);
     this.cars = session.sim.cars.map((c, k) => {
-      const m = buildCar(c.spec, c.P, PAINT[k % PAINT.length], gfx.q.detail);
+      // 차 색: 대기실에서 고른 색(cfg.players[k].paint), 없으면 예전처럼 자리 순서 색
+      const m = buildCar(c.spec, c.P, PAINT[(session.sim.cfg.players[k]?.paint ?? k) % PAINT.length], gfx.q.detail);
       m.userData.blob.visible = !gfx.q.shadow;
       gfx.scene.add(m);
       return { mesh: m, off: new THREE.Vector3(), yawOff: 0, lastShown: new THREE.Vector3(), ghost: false, spinA: [0, 0, 0, 0] };
@@ -93,6 +94,9 @@ export class RaceView {
     this.updateCamera(followSlot, dt, look);
     this.clearView(followSlot);
     this.gfx.followShadow(this.cars[followSlot]?.mesh.position || tmpV.set(0, 0, 0));
+    // 테마 소품 움직임 (풍차·깜박이는 등) — 그림만, 주행 계산과 무관
+    const anims = this.track.userData.anims;
+    if (anims && anims.length) { this.animT = (this.animT || 0) + dt; for (const f of anims) { try { f(this.animT, dt); } catch (e) { anims.length = 0; console.warn('테마 움직임 오류:', e); } } }
     // 출발 신호등
     const g = this.track.userData.lights.gantry;
     if (g) {

@@ -63,7 +63,13 @@
       <div>
         <h3>참가자</h3>
         <ul id="l-players" class="players"></ul>
+        <div id="l-chat" class="chat">
+          <div id="l-chat-log" class="chat-log" aria-live="polite"></div>
+          <form id="l-chat-form" class="chat-row" autocomplete="off"><input id="l-chat-in" maxlength="120" placeholder="대화 입력 후 Enter" enterkeyhint="send"><button class="small" type="submit">보내기</button></form>
+        </div>
         <h3>트랙 <small id="l-host-note"></small></h3>
+        <div class="tp"><canvas id="l-tp"></canvas></div>
+        <div class="tp-info"><div class="tp-title"><b id="l-tp-name"></b><span id="l-tp-stars" class="stars"></span></div><div id="l-tp-meta" class="tp-meta"></div><div id="l-tp-desc" class="tp-desc"></div></div>
         <div id="l-tracks" class="tracks"></div>
         <div class="row">
           <label class="inline">랩 수 <select id="l-laps"><option>1</option><option>2</option><option selected>3</option><option>4</option><option>5</option></select></label>
@@ -74,6 +80,8 @@
       <div>
         <h3>내 차 고르기</h3>
         <div class="pv"><canvas id="l-preview"></canvas><div id="l-pv-name" class="pv-name"></div><div class="pv-hint">끌어서 360° 돌려 보기 · 휠로 확대 · 두 번 누르면 다시 자동 회전</div></div>
+        <div class="paint-head">색상 <b id="l-paint-name"></b></div>
+        <div id="l-paints" class="paints"></div>
         <div id="l-cars" class="cars"></div>
       </div>
     </div>

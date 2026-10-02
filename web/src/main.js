@@ -19,6 +19,7 @@ import { FPS, GO_FRAME, getTrack } from './sim/race.js';
 import { botInput } from './sim/bot.js';
 import { PAINT, PAINT_NAME } from './render/carmesh.js';
 import { CarPreview } from './render/preview.js';
+import { TrackPreview, featureSummary } from './ui/trackpreview.js';
 import { VERSION } from './version.js';
 
 const Q = new URLSearchParams(location.search);
@@ -39,14 +40,23 @@ function show(id) {
   for (const s of ['menu', 'lobby', 'loading', 'results', 'pause']) $(s).classList.toggle('hidden', s !== id);
   // 차 미리보기는 대기실이 보일 때만 그린다
   if (preview) { if (id === 'lobby') preview.start(); else preview.stop(); }
+  if (tpv) { if (id === 'lobby') tpv.start(); else tpv.stop(); }
+  // 대화 입력칸에 글자 입력 중이던 채로 레이스가 시작돼도 키가 입력칸으로 새지 않게
+  if (id !== 'lobby' && document.activeElement && document.activeElement.id === 'l-chat-in') document.activeElement.blur();
 }
-let preview = null;
-/** 대기실 차 미리보기: 고른 차를 내 자리 색으로 */
+let preview = null, tpv = null;
+/** 내 차 색 번호: 멀티는 서버가 정한 값(대기실 목록), 혼자는 고른 값(없으면 빨강) */
+function myPaint() {
+  const me = app.lobby?.players?.find(p => p.id === app.myId);
+  if (!app.solo && me && Number.isInteger(me.paint)) return me.paint;
+  return app.paint >= 0 ? app.paint : 0;
+}
+const hex = c => '#' + c.toString(16).padStart(6, '0');
+/** 대기실 차 미리보기: 고른 차를 고른 색으로 */
 function updatePreview() {
   try {
     if (!preview) preview = new CarPreview($('l-preview'));
-    const me = app.lobby?.players?.findIndex(p => p.id === app.myId) ?? -1;
-    preview.setCar(app.car, PAINT[Math.max(0, me) % PAINT.length]);
+    preview.setCar(app.car, PAINT[myPaint() % PAINT.length]);
     const spec = CAR_BY_ID[app.car] || CARS[0];
     const nm = $('l-pv-name'); nm.textContent = spec.name;
     const sm = document.createElement('small'); sm.textContent = spec.cls; nm.appendChild(sm);
@@ -339,6 +349,8 @@ const app = {
   game: null, net: null, lobby: null, myId: null, solo: false, inRace: false, early: [],
   car: Q.get('car') || store.get('car', 'baram'),
   track: 'circuit', laps: 3, assist: store.get('assist', '1') === '1', bots: 2,
+  // 차 색(0~19): 스스로 고른 적이 없으면 -1 → 멀티에서는 서버가 아무도 안 쓰는 색을 준다
+  paint: (() => { const v = +store.get('paint', '-1'); return Number.isInteger(v) && v >= 0 && v < PAINT.length ? v : -1; })(),
 };
 if (!CAR_BY_ID[app.car]) app.car = 'baram';
 
@@ -400,29 +412,81 @@ function renderCars() {
     b.onclick = () => { app.car = c.id; store.set('car', c.id); renderCars(); if (app.net) { app.net.car = c.id; app.net.send({ t: 'car', car: c.id }); } updateLobby(); };
     box.appendChild(b);
   }
+  renderPaints();
   updatePreview();
 }
+/** 색 20가지 고르기 (2026-10-02 14회차) */
+function renderPaints() {
+  const box = $('l-paints'); box.innerHTML = '';
+  const cur = myPaint();
+  PAINT.forEach((c, i) => {
+    const b = document.createElement('button');
+    b.className = i === cur ? 'sel' : '';
+    b.style.background = hex(c);
+    b.title = PAINT_NAME[i]; b.setAttribute('aria-label', PAINT_NAME[i]);
+    b.onclick = () => {
+      app.paint = i; store.set('paint', String(i));
+      if (app.net) {
+        app.net.paint = i; app.net.send({ t: 'paint', paint: i });
+        const me = app.lobby?.players?.find(p => p.id === app.myId);
+        if (me) me.paint = i;                 // 서버 답을 기다리지 않고 바로 보이게 (곧 같은 값이 온다)
+      }
+      renderPaints(); updatePreview(); if (!app.game) updateLobby();
+    };
+    box.appendChild(b);
+  });
+  $('l-paint-name').textContent = PAINT_NAME[cur];
+}
+/** 별 표시: 채운 별 + 빈 별 */
+function starsEl(level) {
+  const s = document.createElement('span'); s.className = 'stars';
+  s.textContent = '★'.repeat(level || 0);
+  const e = document.createElement('i'); e.textContent = '★'.repeat(5 - (level || 0)); s.appendChild(e);
+  return s;
+}
+/** 트랙 미리보기 (방장이 고른 트랙 — 카트라이더처럼 고르기 전에 코스를 본다) */
+function updateTrackPreview() {
+  const d = TRACK_BY_ID[app.track] || TRACK_DEFS[0];
+  try {
+    if (!tpv) tpv = new TrackPreview($('l-tp'));
+    const T = getTrack(d.id);
+    tpv.set(d, T);
+    if (!$('lobby').classList.contains('hidden')) tpv.start();
+    $('l-tp-name').textContent = d.name;
+    const st = $('l-tp-stars'); st.replaceWith(Object.assign(starsEl(d.level), { id: 'l-tp-stars' }));
+    const rise = T.bounds.y1 - T.bounds.y0;
+    $('l-tp-meta').textContent = `${d.kind} · 한 바퀴 ${(T.L / 1000).toFixed(2)}km · 고저차 ${rise.toFixed(0)}m · 기본 ${d.laps || 3}랩 · ${featureSummary(d)}`;
+    $('l-tp-desc').textContent = d.desc || '';
+  } catch (e) { console.warn('트랙 미리보기를 못 그렸습니다', e); }
+}
 function renderTracks(isHost) {
-  const box = $('l-tracks'); box.innerHTML = '';
-  for (const d of TRACK_DEFS) {
+  const box = $('l-tracks');
+  const keep = box.scrollTop, before = box.dataset.sel;
+  box.innerHTML = '';
+  // 쉬운 맵부터 (같은 별이면 원래 순서)
+  const list = TRACK_DEFS.map((d, k) => [d, k]).sort((a, b) => (a[0].level || 0) - (b[0].level || 0) || a[1] - b[1]).map(x => x[0]);
+  for (const d of list) {
     const b = document.createElement('button');
     b.className = d.id === app.track ? 'sel' : '';
     const T = getTrack(d.id);
-    b.innerHTML = '';
-    const t = document.createElement('b'); t.textContent = `${d.name}`;
-    // 난이도 별(★ 1~3) · 종류 · 길이
-    const sm = document.createElement('small'); sm.textContent = `${d.level ? '★'.repeat(d.level) + '☆'.repeat(5 - d.level) + ' ' : ''}${d.kind} · ${(T.L / 1000).toFixed(2)}km`;
-    b.append(t, sm);
+    const t = document.createElement('b'); t.textContent = d.name;
+    const sm = document.createElement('small'); sm.textContent = `${d.kind} · ${(T.L / 1000).toFixed(1)}km`;
+    b.append(starsEl(d.level), t, sm);
+    b.title = d.desc || '';
     b.disabled = !isHost;
     b.onclick = () => {
       app.track = d.id;
-      if (app.net) app.net.send({ t: 'set', track: d.id });
+      if (app.net) { app.net.send({ t: 'set', track: d.id }); if (app.lobby) app.lobby.track = d.id; }   // 서버 답을 기다리지 않고 바로 보이게
       // 긴 맵은 랩 수를 기본 2로 (한 바퀴가 2분 안팎)
       if (d.laps) { $('l-laps').value = String(d.laps); $('l-laps').dispatchEvent(new Event('change')); }
       updateLobby();
     };
     box.appendChild(b);
   }
+  box.scrollTop = keep;
+  // 트랙이 바뀌면(방장이 고름) 그 줄이 보이게
+  if (before !== app.track) { box.dataset.sel = app.track; box.querySelector('.sel')?.scrollIntoView({ block: 'nearest' }); }
+  updateTrackPreview();
 }
 
 function openLobby(code, name) {
@@ -432,6 +496,7 @@ function openLobby(code, name) {
   $('l-code').textContent = app.solo ? '혼자' : code;
   $('l-copy').classList.toggle('hidden', app.solo);
   document.querySelectorAll('.solo-only').forEach(e => e.classList.toggle('hidden', !app.solo));
+  $('l-chat').classList.toggle('hidden', app.solo);
   $('l-conn').textContent = app.solo ? '' : '연결 중…';
   $('l-assist').checked = app.assist;
   renderCars();
@@ -441,22 +506,24 @@ function openLobby(code, name) {
 function updateLobby() {
   const L = app.lobby;
   const isHost = app.solo || (L && L.host === app.myId);
+  // 서버가 정한 트랙·랩을 먼저 받아 놓고 그린다 (전엔 그린 뒤에 받아서 목록·미리보기가 한 번씩 늦었다 — 14회차에 발견)
+  if (L) { app.track = L.track; $('l-laps').value = String(L.laps); }
   renderTracks(isHost);
   $('l-laps').disabled = !isHost;
   $('l-host-note').textContent = isHost ? '(방장: 트랙·랩 수를 정합니다)' : '(방장이 정합니다)';
   const ul = $('l-players'); ul.innerHTML = '';
-  const players = app.solo ? [{ id: 'me', name: app.name, car: app.car, ready: true, conn: true }] : (L ? L.players : []);
+  const players = app.solo ? [{ id: 'me', name: app.name, car: app.car, paint: myPaint(), ready: true, conn: true }] : (L ? L.players : []);
   players.forEach((p, i) => {
     const li = document.createElement('li');
-    const dot = document.createElement('span'); dot.className = 'dot'; dot.style.background = '#' + PAINT[i % PAINT.length].toString(16).padStart(6, '0');
+    const pi = (Number.isInteger(p.paint) ? p.paint : i) % PAINT.length;
+    const dot = document.createElement('span'); dot.className = 'dot'; dot.style.background = hex(PAINT[pi]);
     const nm = document.createElement('span'); nm.className = 'nm'; nm.textContent = p.name + (p.id === app.myId ? ' (나)' : '') + (L && p.id === L.host ? ' 👑' : '');
-    const car = document.createElement('span'); car.className = 'car'; car.textContent = `${(CAR_BY_ID[p.car] || CARS[0]).name} · ${PAINT_NAME[i % PAINT_NAME.length]}`;
+    const car = document.createElement('span'); car.className = 'car'; car.textContent = `${(CAR_BY_ID[p.car] || CARS[0]).name} · ${PAINT_NAME[pi]}`;
     const tag = document.createElement('span'); tag.className = 'tag' + (!p.conn ? ' off' : p.ready ? ' ready' : '');
     tag.textContent = !p.conn ? '연결 끊김' : p.ready ? '준비 완료' : '고르는 중';
     li.append(dot, nm, car, tag);
     ul.appendChild(li);
   });
-  if (L) { app.track = L.track; $('l-laps').value = String(L.laps); }
   const me = L && L.players.find(p => p.id === app.myId);
   $('l-ready').classList.toggle('hidden', app.solo);
   $('l-ready').textContent = me && me.ready ? '준비 취소' : '준비';
@@ -512,11 +579,13 @@ function leaveToMenu() {
 
 // ── 혼자 연습 ──
 function startSolo() {
-  const players = [{ car: app.car, name: app.name, abs: app.assist, tcs: app.assist }];
-  // AI 는 내 차 다음 차들로 (성능은 모두 비슷하다 — 성격만 다르게 섞이도록)
+  const mine = myPaint();
+  const players = [{ car: app.car, name: app.name, paint: mine, abs: app.assist, tcs: app.assist }];
+  // AI 는 내 차 다음 차들로 (성능은 모두 비슷하다 — 성격만 다르게 섞이도록), 색은 내 색과 겹치지 않게
   const at = Math.max(0, CARS.findIndex(c => c.id === app.car));
   const pool = [...CARS.slice(at + 1), ...CARS.slice(0, at)];
-  for (let i = 0; i < app.bots; i++) players.push({ car: pool[i].id, name: `AI ${i + 1}`, bot: true, botSkill: 0.86 + i * 0.03, abs: true, tcs: true });
+  const others = PAINT.map((_, k) => k).filter(k => k !== mine);
+  for (let i = 0; i < app.bots; i++) players.push({ car: pool[i].id, name: `AI ${i + 1}`, paint: others[i], bot: true, botSkill: 0.86 + i * 0.03, abs: true, tcs: true });
   launch({ track: app.track, laps: +$('l-laps').value || 3, players }, 0, null, 0, players.map(p => p.name));
 }
 
@@ -594,6 +663,53 @@ function showResults(res, cfg, localSlot) {
   $('r-title').textContent = mine && mine.fin ? `${mine.pos}위로 완주!` : '레이스 종료';
 }
 
+// ── 대기실 대화 (2026-10-02 14회차) ──
+// 남이 보낸 글은 textContent 로만 넣는다(HTML 로 해석하지 않음 — 글 속 태그·스크립트가 실행되지 않게)
+const CHAT_SHOW = 60;
+function chatAdd(el) {
+  const log = $('l-chat-log');
+  const atEnd = log.scrollTop + log.clientHeight >= log.scrollHeight - 8;
+  log.querySelector('.empty')?.remove();
+  log.appendChild(el);
+  while (log.children.length > CHAT_SHOW) log.firstChild.remove();
+  if (atEnd || el.dataset.mine) log.scrollTop = log.scrollHeight;
+}
+function chatLine(m) {
+  const d = document.createElement('div'); d.className = 'ln';
+  // 이름 앞에 고른 색 점 (남색·검정처럼 어두운 색 글자는 어두운 바탕에서 안 읽혀서 글자는 밝게)
+  const w = document.createElement('span'); w.className = 'who';
+  const dot = document.createElement('i'); dot.style.background = hex(PAINT[(Number.isInteger(m.paint) ? m.paint : 0) % PAINT.length]);
+  w.append(dot, String(m.name || '?'));
+  const t = document.createElement('span'); t.textContent = String(m.text || '');
+  d.append(w, t);
+  if (m.id === app.myId) d.dataset.mine = '1';
+  chatAdd(d);
+}
+function chatSys(text) {
+  const d = document.createElement('div'); d.className = 'ln sys'; d.textContent = text;
+  chatAdd(d);
+}
+function chatReset(list, lobby) {
+  const log = $('l-chat-log'); log.innerHTML = '';
+  if (!list.length) { const e = document.createElement('div'); e.className = 'empty'; e.textContent = '여기서 방 사람들과 대화할 수 있습니다.'; log.appendChild(e); }
+  for (const m of list) chatLine(m);
+  app.chatSeen = new Set((lobby?.players || []).map(p => p.id));
+}
+/** 들어옴·나감 알림 (대기실 목록이 바뀔 때 비교) */
+function chatPresence(prev, next) {
+  if (!prev || !next || !app.chatSeen) return;
+  const was = new Map(prev.players.map(p => [p.id, p])), now = new Map(next.players.map(p => [p.id, p]));
+  for (const [id, p] of now) if (!was.has(id) && id !== app.myId) chatSys(`${p.name}님이 들어왔습니다`);
+  for (const [id, p] of was) if (!now.has(id) && id !== app.myId) chatSys(`${p.name}님이 나갔습니다`);
+}
+$('l-chat-form').addEventListener('submit', e => {
+  e.preventDefault();
+  const inp = $('l-chat-in'), text = inp.value.replace(/\s+/g, ' ').trim();
+  if (!text || !app.net) return;
+  if (app.net.send({ t: 'chat', text: text.slice(0, 120) })) inp.value = '';
+  else toast('서버와 연결되지 않아 보내지 못했습니다');
+});
+
 // ── 멀티 ──
 function wsUrl() {
   if (Q.get('ws')) return Q.get('ws');
@@ -616,6 +732,7 @@ async function joinRoom(code, name) {
   app.solo = false;
   store.sset('room', code);
   const net = new NetClient(url, code, name, token(), app.car, app.assist);
+  net.paint = app.paint;
   app.net = net;
   const H = {
     status(txt, ok) {
@@ -629,6 +746,7 @@ async function joinRoom(code, name) {
     welcome(msg) {
       app.myId = msg.you;
       app.lobby = msg.lobby;
+      chatReset(msg.chat || [], msg.lobby);
       $('m-msg').textContent = '';
       // 같은 레이스 도중 잠깐 끊겼다 붙은 경우: 화면을 다시 만들지 않고 입력 기록만 맞춘다
       const g = app.game;
@@ -650,6 +768,7 @@ async function joinRoom(code, name) {
       if (msg.race) enterRace(msg.race, msg.log || []);
     },
     lobby(l) {
+      chatPresence(app.lobby, l);
       app.lobby = l;
       if (l.phase !== 'race') app.inRace = false;
       if (!app.game) updateLobby();
@@ -671,6 +790,7 @@ async function joinRoom(code, name) {
       }
     },
     start(race) { enterRace(race, []); },
+    chat(m) { chatLine(m); },
     input(p, f, v, q) {
       const g = app.game;
       // 트랙을 불러오는 동안 온 입력도 버리면 안 된다(버리면 이 화면만 계산이 어긋난다)
@@ -679,6 +799,7 @@ async function joinRoom(code, name) {
       else g.session.addConfirmed(p, f, v);
     },
     error(code2, text) {
+      if (code2 === 'chat') { toast(text, 2500); return; }
       $('m-msg').textContent = text; $('m-msg').className = 'msg err';
       if (code2 === 'full' || code2 === 'version' || code2 === 'badroom' || code2 === 'replaced') {
         app.launchId = (app.launchId || 0) + 1;
@@ -724,7 +845,7 @@ function enterRace(race, log) {
   const players = race.cfg.players;
   const localSlot = players.findIndex(p => p.id === app.myId);
   if (app.game) { app.game.stop(); app.game = null; }
-  const cfg = { track: race.cfg.track, laps: race.cfg.laps, players: players.map(p => ({ car: p.car, name: p.name, abs: p.abs, tcs: p.tcs })) };
+  const cfg = { track: race.cfg.track, laps: race.cfg.laps, players: players.map((p, k) => ({ car: p.car, name: p.name, paint: Number.isInteger(p.paint) ? p.paint : k, abs: p.abs, tcs: p.tcs })) };
   launch(cfg, localSlot, app.net, race.startAt, players.map(p => p.name), log);
   if (localSlot < 0) toast('레이스 진행 중 — 관전합니다', 3000);
 }

@@ -127,7 +127,7 @@ export class Hud {
       const c = sim.cars[k], r = this.rows[i];
       const cls = 'row' + (k === me.slot ? ' me' : '') + (c.st.dc ? ' dc' : '');
       if (r.cls !== cls) { r.d.className = cls; r.cls = cls; }
-      const col = '#' + PAINT[k % PAINT.length].toString(16).padStart(6, '0');
+      const col = '#' + PAINT[(sim.cfg.players[k]?.paint ?? k) % PAINT.length].toString(16).padStart(6, '0');
       if (r.col !== col) { r.dot.style.background = col; r.col = col; }
       setText(r.n, `${i + 1}. ${names[k] || c.name || '?'}`);
       let gap = '';
@@ -172,7 +172,7 @@ export class Hud {
       const c = sim.cars[k];
       const [x, y] = this.mp(c.st.px, c.st.pz);
       g.beginPath(); g.arc(x, y, k === me.slot ? 6 : 5, 0, Math.PI * 2);
-      g.fillStyle = '#' + PAINT[k % PAINT.length].toString(16).padStart(6, '0');
+      g.fillStyle = '#' + PAINT[(sim.cfg.players[k]?.paint ?? k) % PAINT.length].toString(16).padStart(6, '0');
       g.fill(); g.lineWidth = 2; g.strokeStyle = k === me.slot ? '#fff' : '#000'; g.stroke();
     }
     // 이름표 (다른 차 위)

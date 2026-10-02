@@ -27,7 +27,7 @@ class Sock {
 function makeCtx(storage, socks) {
   return { storage, getWebSockets: () => socks.filter(s => s.closed === null), setWebSocketAutoResponse() {}, acceptWebSocket() {} };
 }
-const hi = (room, s, name, tok) => room.webSocketMessage(s, JSON.stringify({ t: 'hi', v: 4, ver: 'x', name, tok, car: 'baram', assist: true }));
+const hi = (room, s, name, tok, extra = {}) => room.webSocketMessage(s, JSON.stringify({ t: 'hi', v: 5, ver: 'x', name, tok, car: 'baram', assist: true, ...extra }));
 
 // 1) 방장이 떠난 뒤 잠들었다 깨어나도 방장이 옛 사람으로 돌아가지 않는다
 {
@@ -240,6 +240,62 @@ const hi = (room, s, name, tok) => room.webSocketMessage(s, JSON.stringify({ t: 
   now += 75000; room.tick();
   ok(room.phase === 'lobby' && !room.settings.records.circuit, `90초 뒤 종료, 혼자 보고한 기록은 안 남김 (${JSON.stringify(room.settings.records.circuit)})`);
   clearTimeout(room._saveT);
+}
+
+// 12) 차 색 고르기 (2026-10-02 14회차): 안 고른 사람은 서로 다른 색, 고른 색은 그대로, 잘못된 값은 무시, 레이스 설정에 실림
+{
+  console.log('[차 색]');
+  const st = new Storage(), socks = [];
+  const room = new Room(makeCtx(st, socks), {});
+  const a = new Sock('a'), b = new Sock('b'), c = new Sock('c'); socks.push(a, b, c);
+  await hi(room, a, 'A', 'ta'); await hi(room, b, 'B', 'tb'); await hi(room, c, 'C', 'tc', { paint: 13 });
+  let ps = c.last('lobby').lobby.players;
+  ok(ps[0].paint === 0 && ps[1].paint === 1 && ps[2].paint === 13, `안 고른 사람 0·1, 고른 사람 13 (${ps.map(p => p.paint)})`);
+  for (const bad of [20, -1, 1.5, '3', null]) await room.webSocketMessage(a, JSON.stringify({ t: 'paint', paint: bad }));
+  ok(room.players.get('p1').paint === 0, '잘못된 색 번호(20, -1, 1.5, "3", null)는 무시');
+  await room.webSocketMessage(a, JSON.stringify({ t: 'paint', paint: 19 }));
+  ps = b.last('lobby').lobby.players;
+  ok(ps[0].paint === 19, `색 바꾸기가 모두에게 보인다 (${ps[0].paint})`);
+  // 잠들었다 깨어나도 색 유지
+  const room2 = new Room(makeCtx(st, socks), {});
+  ok(room2.players.get('p1').paint === 19, '잠들었다 깨어나도 색 유지');
+  await room.webSocketMessage(b, JSON.stringify({ t: 'ready', on: true }));
+  await room.webSocketMessage(c, JSON.stringify({ t: 'ready', on: true }));
+  await room.webSocketMessage(a, JSON.stringify({ t: 'start' }));
+  clearInterval(room.tickTimer);
+  ok(JSON.stringify(room.race.cfg.players.map(p => p.paint)) === '[19,1,13]', `레이스 설정에 색 (${room.race.cfg.players.map(p => p.paint)})`);
+}
+
+// 13) 대기실 대화: 모두에게 전달, 제어문자 제거·120자, 너무 빠르면 보낸 사람에게만 알림, 새로 온 사람은 최근 대화를 받는다
+{
+  console.log('[대기실 대화]');
+  const st = new Storage(), socks = [];
+  const room = new Room(makeCtx(st, socks), {});
+  const a = new Sock('a'), b = new Sock('b'); socks.push(a, b);
+  await hi(room, a, 'A', 'ta'); await hi(room, b, 'B', 'tb');
+  await room.webSocketMessage(a, JSON.stringify({ t: 'chat', text: '  안녕\u0000\u202e하세요 <b>굵게</b>  ' }));
+  const got = b.last('chat');
+  ok(got && got.m.text === '안녕 하세요 <b>굵게</b>' && got.m.name === 'A' && got.m.id === 'p1', `받은 글 = ${JSON.stringify(got?.m.text)} (태그는 글자 그대로 — 화면은 글자로만 그림)`);
+  now += 100;
+  b.out.length = 0; a.out.length = 0;
+  await room.webSocketMessage(a, JSON.stringify({ t: 'chat', text: '연타' }));
+  ok(!b.last('chat') && a.last('err')?.code === 'chat', '0.7초 안에 또 보내면 전달 안 되고 보낸 사람에게만 알림');
+  now += 800;
+  await room.webSocketMessage(a, JSON.stringify({ t: 'chat', text: 'x'.repeat(500) }));
+  ok(b.last('chat')?.m.text.length === 120, `긴 글은 120자로 (${b.last('chat')?.m.text.length})`);
+  for (let i = 0; i < 10; i++) { now += 800; await room.webSocketMessage(b, JSON.stringify({ t: 'chat', text: '줄' + i })); }
+  const sent = a.out.filter(m => m.t === 'chat' && m.m.id === 'p2').length;
+  ok(sent === 6 || sent === 7, `10초에 6줄 제한 (0.8초 간격 10번 → ${sent}줄 전달)`);
+  for (let i = 0; i < 30; i++) { now += 2000; await room.webSocketMessage(a, JSON.stringify({ t: 'chat', text: '기록' + i })); }
+  const c = new Sock('c'); socks.push(c);
+  await hi(room, c, 'C', 'tc');
+  const w = c.last('welcome');
+  ok(w.chat.length === 20 && w.chat[19].text === '기록29', `새로 온 사람은 최근 20줄을 받는다 (${w.chat.length}줄, 마지막 ${w.chat[19]?.text})`);
+  await room.webSocketMessage(a, JSON.stringify({ t: 'chat', text: 123 }));
+  await room.webSocketMessage(a, JSON.stringify({ t: 'chat', text: '   ' }));
+  ok(room.chat.length === 20 && room.chat[19].text === '기록29', '글자가 아니거나 빈 글은 무시');
+  const raw = JSON.stringify(await st.get('players') || []) + JSON.stringify(await st.get('settings') || {});
+  ok(!raw.includes('기록'), '대화는 저장소에 남기지 않는다');
 }
 
 Date.now = realNow;

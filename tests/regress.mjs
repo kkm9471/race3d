@@ -153,6 +153,14 @@ for (const track of ['circuit', 'mountain']) {
   ok(pairs === 0, `빌딩 ${bs.length}채 중 겹치는 쌍 ${pairs}`);
 }
 
+// 6-1) 테마 맵(14회차)이 하나도 빠지지 않고 불러와졌다 (맵 파일이 깨지면 그 맵만 조용히 빠지는 구조라서)
+{
+  console.log('[테마 맵 불러오기]');
+  const { MAP_LOAD_FAIL, TRACK_DEFS: TD } = await import('../web/src/sim/tracks.js');
+  const { MAP_IDS } = await import('../web/src/sim/maps/index.js');
+  ok(MAP_LOAD_FAIL.length === 0 && MAP_IDS.every(id => TD.some(d => d.id === id && d.theme === id)), `테마 맵 ${MAP_IDS.length}개 모두 불러옴 (실패: ${MAP_LOAD_FAIL.join(',') || '없음'})`);
+}
+
 // 7) 봇이 혼자 달릴 때 세게 벽에 박거나 되돌리기(스핀·역주행)가 없다
 //    (휘는 제동 구간 마찰원, 내리막 제동, 코너 탈출 가속, 카운터스티어 중 ESC — 2026-10-01)
 {

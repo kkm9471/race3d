@@ -200,7 +200,9 @@ export function buildTrack(def) {
  *   { t: 'ramp', seg, at, len, h }   — at 지점에서 끝나는 점프대(오르막 len m, 높이 h m, 뒷면은 12m 내리막 — 빠르면 날아오른다)
  *   { t: 'pad', seg, at, d, w, len } — 가속 발판(가로 위치 d, 폭 w, 길이 len)
  *   { t: 'ice', seg, from, to }      — 빙판(미끄럽다)
- * 결과는 샘플마다의 배열: div·divW(분리대 중심·반폭), ramp(높이), padC·padW, roadSurf
+ *   { t: 'tunnel', seg, from, to }   — 터널(그림만 — 주행 계산에는 영향 없음. 안에 점프대를 두지 말 것: 지붕을 뚫고 난다)
+ * 결과는 샘플마다의 배열: div·divW(분리대 중심·반폭), ramp(높이), padC·padW, roadSurf, tunnel
+ * T.segAt(seg, frac) = 설계도 구간 위치 → 샘플 번호 (테마 소품을 구간 기준으로 놓을 때)
  */
 function applyFeatures(T, def, segs, nFine, shift) {
   const n = T.n;
@@ -208,9 +210,9 @@ function applyFeatures(T, def, segs, nFine, shift) {
   T.ramp = new Float64Array(n);
   T.padC = new Float64Array(n); T.padW = new Float64Array(n);
   T.roadSurf = new Uint8Array(n);
+  T.tunnel = new Uint8Array(n);
   T.splits = [];
   const feats = def.features || [];
-  if (!feats.length) return;
   // 구간마다 시작 위치(미세 샘플 번호)
   const starts = [];
   let acc = 0;
@@ -224,6 +226,7 @@ function applyFeatures(T, def, segs, nFine, shift) {
     const j = starts[seg] + (starts[seg + 1] - starts[seg]) * frac;
     return ((Math.round((j - shift) / STEP) % n) + n) % n;
   };
+  T.segAt = (seg, frac = 0) => idx(Math.max(0, Math.min(segs.length - 1, seg)), frac);
   const span = (a, b, fn) => { let k = 0; for (let i = a; k < n; i = (i + 1) % n, k++) { fn(i, k); if (i === b) break; } };
   for (const f of feats) {
     if (f.t === 'split') {
@@ -255,6 +258,8 @@ function applyFeatures(T, def, segs, nFine, shift) {
       for (let k = -m; k <= m; k++) { const i = (c + k + n) % n; T.padC[i] = f.d ?? 0; T.padW[i] = (f.w ?? 4) / 2; }
     } else if (f.t === 'ice') {
       span(idx(f.seg, f.from), idx(f.seg, f.to), i => { T.roadSurf[i] = SURF.ICE; });
+    } else if (f.t === 'tunnel') {
+      span(idx(f.seg, f.from ?? 0), idx(f.seg, f.to ?? 1), i => { T.tunnel[i] = 1; });
     }
   }
 }

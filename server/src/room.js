@@ -14,7 +14,7 @@
 //    연결 유지 신호 "ka" 는 자동응답이라 서버를 깨우지 않는다.
 //  · 연결당 초당 메시지 수 제한, 메시지 크기 제한, 방 인원 4명.
 
-const PROTOCOL = 4;              // 4: 카트식(부스터 키 비트 22) — 2026-10-02
+const PROTOCOL = 5;              // 4: 카트식(부스터 키 비트 22) — 2026-10-02 / 5: 차 색 고르기·대기실 대화 — 2026-10-02 14회차
 const MAX_PLAYERS = 4;
 const FRAME_MS = 1000 / 60;
 const LATE = 30, EARLY = 40;         // 0.5초까지 늦은 입력은 원래 시점 그대로 인정 (멀리서 들어온 사람도 자기 화면대로 달리게)
@@ -23,8 +23,13 @@ const MAX_MSG = 8192;
 const RATE = 60, BURST = 150;
 const LOBBY_GRACE_MS = 45000;          // 대기실에서 끊긴 사람 자리 유지 (새로고침 대비)
 const RACE_MAX_MS = 25 * 60 * 1000;
-const TRACKS = ['circuit', 'mountain', 'city', 'beach', 'canyon', 'glacier', 'harbor', 'express'];   // web/src/sim/tracks.js 와 같아야 한다 (tests/room_unit.mjs 가 대조)
-const CARS = ['kongal', 'masil', 'beongae', 'deundeun', 'jimkkun', 'baram', 'cheondung', 'yuseong', 'heukmeonji', 'chueok'];
+const TRACKS = ['circuit', 'mountain', 'city', 'beach', 'canyon', 'glacier', 'harbor', 'express',
+  'village', 'forest', 'desert', 'fairy', 'nymph', 'pirate', 'china', 'ice', 'cemetery', 'factory', 'mansion', 'moonhill', 'golden', 'mine', 'space'];   // web/src/sim/tracks.js 와 같아야 한다 (tests/room_unit.mjs 가 대조)
+const CARS = ['kongal', 'masil', 'beongae', 'deundeun', 'jimkkun', 'baram', 'cheondung', 'yuseong', 'heukmeonji', 'chueok',
+  'seongchae', 'changkkeut', 'gaeguri', 'dungdung', 'hwasal', 'moseori', 'bitjul', 'kkoma'];   // 14회차 미래형·차급 8종
+const NPAINT = 20;                     // 차 색 20가지 (web/src/render/carmesh.js PAINT 와 같은 개수)
+// 대화: 한 줄 120자, 0.7초에 1줄·10초에 6줄까지, 최근 20줄만 메모리에 (저장소에는 안 남김)
+const CHAT_MAX = 120, CHAT_GAP_MS = 700, CHAT_WIN_MS = 10000, CHAT_WIN_N = 6, CHAT_KEEP = 20;
 // 입력 정수 (web/src/sim/input.js 와 같은 규칙)
 const NEUTRAL = 128 | (1 << 20);
 const DC_INPUT = NEUTRAL | (1 << 21);
@@ -34,7 +39,14 @@ function cleanName(s) {
   const t = s.replace(/[\u0000-\u001f\u007f<>&"'\\]/g, '').trim().slice(0, 12);
   return t || '손님';
 }
+/** 대화 글: 제어문자·글자 방향 바꾸기 문자 제거, 공백 정리, 120자 (화면은 글자로만 그린다 — HTML 로 해석하지 않음) */
+function cleanChat(s) {
+  if (typeof s !== 'string') return '';
+  const t = s.replace(/[\u0000-\u001f\u007f\u200b-\u200f\u202a-\u202e\u2060-\u2069\ufeff]/g, ' ').replace(/\s+/g, ' ').trim();
+  return Array.from(t).slice(0, CHAT_MAX).join('');
+}
 const isInt = v => Number.isInteger(v);
+const okPaint = v => isInt(v) && v >= 0 && v < NPAINT;
 const att = ws => { try { return ws.deserializeAttachment() || {}; } catch { return {}; } };
 
 export default {
@@ -64,6 +76,7 @@ export class Room {
     // 소켓 식별은 연결마다 붙는 첨부정보(attachment)의 고유번호 c 로 한다.
     // 실제 Cloudflare 에서는 같은 연결이라도 메시지마다 소켓 객체가 같다는 보장이 없다(로컬 모의 서버와 다름 — 실측).
     this.race = null;                  // { startAt, cfg, log, last, hashes, slotOf, ended }
+    this.chat = [];                    // 최근 대화 (잠들면 사라진다 — 일부러 저장하지 않음)
     this.phase = 'lobby';
     this.tickTimer = null;
     this.rate = new Map();
@@ -95,7 +108,7 @@ export class Room {
 
   async save() {
     await this.ctx.storage.put('settings', this.settings);
-    await this.ctx.storage.put('players', [...this.players.values()].map(p => ({ id: p.id, name: p.name, car: p.car, ready: false, assist: p.assist, tok: p.tok, order: p.order, ver: p.ver, leftAt: p.conn ? 0 : (p.leftAt || Date.now()) })));
+    await this.ctx.storage.put('players', [...this.players.values()].map(p => ({ id: p.id, name: p.name, car: p.car, paint: p.paint, ready: false, assist: p.assist, tok: p.tok, order: p.order, ver: p.ver, leftAt: p.conn ? 0 : (p.leftAt || Date.now()) })));
   }
 
   saveSoon() {
@@ -130,7 +143,7 @@ export class Room {
     const ps = [...this.players.values()].sort((a, b) => a.order - b.order);
     return {
       code: this.code, host: this.settings.host, phase: this.phase, track: this.settings.track, laps: this.settings.laps,
-      players: ps.map(p => ({ id: p.id, name: p.name, car: p.car, ready: !!p.ready, conn: !!p.conn, assist: !!p.assist })),
+      players: ps.map(p => ({ id: p.id, name: p.name, car: p.car, paint: okPaint(p.paint) ? p.paint : 0, ready: !!p.ready, conn: !!p.conn, assist: !!p.assist })),
       records: this.settings.records,
     };
   }
@@ -190,6 +203,10 @@ export class Room {
         if (CARS.includes(m.car)) { p.car = m.car; this.attach(ws, p); this.pushLobby(); }
         break;
       case 'assist': p.assist = !!m.on; this.attach(ws, p); this.pushLobby(); break;
+      case 'paint':
+        if (okPaint(m.paint) && m.paint !== p.paint) { p.paint = m.paint; this.attach(ws, p); this.pushLobby(); }
+        break;
+      case 'chat': this.chatMsg(ws, p, m.text); break;
       case 'ready':
         if (this.phase === 'lobby') { p.ready = !!m.on; this.attach(ws, p); this.pushLobby(); }
         break;
@@ -214,7 +231,31 @@ export class Room {
   }
 
   attach(ws, p) {
-    ws.serializeAttachment({ id: p.id, c: att(ws).c, p: { id: p.id, name: p.name, car: p.car, ready: p.ready, assist: p.assist, tok: p.tok, order: p.order, ver: p.ver } });
+    ws.serializeAttachment({ id: p.id, c: att(ws).c, p: { id: p.id, name: p.name, car: p.car, paint: p.paint, ready: p.ready, assist: p.assist, tok: p.tok, order: p.order, ver: p.ver } });
+  }
+
+  /** 대기실 대화 한 줄 — 너무 빠르면 보낸 사람에게만 알린다 */
+  chatMsg(ws, p, raw) {
+    const text = cleanChat(raw);
+    if (!text) return;
+    const now = Date.now();
+    p.chatT = (p.chatT || []).filter(t => now - t < CHAT_WIN_MS);
+    if (p.chatT.length >= CHAT_WIN_N || (p.chatT.length && now - p.chatT[p.chatT.length - 1] < CHAT_GAP_MS)) {
+      this.send(ws, { t: 'err', code: 'chat', text: '대화를 너무 빨리 보내고 있습니다. 잠깐 쉬었다 보내 주세요.' });
+      return;
+    }
+    p.chatT.push(now);
+    const msg = { id: p.id, name: p.name, paint: okPaint(p.paint) ? p.paint : 0, text, at: now };
+    this.chat.push(msg);
+    if (this.chat.length > CHAT_KEEP) this.chat.shift();
+    this.broadcast({ t: 'chat', m: msg });
+  }
+
+  /** 아직 아무도 안 쓰는 색 (앞 6색 = 예전 자리 색 순서부터) */
+  freePaint(exceptId) {
+    const used = new Set([...this.players.values()].filter(q => q.id !== exceptId).map(q => q.paint));
+    for (let i = 0; i < NPAINT; i++) if (!used.has(i)) return i;
+    return 0;
   }
 
   async hello(ws, m) {
@@ -248,13 +289,16 @@ export class Room {
       }
       const id = 'p' + (this.settings.nextId++);
       p = { id, name: cleanName(m.name), car: CARS.includes(m.car) ? m.car : 'baram', ready: false, assist: m.assist !== false, tok, conn: true, order: this.settings.nextId, ver: '' };
+      // 색: 스스로 고른 적이 있으면 그 색(겹쳐도 됨), 아니면 아무도 안 쓰는 색
+      p.paint = okPaint(m.paint) ? m.paint : this.freePaint(id);
       this.players.set(id, p);
       if (!this.settings.host || !this.players.get(this.settings.host)?.conn) this.settings.host = id;
     }
     p.ver = typeof m.ver === 'string' ? m.ver.slice(0, 30) : '';
     this.attach(ws, p);
     await this.trySave();
-    const welcome = { t: 'welcome', you: p.id, lobby: this.lobbyView(), now: Date.now() };
+    if (!okPaint(p.paint)) p.paint = this.freePaint(p.id);      // 예전 판에서 잠든 방에서 깨어난 사람
+    const welcome = { t: 'welcome', you: p.id, lobby: this.lobbyView(), now: Date.now(), chat: this.chat };
     if (this.race && !this.race.ended) {
       if (p.ver === this.race.ver) {
         welcome.race = { startAt: this.race.startAt, cfg: this.race.cfg };
@@ -282,7 +326,7 @@ export class Room {
     }
     const cfg = {
       track: this.settings.track, laps: this.settings.laps,
-      players: ps.map(p => ({ id: p.id, name: p.name, car: p.car, abs: !!p.assist, tcs: !!p.assist })),
+      players: ps.map(p => ({ id: p.id, name: p.name, car: p.car, paint: okPaint(p.paint) ? p.paint : 0, abs: !!p.assist, tcs: !!p.assist })),
     };
     this.race = {
       startAt: Date.now() + 2500, cfg, log: [], last: cfg.players.map(() => 0),

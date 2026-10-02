@@ -69,10 +69,78 @@ const BODY = {
       [.48, .25, .80, 1.32, 1, .70], [.60, .25, .80, 1.28, 1, .72], [.68, .26, .78, .88, .98, .84], [.86, .28, .70, .80, .94, .84], [1, .34, .54, .62, .84, .78]],
     rw: [.18, .34], ws: [.60, .68], side: [.36, .64], bpil: 0, extras: ['chrome', 'roundlamps', 'fenderbulge'],
   },
+  // ── 2026-10-02 추가 8종 ──
+  // 새 차만 쓰는 표시: open=덮개 없는 차(그릴·번호판·거울·기본 등 없음) · noArch=바퀴 아치 안 팜 · linear=직선 보간(각진 차)
+  //   flat=면을 각지게 칠함 · hover=바퀴 숨김 · mirror:false · head/tail=등 모양 · exh=[[x, 높이, 뒤끝에서 앞으로 m]] · noPipe · neon=빛 띠 색
+  seongchae: {   // 고급 대형 SUV: 각진 상자, 높은 지붕, 기둥을 전부 검게(유리) 해서 지붕이 떠 보이게
+    fo: 0.95, ro: 1.02, crown: 0.015, tireW: 0.26,
+    st: [[0, .50, 1.04, 1.16, .95, .90], [.025, .44, 1.12, 1.60, .99, .86], [.06, .42, 1.14, 1.76, 1, .84], [.40, .42, 1.14, 1.82, 1, .84],
+      [.62, .42, 1.14, 1.84, 1, .84], [.66, .42, 1.14, 1.82, 1, .86], [.76, .43, 1.14, 1.24, 1, .93], [.92, .45, 1.12, 1.18, .99, .93],
+      [.975, .47, 1.06, 1.12, .97, .92], [1, .52, .96, 1.00, .94, .90]],
+    rw: [.025, .06], ws: [.66, .76], side: [.06, .66], bpil: 0, head: 'slim', tail: 'vert', extras: ['chromeline', 'fendervent'],
+  },
+  changkkeut: {  // 쐐기형 미드십 슈퍼카: 낮고 뾰족한 V자 앞, 육각 흡기구
+    fo: 1.12, ro: 0.88, crown: 0.02, tireW: 0.30, caliper: 0xff7a10,
+    st: [[0, .30, .78, .90, .96, .92], [.05, .17, .84, .97, 1, .90], [.18, .15, .84, 1.00, 1, .72], [.32, .14, .80, 1.08, 1, .58],
+      [.44, .14, .76, 1.12, 1, .54], [.50, .14, .74, 1.10, .99, .56], [.60, .15, .68, .94, .98, .66], [.69, .15, .63, .74, .96, .82],
+      [.82, .16, .56, .64, .93, .86], [.93, .17, .48, .54, .85, .80], [1, .19, .34, .40, .62, .56]],
+    rw: [.18, .32], ws: [.50, .69], side: [.32, .58], bpil: 0, head: 'slit', tail: 'bar',
+    exh: [[0.13, 0.52, 0], [-0.13, 0.52, 0]], extras: ['hexintake', 'splitter'],
+  },
+  gaeguri: {     // 뒤엔진 스포츠 쿠페: 둥근 개구리눈 전조등, 지붕이 꼬리까지 흘러내리는 패스트백
+    fo: 1.02, ro: 1.03, crown: 0.03, tireW: 0.24,
+    st: [[0, .30, .78, .86, .92, .86], [.05, .24, .84, .94, .99, .84], [.16, .22, .86, 1.00, 1, .78], [.30, .21, .86, 1.18, 1, .66],
+      [.42, .21, .85, 1.28, .98, .64], [.52, .21, .84, 1.29, .96, .64], [.60, .22, .82, 1.06, .95, .72], [.66, .23, .80, .86, .95, .86],
+      [.80, .24, .76, .80, .95, .88], [.92, .26, .70, .74, .93, .86], [1, .30, .56, .60, .86, .80]],
+    rw: [.28, .42], ws: [.54, .66], side: [.40, .60], bpil: 0, tail: 'bar', extras: ['roundlamps', 'ducktail', 'engineslats', 'twinexhaust'],
+  },
+  dungdung: {    // 호버카: 바퀴 대신 빛나는 부양 패드, 통유리 물방울 지붕
+    fo: 0.98, ro: 0.92, crown: 0.04, tireW: 0.22, noArch: true, hover: true, mirror: false, neon: [0.35, 1.7, 3.2],
+    st: [[0, .52, .78, .86, .80, .74], [.06, .44, .84, .94, .94, .84], [.20, .40, .86, .98, 1, .82], [.34, .40, .86, 1.12, 1, .62],
+      [.48, .40, .85, 1.22, 1, .56], [.60, .40, .84, 1.16, .99, .58], [.70, .41, .80, .92, .97, .78], [.84, .42, .74, .80, .93, .84],
+      [.95, .44, .66, .70, .84, .78], [1, .48, .58, .62, .70, .64]],
+    rw: [.30, .58], ws: [.58, .70], side: [.32, .66], bpil: 0, head: 'bar', tail: 'bar',
+    exh: [[0.32, 0.64, 0.04], [-0.32, 0.64, 0.04]], noPipe: true, extras: ['hoverpads', 'twinfins', 'neonbelt'],
+  },
+  hwasal: {      // 오픈휠 포뮬러: 좁은 동체, 드러난 바퀴, 앞뒤 날개
+    fo: 0.95, ro: 0.75, crown: 0.02, tireW: 0.26, noArch: true, open: true, tail: 'center', tailY: 0.30,
+    st: [[0, .20, .40, .44, .16, .14], [.08, .12, .42, .50, .24, .18], [.20, .09, .44, .62, .30, .20], [.32, .08, .48, .78, .56, .20],
+      [.44, .08, .52, .94, .64, .17], [.50, .08, .54, .80, .58, .26], [.58, .09, .55, .64, .46, .30], [.66, .10, .54, .62, .34, .28],
+      [.76, .11, .46, .54, .24, .20], [.88, .12, .36, .42, .17, .14], [1, .12, .22, .26, .10, .08]],
+    ws: [.50, .64], bpil: 0, exh: [[0, 0.50, 0.04]], extras: ['fwing', 'rwing', 'arms', 'helmet', 'halo', 'flatfloor', 'fin'],
+  },
+  moseori: {     // 각진 사이버 쐐기: 평평한 판재, 직선 지붕, 빛 띠
+    fo: 0.95, ro: 0.95, crown: 0, tireW: 0.27, linear: true, flat: true, neon: [3.0, 0.35, 2.2],
+    st: [[0, .40, .90, 1.00, .96, .94], [.03, .34, .94, 1.06, 1, .96], [.58, .34, .94, 1.50, 1, .80], [.80, .34, .94, 1.00, 1, .94],
+      [.97, .36, .90, .92, .99, .94], [1, .42, .80, .84, .96, .92]],
+    rw: [.36, .56], ws: [.60, .78], side: [.40, .76], bpil: 0, head: 'bar', tail: 'bar',
+    exh: [[0.40, 0.56, 0], [-0.40, 0.56, 0]], noPipe: true, extras: ['neonbelt', 'cladding', 'aerowheel'],
+  },
+  bitjul: {      // 빛줄기 미래 쿠페: 매끈한 물방울 통유리 지붕, 차체·바퀴를 따라 빛나는 띠
+    fo: 0.98, ro: 0.92, crown: 0.04, tireW: 0.25, neon: [0.25, 2.2, 3.2],
+    st: [[0, .30, .70, .78, .90, .84], [.05, .20, .78, .86, .99, .86], [.16, .17, .80, .92, 1, .80], [.28, .16, .78, 1.04, 1, .60],
+      [.42, .16, .76, 1.16, 1, .52], [.52, .16, .74, 1.18, .99, .52], [.62, .16, .70, 1.04, .98, .58], [.72, .17, .66, .78, .96, .80],
+      [.86, .18, .60, .66, .93, .84], [.96, .19, .52, .56, .86, .80], [1, .22, .42, .46, .74, .70]],
+    rw: [.20, .52], ws: [.52, .72], side: [.30, .66], bpil: 0, head: 'bar', tail: 'bar',
+    exh: [[0.28, 0.40, 0], [-0.28, 0.40, 0]], noPipe: true, extras: ['neonbelt', 'neonsill', 'neonarch', 'neonrim', 'aerowheel'],
+  },
+  kkoma: {       // 카트라이더식 오픈 카트: 낮은 바닥판, 좌석·핸들·운전자, 드러난 엔진과 배기
+    fo: 0.55, ro: 0.45, crown: 0.02, tireW: 0.22, noArch: true, open: true, tail: 'center', tailY: 0.24,
+    st: [[0, .14, .24, .28, .30, .26], [.10, .10, .26, .30, .42, .36], [.30, .08, .27, .31, .46, .40], [.56, .08, .28, .32, .46, .40],
+      [.68, .09, .32, .40, .44, .34], [.80, .10, .36, .46, .46, .36], [.92, .11, .34, .42, .54, .42], [1, .14, .26, .30, .48, .38]],
+    bpil: 0, exh: [[0.16, 0.42, 0.02], [-0.16, 0.42, 0.02]], extras: ['kart'],
+  },
 };
 
-export const PAINT = [0xc8141e, 0x1f5fd6, 0xf0b418, 0x1c9a58, 0xe8e8ea, 0x7a2fc4];
-export const PAINT_NAME = ['빨강', '파랑', '노랑', '초록', '흰색', '보라'];
+// 차 색 20가지 (2026-10-02 14회차: 대기실에서 각자 고른다). 앞 6개 순서는 그대로(예전 자리 색 = 기본값)
+export const PAINT = [
+  0xc8141e, 0x1f5fd6, 0xf0b418, 0x1c9a58, 0xe8e8ea, 0x7a2fc4, 0xf06a10, 0xf25c9a, 0x3fb6f0, 0x8fd13a,
+  0x18191c, 0xa9b0b8, 0xc9a227, 0x1b2a6b, 0x14a3a0, 0x7a1430, 0x7fe0c4, 0xb39ae8, 0x7a4a26, 0x5c6066,
+];
+export const PAINT_NAME = [
+  '빨강', '파랑', '노랑', '초록', '흰색', '보라', '주황', '분홍', '하늘', '연두',
+  '검정', '은색', '금색', '남색', '청록', '와인', '민트', '라벤더', '갈색', '회색',
+];
 
 /** 단조 3차 보간 (넘침 없이 매끈하게) */
 function monoInterp(xs, ys) {
@@ -95,6 +163,18 @@ function monoInterp(xs, ys) {
   };
 }
 
+/** 직선 보간 (각진 차: 면이 평평하게) */
+function linInterp(xs, ys) {
+  const n = xs.length;
+  return x => {
+    if (x <= xs[0]) return ys[0];
+    if (x >= xs[n - 1]) return ys[n - 1];
+    let i = 0;
+    while (xs[i + 1] < x) i++;
+    return ys[i] + (ys[i + 1] - ys[i]) * (x - xs[i]) / (xs[i + 1] - xs[i]);
+  };
+}
+
 function inRange(z, r) { return r && z >= r[0] && z <= r[1]; }
 
 export function buildCar(spec, P, paintHex, quality = 1) {
@@ -105,7 +185,7 @@ export function buildCar(spec, P, paintHex, quality = 1) {
   const zFront = P.a + B.fo, zRear = -P.b - B.ro;
   const len = zFront - zRear;
   const cols = [0, 1, 2, 3, 4, 5].map(k => B.st.map(s => s[k]));
-  const f = [1, 2, 3, 4, 5].map(k => monoInterp(cols[0], cols[k]));
+  const f = [1, 2, 3, 4, 5].map(k => (B.linear ? linInterp : monoInterp)(cols[0], cols[k]));
   const [fYb, fBelt, fTop, fXb, fXt] = f;
   const R = spec.R, hubY = R;   // 땅 기준
   const axles = [P.a, -P.b];
@@ -127,7 +207,7 @@ export function buildCar(spec, P, paintHex, quality = 1) {
     const shrink = 0.55 + 0.45 * Math.sqrt(endK);
     // 바퀴 아치
     let sill = yb + 0.10, xFloor = xs * 0.82, archY = -1;
-    for (const az of axles) {
+    for (const az of B.noArch ? [] : axles) {
       const dz = z - az;
       if (Math.abs(dz) < archR) {
         const ay = hubY + Math.sqrt(archR * archR - dz * dz);
@@ -138,7 +218,7 @@ export function buildCar(spec, P, paintHex, quality = 1) {
     if (archY > sill) { well = Math.min(1, (archY - sill) / 0.12); sill = archY; xFloor = xFloor * (1 - well) + (spec.tF / 2 - B.tireW / 2 - 0.08) * well; }
     if (sill > belt - 0.08) sill = belt - 0.08;
     const crown = B.crown;
-    const bulge = B.extras.includes('fenderbulge') && archY > 0 ? 0.03 : 0.01;
+    const bulge = B.flat ? 0 : B.extras.includes('fenderbulge') && archY > 0 ? 0.03 : 0.01;
     const pts = [
       [0, yb], [xFloor, yb], [well > 0 ? xFloor : xs - 0.05, well > 0 ? sill : sill - 0.04], [xs, sill + 0.03],
       [xs + bulge, sill + (belt - sill) * 0.45], [xs, belt - 0.06], [xBelt, belt],
@@ -209,6 +289,7 @@ export function buildCar(spec, P, paintHex, quality = 1) {
   const tailM = new THREE.MeshStandardMaterial({ color: 0x5a0508, emissive: 0xff1810, emissiveIntensity: 0.35, roughness: 0.2 });
   // 그림자는 양면으로 계산한다 (기본값 "뒷면만"으로는 이 차체가 그림자를 안 드리웠다 — 실측)
   for (const m of [paint, glass, trim]) m.shadowSide = THREE.DoubleSide;
+  if (B.flat) for (const m of [paint, glass, trim]) m.flatShading = true;
   const body = new THREE.Mesh(geo, [paint, glass, trim]);
   body.castShadow = true; body.receiveShadow = true;
   const car = new THREE.Group();
@@ -221,7 +302,7 @@ export function buildCar(spec, P, paintHex, quality = 1) {
   };
   const hf = sect(1 - 0.04 / len), hr = sect(0.04 / len);
   const frontY = hf.belt - cg - 0.09, rearY = hr.belt - cg - 0.07;
-  const lampW = B.extras.includes('roundlamps') ? 0 : 1;
+  const lampW = B.extras.includes('roundlamps') || B.open || B.head ? 0 : 1;
   if (B.extras.includes('roundlamps')) {
     for (const sx of [1, -1]) {
       const l = new THREE.Mesh(new THREE.CircleGeometry(0.1, 20), headM);
@@ -242,8 +323,42 @@ export function buildCar(spec, P, paintHex, quality = 1) {
       car.add(l);
     }
   }
+  if (B.head === 'slim') {          // 가늘고 긴 전조등
+    for (const sx of [1, -1]) {
+      const l = new THREE.Mesh(new THREE.BoxGeometry(hw * 0.36, 0.05, 0.06), headM);
+      l.position.set(sx * hw * 0.56, frontY + 0.03, zFront - 0.035); l.rotation.y = sx * 0.12;
+      car.add(l);
+    }
+  } else if (B.head === 'slit') {   // 뾰족한 앞코 위에 비스듬한 빛 칼날
+    const s = sect(0.95);
+    for (const sx of [1, -1]) {
+      const l = new THREE.Mesh(new THREE.BoxGeometry(hw * 0.34, 0.025, 0.09), headM);
+      l.position.set(sx * s.half * 0.6, s.top - cg + 0.004, s.z); l.rotation.set(0.25, sx * 0.5, 0);
+      car.add(l);
+    }
+  } else if (B.head === 'bar') {    // 앞을 가로지르는 한 줄 빛
+    const l = new THREE.Mesh(new THREE.BoxGeometry(hf.half * 1.7, 0.035, 0.05), headM);
+    l.position.set(0, frontY + 0.04, zFront - 0.03);
+    car.add(l);
+  }
   const tails = [];
-  if (spec.id === 'baram' || spec.id === 'cheondung' || spec.id === 'yuseong') {
+  if (B.open) {
+    if (B.tail === 'center') {      // 가운데 작은 등 하나 (포뮬러 비 오는 날 등 · 카트)
+      const t = new THREE.Mesh(new THREE.BoxGeometry(0.12, 0.07, 0.04), tailM);
+      t.position.set(0, B.tailY - cg, zRear + 0.01);
+      car.add(t); tails.push(t);
+    }
+  } else if (B.tail === 'bar') {
+    const t = new THREE.Mesh(new THREE.BoxGeometry(hr.half * 1.7, 0.05, 0.06), tailM);
+    t.position.set(0, rearY, zRear + 0.035);
+    car.add(t); tails.push(t);
+  } else if (B.tail === 'vert') {   // 세로로 긴 뒷등
+    for (const sx of [1, -1]) {
+      const t = new THREE.Mesh(new THREE.BoxGeometry(0.07, 0.30, 0.05), tailM);
+      t.position.set(sx * hr.half * 0.86, rearY + 0.10, zRear + 0.035);
+      car.add(t); tails.push(t);
+    }
+  } else if (spec.id === 'baram' || spec.id === 'cheondung' || spec.id === 'yuseong') {
     const t = new THREE.Mesh(new THREE.BoxGeometry(hw * 1.4, 0.05, 0.06), tailM);
     t.position.set(0, rearY, zRear + 0.035);
     car.add(t); tails.push(t);
@@ -257,18 +372,19 @@ export function buildCar(spec, P, paintHex, quality = 1) {
     }
   }
   // 그릴 / 번호판 자리 (빈 판)
-  {
+  if (!B.open) {
     const gs = sect(1 - 0.05 / len);
     const gy = frontY - 0.13;
     const g = new THREE.Mesh(new THREE.BoxGeometry(hw * 0.7, 0.14, 0.05), trim);
     g.position.set(0, gy, zFront - 0.02);
+    g.visible = B.grille !== false;
     car.add(g);
     const plate = new THREE.Mesh(new THREE.BoxGeometry(0.46, 0.11, 0.02), new THREE.MeshStandardMaterial({ color: 0xeaeaea, roughness: 0.5 }));
     plate.position.set(0, fYb(0.02) - cg + 0.22, zRear + 0.01);
     car.add(plate);
   }
   // 사이드미러
-  {
+  if (!B.open && B.mirror !== false) {
     const mz = zRear + len * (B.ws[1] - 0.02);
     const my = fBelt(B.ws[1]) - cg + 0.08;
     for (const sx of [1, -1]) {

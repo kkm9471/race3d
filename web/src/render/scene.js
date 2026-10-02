@@ -162,13 +162,29 @@ export class Gfx {
     this.sun.color.setRGB(1, 0.93 - low * 0.18, 0.84 - low * 0.34);
     this.sun.intensity = 2.3 + (1 - low) * 0.9;
     this.renderer.toneMappingExposure = 0.72 + low * 0.12;
+    this.hemi.intensity = 0.22;
+    // 밤·우주 하늘 (def.night = { top, horizon, stars, moon, ambient, exposure, moonDisc }) — 2026-10-02 14회차 테마 맵
+    if (this.nightSky) { this.scene.remove(this.nightSky); this.nightSky.traverse(o => { o.geometry?.dispose(); o.material?.dispose(); }); this.nightSky = null; }
+    const nd = def.night || null;
+    this.sky.visible = !nd;
+    if (nd) {
+      this.nightSky = makeNightSky(nd, this.sunDir, 4500);
+      this.scene.add(this.nightSky);
+      this.sun.color.set(nd.moonColor ?? 0xc6d2ff);
+      // 밤이라도 길·차가 잘 보여야 한다(카트라이더 밤 맵처럼 밝은 밤) — 기본값은 화면으로 맞춤
+      this.sun.intensity = nd.moon ?? 2.4;
+      this.hemi.intensity = nd.ambient ?? 1.6;
+      this.renderer.toneMappingExposure = nd.exposure ?? 1.0;
+    }
     // 반사맵: 하늘만 있는 장면을 구워 쓴다
     const envScene = new THREE.Scene();
-    const sky2 = new Sky();
-    sky2.scale.setScalar(1000);
-    for (const k of ['turbidity', 'rayleigh', 'mieCoefficient', 'mieDirectionalG', 'sunPosition']) {
-      const v = this.sky.material.uniforms[k].value;
-      sky2.material.uniforms[k].value = v.clone ? v.clone() : v;
+    const sky2 = nd ? makeNightSky({ ...nd, stars: 0, moonDisc: false }, this.sunDir, 900) : new Sky();
+    if (!nd) {
+      sky2.scale.setScalar(1000);
+      for (const k of ['turbidity', 'rayleigh', 'mieCoefficient', 'mieDirectionalG', 'sunPosition']) {
+        const v = this.sky.material.uniforms[k].value;
+        sky2.material.uniforms[k].value = v.clone ? v.clone() : v;
+      }
     }
     envScene.add(sky2);
     // 아래쪽 반구는 땅색이 비치도록
@@ -179,11 +195,11 @@ export class Gfx {
     this.envRT = this.pmrem.fromScene(envScene, 0.02);
     this.scene.environment = this.envRT.texture;
     this.scene.environmentIntensity = 0.55;
-    sky2.geometry.dispose(); sky2.material.dispose(); ground.geometry.dispose(); ground.material.dispose();
+    sky2.traverse(o => { o.geometry?.dispose(); o.material?.dispose(); }); ground.geometry.dispose(); ground.material.dispose();
     // 안개: 지평선 근처 하늘색
-    const fogCol = new THREE.Color(def.fogColor ?? (low > 0.5 ? 0xc7b9a5 : 0xb9cadb));
+    const fogCol = new THREE.Color(def.fogColor ?? (nd ? nd.horizon ?? 0x1a2240 : low > 0.5 ? 0xc7b9a5 : 0xb9cadb));
     this.scene.fog = new THREE.FogExp2(fogCol, (def.fog ?? 0.0006) * this.q.fogMul);
-    this.hemi.color.set(low > 0.5 ? 0xffe0c0 : 0xcfe2ff);
+    this.hemi.color.set(nd ? nd.ambientColor ?? 0x8f9fd8 : low > 0.5 ? 0xffe0c0 : 0xcfe2ff);
   }
 
   /** 그림자 상자를 내 차 주변으로 (화소 격자에 맞춰 움직여 그림자가 떨리지 않게) */
@@ -206,6 +222,7 @@ export class Gfx {
 
   render() {
     this.sky.position.copy(this.camera.position);
+    if (this.nightSky) this.nightSky.position.copy(this.camera.position);
     if (this.composer) this.composer.render();
     else this.renderer.render(this.scene, this.camera);
   }
@@ -214,4 +231,42 @@ export class Gfx {
     const i = this.renderer.info;
     return { calls: i.render.calls, tris: i.render.triangles, geos: i.memory.geometries, texs: i.memory.textures };
   }
+}
+
+/**
+ * 밤·우주 하늘: 위(top)·지평선(horizon) 색 그라데이션 공 + 별 + 달 원판. 카메라를 따라다닌다(render 에서).
+ * nd = { top, horizon, stars: 개수(기본 1600), moonDisc: true, moonSize: 110 }
+ */
+function makeNightSky(nd, moonDir, R) {
+  const grp = new THREE.Group();
+  const g = new THREE.SphereGeometry(R, 48, 24);
+  const top = new THREE.Color(nd.top ?? 0x060a1c), hor = new THREE.Color(nd.horizon ?? 0x1a2240), c = new THREE.Color();
+  const pa = g.attributes.position, col = new Float32Array(pa.count * 3);
+  for (let i = 0; i < pa.count; i++) {
+    const h = Math.max(0, pa.getY(i) / R);
+    c.copy(hor).lerp(top, Math.pow(h, 0.5));
+    col[i * 3] = c.r; col[i * 3 + 1] = c.g; col[i * 3 + 2] = c.b;
+  }
+  g.setAttribute('color', new THREE.BufferAttribute(col, 3));
+  grp.add(new THREE.Mesh(g, new THREE.MeshBasicMaterial({ vertexColors: true, side: THREE.BackSide, fog: false, toneMapped: false, depthWrite: false })));
+  const n = nd.stars ?? 1600;
+  if (n > 0) {
+    const sp = new Float32Array(n * 3);
+    let seed = 99;
+    const r = () => { seed = (seed * 16807) % 2147483647; return seed / 2147483647; };
+    for (let i = 0; i < n; i++) {
+      const y = 0.06 + r() * 0.94, a = r() * Math.PI * 2, rr = Math.sqrt(1 - y * y);
+      sp[i * 3] = Math.cos(a) * rr * R * 0.95; sp[i * 3 + 1] = y * R * 0.95; sp[i * 3 + 2] = Math.sin(a) * rr * R * 0.95;
+    }
+    const sg = new THREE.BufferGeometry();
+    sg.setAttribute('position', new THREE.BufferAttribute(sp, 3));
+    grp.add(new THREE.Points(sg, new THREE.PointsMaterial({ color: 0xffffff, size: 1.7, sizeAttenuation: false, fog: false, toneMapped: false, transparent: true, opacity: 0.9, depthWrite: false })));
+  }
+  if (nd.moonDisc !== false) {
+    const m = new THREE.Mesh(new THREE.SphereGeometry(nd.moonSize ?? 110, 24, 12), new THREE.MeshBasicMaterial({ color: nd.moonDiscColor ?? 0xfff3d6, fog: false, toneMapped: false }));
+    m.position.copy(moonDir).multiplyScalar(R * 0.9);
+    grp.add(m);
+  }
+  grp.renderOrder = -1;
+  return grp;
 }

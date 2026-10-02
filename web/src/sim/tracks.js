@@ -387,4 +387,14 @@ TRACK_DEFS.push(
   },
 );
 
+// ── 테마 맵 (2026-10-02 14회차, 사용자 요청: 카트라이더 테마 분위기의 맵을 많이) ──
+// 한 파일에 맵 하나(maps/<id>.js, export default 설계도). 파일 하나가 깨져도 그 맵만 빠지고 나머지는 산다.
+// wip: true 인 맵은 다듬는 중 — 브라우저에선 주소에 ?dev=1 을 붙여야 보인다(Node 시험에선 늘 보임).
+import { MAP_IDS } from './maps/index.js';
+const loaded = await Promise.all(MAP_IDS.map(id => import(`./maps/${id}.js`).then(m => m.default || null, e => { console.warn(`맵 ${id} 불러오기 실패:`, e?.message || e); return null; })));
+const DEV = typeof location === 'undefined' || /[?&]dev=1/.test(location.search);
+for (const d of loaded) if (d && (!d.wip || DEV)) TRACK_DEFS.push(d);
+/** 불러오지 못한 맵 id (시험이 0개인지 확인한다 — 조용히 빠지면 안 되므로) */
+export const MAP_LOAD_FAIL = MAP_IDS.filter((id, k) => !loaded[k]);
+
 export const TRACK_BY_ID = Object.fromEntries(TRACK_DEFS.map(t => [t.id, t]));
