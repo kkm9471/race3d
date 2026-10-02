@@ -1,0 +1,36 @@
+{
+ "tex": {
+  "asphalt_track": {
+   "name": "Asphalt Track",
+   "w": 2,
+   "h": 2,
+   "url": "https://polyhaven.com/a/asphalt_track"
+  },
+  "sparse_grass": {
+   "name": "Sparse Grass",
+   "w": 2,
+   "h": 2,
+   "url": "https://polyhaven.com/a/sparse_grass"
+  },
+  "gravel_floor": {
+   "name": "Gravel Floor",
+   "w": 2.25,
+   "h": 2.25,
+   "url": "https://polyhaven.com/a/gravel_floor"
+  },
+  "concrete_wall_006": {
+   "name": "Concrete Wall 006",
+   "w": 2,
+   "h": 2,
+   "url": "https://polyhaven.com/a/concrete_wall_006"
+  }
+ },
+ "sky": {
+  "syferfontein_18d_clear_puresky": {
+   "name": "Syferfontein 18d Clear (Pure Sky)",
+   "time": "afternoon",
+   "weather": "clear",
+   "url": "https://polyhaven.com/a/syferfontein_18d_clear_puresky"
+  }
+ }
+}
