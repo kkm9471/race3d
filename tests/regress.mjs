@@ -70,8 +70,10 @@ console.log('[카트 손맛]');
   const inR = (v, k) => v >= TARGET[k][0] && v <= TARGET[k][1];
   for (const spec of CARS) {
     const r = measure(spec);
-    ok(inR(r.coast1, 'coast1') && inR(r.straighten, 'straighten') && inR(r.driftBeta, 'driftBeta') && inR(r.gripBeta, 'gripBeta') && inR(r.boostTop, 'boostTop') && r.instOk && !r.instHold,
-      `${spec.name}: 액셀 떼고 1초 -${r.coast1.toFixed(0)}km/h · 드리프트 ${r.driftBeta.toFixed(0)}° · 뗀 뒤 펴짐 ${r.straighten.toFixed(2)}초 · 부스터 ${r.boostTop.toFixed(0)}km/h · 순간부스터 새로누름 ${r.instOk}/계속누름 ${r.instHold}`);
+    // 14회차: 사용자 요구(오래 누르면 U자·드리프트 감속·카운터 빠르게)와 동우 피드백(탈출 속도)도 단언 (전엔 보고서에만 찍혀 퇴행을 못 잡았다 — 독립검증)
+    ok(inR(r.coast1, 'coast1') && inR(r.straighten, 'straighten') && inR(r.driftBeta, 'driftBeta') && inR(r.gripBeta, 'gripBeta') && inR(r.boostTop, 'boostTop') && r.instOk && !r.instHold
+      && inR(r.uturn, 'uturn') && inR(r.dLoss, 'dLoss') && inR(r.counter, 'counter') && inR(r.exitD25, 'exitD25') && inR(r.exitMax, 'exitMax'),
+      `${spec.name}: 액셀 떼고 1초 -${r.coast1.toFixed(0)}km/h · 드리프트 ${r.driftBeta.toFixed(0)}° · 뗀 뒤 펴짐 ${r.straighten.toFixed(2)}초 · U자 ${r.uturn.toFixed(2)}초 · 드리프트 2초 -${r.dLoss.toFixed(0)}km/h · 카운터 ${r.counter.toFixed(2)}초 · 탈출 0.25초 ${r.exitD25.toFixed(1)}/최대 +${r.exitMax.toFixed(1)}km/h · 부스터 ${r.boostTop.toFixed(0)}km/h · 순간부스터 새로누름 ${r.instOk}/계속누름 ${r.instHold}`);
   }
 }
 // 2) 드리프트를 끝까지 붙잡고 있어도 스핀하지 않는다 (미끄럼각이 목표각으로 모인다)

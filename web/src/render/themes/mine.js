@@ -118,11 +118,14 @@ export function build(ctx) {
         pos[k * 6 + e * 3] = p.x + T.lx[i] * d; pos[k * 6 + e * 3 + 1] = p.y + lift; pos[k * 6 + e * 3 + 2] = p.z + T.lz[i] * d;
         uv[k * 4 + e * 2] = e; uv[k * 4 + e * 2 + 1] = s / uvLen;
       }
-      if (k) { const a = (k - 1) * 2; idx.push(a, a + 1, a + 2, a + 1, a + 3, a + 2, a, a + 2, a + 1, a + 1, a + 2, a + 3); }
+      // 앞면만 (재질이 양면이다). 같은 점에 뒤집힌 삼각형까지 만들면 법선 합이 0 이 되어 셰이더에서 NaN →
+      // 블룸이 화면 전체를 비웠다(보통·높음 화질에서 레일이 보일 때마다 — 14회차 독립검증)
+      if (k) { const a = (k - 1) * 2; idx.push(a, a + 1, a + 2, a + 1, a + 3, a + 2); }
     }
     const g = new THREE.BufferGeometry();
     g.setAttribute('position', new THREE.BufferAttribute(pos, 3)); g.setAttribute('uv', new THREE.BufferAttribute(uv, 2)); g.setIndex(idx);
-    g.computeVertexNormals();
+    const nrm = new Float32Array(n * 6); for (let q = 1; q < n * 6; q += 3) nrm[q] = 1;     // 평평한 띠 → 법선은 위쪽
+    g.setAttribute('normal', new THREE.BufferAttribute(nrm, 3));
     return g;
   };
   const addMesh = (geo, mat, shadow = false) => { const m = new THREE.Mesh(geo, mat); m.castShadow = shadow && ctx.q.detail >= 1; m.receiveShadow = true; ctx.group.add(m); return m; };

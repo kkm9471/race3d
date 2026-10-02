@@ -42,6 +42,8 @@ function show(id) {
   // 차 미리보기는 대기실이 보일 때만 그린다
   if (preview) { if (id === 'lobby') preview.start(); else preview.stop(); }
   if (tpv) { if (id === 'lobby') tpv.start(); else tpv.stop(); }
+  // 레이스·결과 화면에 있는 동안 온 대화도 돌아오면 맨 아래(새 글)부터 보이게
+  if (id === 'lobby') { const lg = document.getElementById('l-chat-log'); if (lg) lg.scrollTop = lg.scrollHeight; }
   // 대화 입력칸에 글자 입력 중이던 채로 레이스가 시작돼도 키가 입력칸으로 새지 않게
   if (id !== 'lobby' && document.activeElement && document.activeElement.id === 'l-chat-in') document.activeElement.blur();
 }
@@ -64,7 +66,8 @@ function updatePreview() {
     if (!$('lobby').classList.contains('hidden')) preview.start();
   } catch (e) { console.warn('미리보기를 못 띄웠습니다', e); }
 }
-function cleanName(s) { return String(s || '').replace(/[\u0000-\u001f\u007f<>&"'\\]/g, '').trim().slice(0, 12); }
+// 서버 room.js 의 cleanName 과 같은 규칙 (보이지 않는 글자·글자 방향 조작·채움 문자 제거)
+function cleanName(s) { return String(s || '').replace(/[\u0000-\u001f\u007f\u00ad\u034f\u061c\u115f\u1160\u17b4\u17b5\u180e\u200b-\u200f\u202a-\u202e\u2060-\u206f\u3164\ufe00-\ufe0f\ufeff\uffa0]/g, '').replace(/[<>&"'\\]/g, '').replace(/(\p{M}{2})\p{M}+/gu, '$1').trim().slice(0, 12); }
 function randCode() { const a = 'ABCDEFGHJKLMNPQRSTUVWXYZ23456789'; let s = ''; for (let i = 0; i < 4; i++) s += a[Math.floor(Math.random() * a.length)]; return s; }
 function token() {
   let t = store.sget('token', '');
@@ -807,7 +810,7 @@ async function joinRoom(code, name) {
     error(code2, text) {
       if (code2 === 'chat') { toast(text, 2500); return; }
       $('m-msg').textContent = text; $('m-msg').className = 'msg err';
-      if (code2 === 'full' || code2 === 'version' || code2 === 'badroom' || code2 === 'replaced') {
+      if (code2 === 'full' || code2 === 'busy' || code2 === 'version' || code2 === 'badroom' || code2 === 'replaced') {
         app.launchId = (app.launchId || 0) + 1;
         if (app.game) { app.game.stop(); app.game = null; }
         app.inRace = false;

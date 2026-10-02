@@ -298,6 +298,34 @@ const hi = (room, s, name, tok, extra = {}) => room.webSocketMessage(s, JSON.str
   ok(!raw.includes('기록'), '대화는 저장소에 남기지 않는다');
 }
 
+// 14) (14회차 독립검증) 접속·나가기를 반복해 사람마다의 대화 한도를 피하는 도배 / 보이지 않는 글자 이름
+{
+  console.log('[대화 도배·이름 보안]');
+  const st = new Storage(), socks = [];
+  const room = new Room(makeCtx(st, socks), {});
+  const v = new Sock('v'); socks.push(v);
+  await hi(room, v, '피해자', 'tv');
+  const p0 = st.puts;
+  for (let k = 0; k < 100; k++) {
+    const s = new Sock('a' + k); socks.push(s);
+    await hi(room, s, '스팸', 'a' + k);
+    await room.webSocketMessage(s, JSON.stringify({ t: 'chat', text: '광고' + k }));
+    await room.webSocketMessage(s, JSON.stringify({ t: 'bye' })); s.closed = 1000;
+  }
+  const got = v.out.filter(m => m.t === 'chat').length;
+  ok(got <= 20 && st.puts - p0 < 60, `새 접속·대화·나가기 100번(0초 안) → 피해자가 받은 줄 ${got}(≤20), 저장소 쓰기 ${st.puts - p0}(<60, 막기 전 400)`);
+  now += 31000;
+  const n1 = new Sock('n1'); socks.push(n1);
+  await hi(room, n1, 'ㅤ', 'tn1');
+  const n2 = new Sock('n2'); socks.push(n2);
+  await hi(room, n2, '‮동우', 'tn2');
+  const byTok = t => [...room.players.values()].find(q => q.tok === t)?.name;
+  ok(byTok('tn1') === '손님' && byTok('tn2') === '동우', `보이지 않는 글자 이름 → "${byTok('tn1')}", 글자 방향 뒤집기 이름 → "${byTok('tn2')}"`);
+  v.out.length = 0; now += 5000;
+  await room.webSocketMessage(n1, JSON.stringify({ t: 'chat', text: 'ㅤㅤ' }));
+  ok(!v.out.some(m => m.t === 'chat'), '채움 문자만 있는 대화는 보내지 않는다');
+}
+
 Date.now = realNow;
 console.log(fail ? `\n실패 ${fail}개` : '\n전부 통과');
 process.exit(fail ? 1 : 0);

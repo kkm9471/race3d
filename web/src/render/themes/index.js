@@ -12,5 +12,7 @@ const pending = {};
 export function loadTheme(id) {
   if (!id || !MAP_IDS.includes(id)) return Promise.resolve(null);
   if (THEMES[id]) return Promise.resolve(THEMES[id]);
-  return pending[id] ||= import(`./${id}.js`).then(m => (THEMES[id] = m), e => { console.warn(`테마 ${id} 불러오기 실패:`, e?.message || e); delete pending[id]; return null; });
+  if (!pending[id]) pending[id] = import(`./${id}.js`).then(m => (THEMES[id] = m), e => { console.warn(`테마 ${id} 불러오기 실패:`, e?.message || e); delete pending[id]; return null; });
+  // 5초 넘게 걸리면(파일이 멈춤) 기다리지 않고 기본 모습으로 출발 — 불러오는 화면에서 영영 못 나오지 않게 (14회차 독립검증)
+  return Promise.race([pending[id], new Promise(res => setTimeout(() => res(null), 5000))]);
 }

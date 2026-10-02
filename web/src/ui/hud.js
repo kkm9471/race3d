@@ -103,7 +103,9 @@ export class Hud {
     setText(this.timeEls[1], fmtTime(st.last));
     setText(this.timeEls[2], fmtTime(st.best));
     // 속도·기어·회전
-    const kmh = Math.round(Math.abs(me.out.fwd) * 3.6);
+    // 실제 속력으로 (전엔 '앞 방향 성분'이라 드리프트 중엔 반토막, 펴지면 +34km/h 튀어 보였다 — 14회차 독립검증.
+    // 동우가 말한 '탈출 속도가 너무 빠르다'의 상당 부분이 이 표시 착시였을 가능성)
+    const kmh = Math.round(me.out.speed * 3.6);
     setText(this.speed, String(kmh));
     // 부스터 개수·드리프트 게이지 (카트식)
     setText(this.gear, String(st.boosts));

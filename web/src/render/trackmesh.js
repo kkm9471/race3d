@@ -366,6 +366,7 @@ export function buildTrackScene(T, world, q, def) {
     try { theme.build(ctx); } catch (e) { console.warn(`테마 ${def.theme} 소품 오류:`, e); }
   }
   group.userData.anims = anims;
+  fixBadNormals(group);
 
   group.userData.dispose = () => {
     group.traverse(o => {
@@ -441,6 +442,24 @@ function buildKartFeatures(T, group, look = {}, ctx = null) {
     const g = ribbon(T, i => [-T.hw[i], 0, T.hw[i]], (i, d) => base(i, d) + 0.015, (i, d, x, z) => [x / 8, z / 8], { closed: false, from: a, to: Math.min(b + 1, T.n) });
     const m = new THREE.Mesh(g, iceM); m.receiveShadow = true; group.add(m);
   }
+}
+
+/**
+ * 길이 0·NaN 인 법선을 위쪽으로 바꾼다 (안전장치). 셰이더에서 normalize(0) = NaN 이 되면 블룸이 화면 전체를 비운다
+ * — 광산 레일에서 실제로 보통·높음 화질 화면이 통째로 비었다(14회차 독립검증). 테마 소품이 늘어도 같은 사고가 없게.
+ */
+function fixBadNormals(group) {
+  group.traverse(o => {
+    const n = o.geometry && o.geometry.attributes && o.geometry.attributes.normal;
+    if (!n) return;
+    const a = n.array;
+    let changed = false;
+    for (let i = 0; i + 2 < a.length; i += 3) {
+      const x = a[i], y = a[i + 1], z = a[i + 2], l = x * x + y * y + z * z;
+      if (!(l > 1e-8) || !Number.isFinite(l)) { a[i] = 0; a[i + 1] = 1; a[i + 2] = 0; changed = true; }
+    }
+    if (changed) n.needsUpdate = true;
+  });
 }
 
 /** 터널: 벽 위로 둥근 지붕 + 천장 등 줄 + 입구 테두리 (그림만) */

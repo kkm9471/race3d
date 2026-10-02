@@ -30,19 +30,24 @@ const CARS = ['kongal', 'masil', 'beongae', 'deundeun', 'jimkkun', 'baram', 'che
 const NPAINT = 20;                     // 차 색 20가지 (web/src/render/carmesh.js PAINT 와 같은 개수)
 // 대화: 한 줄 120자, 0.7초에 1줄·10초에 6줄까지, 최근 20줄만 메모리에 (저장소에는 안 남김)
 const CHAT_MAX = 120, CHAT_GAP_MS = 700, CHAT_WIN_MS = 10000, CHAT_WIN_N = 6, CHAT_KEEP = 20;
+// 방 전체: 10초에 20줄·0.15초 간격 (새로 접속했다 나가기를 반복해 사람마다의 한도를 피하는 도배 — 14회차 독립검증),
+// 새 자리(처음 보는 토큰) 입장은 30초에 8번까지 (그 반복이 저장소 쓰기를 갉아먹지 않게)
+const CHAT_ROOM_N = 20, CHAT_ROOM_GAP_MS = 150, JOIN_WIN_MS = 30000, JOIN_WIN_N = 8;
 // 입력 정수 (web/src/sim/input.js 와 같은 규칙)
 const NEUTRAL = 128 | (1 << 20);
 const DC_INPUT = NEUTRAL | (1 << 21);
 
+// 보이지 않는 글자·글자 방향 조작·한글 채움 문자 (이름·대화 공통) — 이름을 '‮동우'처럼 뒤집거나 'ㅤ'로 빈 이름을 만들던 것(14회차 독립검증)
+const INVIS = /[\u0000-\u001f\u007f\u00ad\u034f\u061c\u115f\u1160\u17b4\u17b5\u180e\u200b-\u200f\u202a-\u202e\u2060-\u206f\u3164\ufe00-\ufe0f\ufeff\uffa0]/g;
 function cleanName(s) {
   if (typeof s !== 'string') return '손님';
-  const t = s.replace(/[\u0000-\u001f\u007f<>&"'\\]/g, '').trim().slice(0, 12);
+  const t = s.replace(INVIS, '').replace(/[<>&"'\\]/g, '').replace(/(\p{M}{2})\p{M}+/gu, '$1').trim().slice(0, 12);
   return t || '손님';
 }
 /** 대화 글: 제어문자·글자 방향 바꾸기 문자 제거, 공백 정리, 120자 (화면은 글자로만 그린다 — HTML 로 해석하지 않음) */
 function cleanChat(s) {
   if (typeof s !== 'string') return '';
-  const t = s.replace(/[\u0000-\u001f\u007f\u200b-\u200f\u202a-\u202e\u2060-\u2069\ufeff]/g, ' ').replace(/\s+/g, ' ').trim();
+  const t = s.replace(INVIS, ' ').replace(/(\p{M}{2})\p{M}+/gu, '$1').replace(/\s+/g, ' ').trim();
   return Array.from(t).slice(0, CHAT_MAX).join('');
 }
 const isInt = v => Number.isInteger(v);
@@ -77,6 +82,8 @@ export class Room {
     // 실제 Cloudflare 에서는 같은 연결이라도 메시지마다 소켓 객체가 같다는 보장이 없다(로컬 모의 서버와 다름 — 실측).
     this.race = null;                  // { startAt, cfg, log, last, hashes, slotOf, ended }
     this.chat = [];                    // 최근 대화 (잠들면 사라진다 — 일부러 저장하지 않음)
+    this.chatAll = [];                 // 방 전체 대화 시각 (도배 한도)
+    this.joinT = [];                   // 새 자리 입장 시각
     this.phase = 'lobby';
     this.tickTimer = null;
     this.rate = new Map();
@@ -204,7 +211,7 @@ export class Room {
         break;
       case 'assist': p.assist = !!m.on; this.attach(ws, p); this.pushLobby(); break;
       case 'paint':
-        if (okPaint(m.paint) && m.paint !== p.paint) { p.paint = m.paint; this.attach(ws, p); this.pushLobby(); }
+        if (this.phase === 'lobby' && okPaint(m.paint) && m.paint !== p.paint) { p.paint = m.paint; this.attach(ws, p); this.pushLobby(); }
         break;
       case 'chat': this.chatMsg(ws, p, m.text); break;
       case 'ready':
@@ -244,6 +251,12 @@ export class Room {
       this.send(ws, { t: 'err', code: 'chat', text: '대화를 너무 빨리 보내고 있습니다. 잠깐 쉬었다 보내 주세요.' });
       return;
     }
+    this.chatAll = this.chatAll.filter(t => now - t < CHAT_WIN_MS);
+    if (this.chatAll.length >= CHAT_ROOM_N || (this.chatAll.length && now - this.chatAll[this.chatAll.length - 1] < CHAT_ROOM_GAP_MS)) {
+      this.send(ws, { t: 'err', code: 'chat', text: '지금 방에 대화가 너무 많습니다. 잠깐 뒤에 보내 주세요.' });
+      return;
+    }
+    this.chatAll.push(now);
     p.chatT.push(now);
     const msg = { id: p.id, name: p.name, paint: okPaint(p.paint) ? p.paint : 0, text, at: now };
     this.chat.push(msg);
@@ -287,6 +300,15 @@ export class Room {
         try { ws.close(4001, 'full'); } catch { /* */ }
         return;
       }
+      // 새 자리를 너무 자주 만들면(접속·나가기 반복) 잠깐 막는다
+      const nowJ = Date.now();
+      this.joinT = this.joinT.filter(t => nowJ - t < JOIN_WIN_MS);
+      if (this.joinT.length >= JOIN_WIN_N) {
+        this.send(ws, { t: 'err', code: 'busy', text: '이 방에 들어오고 나가기가 너무 잦습니다. 30초쯤 뒤에 다시 들어와 주세요.' });
+        try { ws.close(4001, 'busy'); } catch { /* */ }
+        return;
+      }
+      this.joinT.push(nowJ);
       const id = 'p' + (this.settings.nextId++);
       p = { id, name: cleanName(m.name), car: CARS.includes(m.car) ? m.car : 'baram', ready: false, assist: m.assist !== false, tok, conn: true, order: this.settings.nextId, ver: '' };
       // 색: 스스로 고른 적이 있으면 그 색(겹쳐도 됨), 아니면 아무도 안 쓰는 색
@@ -295,9 +317,9 @@ export class Room {
       if (!this.settings.host || !this.players.get(this.settings.host)?.conn) this.settings.host = id;
     }
     p.ver = typeof m.ver === 'string' ? m.ver.slice(0, 30) : '';
+    if (!okPaint(p.paint)) p.paint = this.freePaint(p.id);      // 예전 판에서 잠든 방에서 깨어난 사람 (저장·첨부 전에)
     this.attach(ws, p);
     await this.trySave();
-    if (!okPaint(p.paint)) p.paint = this.freePaint(p.id);      // 예전 판에서 잠든 방에서 깨어난 사람
     const welcome = { t: 'welcome', you: p.id, lobby: this.lobbyView(), now: Date.now(), chat: this.chat };
     if (this.race && !this.race.ended) {
       if (p.ver === this.race.ver) {

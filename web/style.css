@@ -168,3 +168,5 @@ button.small { padding: 5px 10px; font-size: 13px; }
 /* 준비 중(모듈·그래픽 초기화)에는 첫 화면 단추를 누를 수 없게 (14회차) */
 body.booting #menu button, body.booting #menu input { pointer-events: none; opacity: 0.55; }
 body.booting #menu::after { content: '준비 중…'; position: fixed; left: 50%; bottom: 18px; transform: translateX(-50%); color: var(--dim); font-size: 13px; }
+/* 이름·대화 글이 글자 방향 조작 문자로 옆 글자를 뒤집지 못하게 (서버도 지우지만 이중으로 — 14회차 독립검증) */
+.chat-log .ln span, .players .nm, .players .car { unicode-bidi: isolate; }

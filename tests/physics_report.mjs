@@ -49,7 +49,9 @@ export const TARGET = {
   gripBeta: [0, 5], boostTop: [188, 212],
   // 2026-10-02 2차(카트라이더 역설계 사양): 미끄럼각 30~55°, 오래 누르면 U자, 드리프트 중 초당 15% 감속,
   // Shift 를 떼면 부드럽게(0.3~0.8초에 걸쳐) 펴짐 — 뚝 끊기지 않게, 카운터는 빠르게(0.3초 안)
-  driftBeta: [30, 58], straighten: [0.3, 0.8], uturn: [1.5, 2.5], dLoss: [20, 50], counter: [0.05, 0.3],
+  driftBeta: [30, 58], straighten: [0.3, 0.8], uturn: [1.5, 2.5], dLoss: [30, 50], counter: [0.05, 0.3],
+  // (14회차 독립검증) 드리프트를 놓은 뒤 실제 속력: 0.25초 뒤 변화(급감속·급가속 없음), 1초 동안 최대 상승(탈출 속도가 공짜로 붙지 않음 — 동우 피드백)
+  exitD25: [-14, 2], exitMax: [0, 12],
 };
 
 export function measure(spec) {
@@ -124,6 +126,21 @@ export function measure(spec) {
     for (let f = 0; f < FPS * 2; f++) { frame(c, w, pack({ thr: 1, steer: f < 20 ? -1 : 0, kb: 1 })); if (Math.abs(beta(c)) < 3) { t = (f + 1) / FPS; break; } }
     r.counter = t || 9;
   }
+  // 탈출 속도: 140km/h 드리프트 2초 → Shift 놓고 직진(가속 유지). 실제 속력(옆으로 미끄러지는 몫 포함)으로 잰다
+  {
+    const { c, w } = newCar(spec);
+    c.setSpeed(140 / 3.6);
+    for (let f = 0; f < FPS * 2; f++) frame(c, w, pack({ thr: 1, steer: f < 30 ? 1 : 0.4, hb: 1, kb: 1 }));
+    const v0 = c.out.speed * 3.6;
+    let d25 = 0, mx = 0;
+    for (let f = 0; f < FPS; f++) {
+      frame(c, w, pack({ thr: 1, kb: 1 }));
+      const dv = c.out.speed * 3.6 - v0;
+      if (f === Math.round(FPS * 0.25) - 1) d25 = dv;
+      mx = Math.max(mx, dv);
+    }
+    r.exitD25 = d25; r.exitMax = mx;
+  }
   // 부스터 최고속
   {
     const { c, w } = newCar(spec);
@@ -154,13 +171,14 @@ if ((process.argv[1] || '').replace(/\\/g, '/').endsWith('tests/physics_report.m
   const chk = (v, k, d = 1) => { const [a, b] = TARGET[k]; const ok = v >= a && v <= b; if (!ok) bad++; return `${ok ? '✅' : '❌'} ${v.toFixed(d)}`; };
   for (const spec of CARS) {
     const r = measure(spec);
-    rows.push(`| ${spec.name}(${spec.cls}) | ${chk(r.acc100, 'acc100', 2)} | ${chk(r.vtop, 'vtop', 0)} | ${chk(r.coast1, 'coast1', 0)} | ${chk(r.brake100, 'brake100')} | ${chk(r.gripBeta, 'gripBeta')} (${r.gripR.toFixed(0)}m) | ${chk(r.driftBeta, 'driftBeta')} (${r.driftR.toFixed(0)}m, ${r.driftKmh.toFixed(0)}km/h) | ${chk(r.straighten, 'straighten', 2)} | ${chk(r.uturn, 'uturn', 2)} | ${chk(r.dLoss, 'dLoss', 0)} | ${chk(r.counter, 'counter', 2)} | ${r.gauge2s.toFixed(2)} | ${chk(r.boostTop, 'boostTop', 0)} | ${r.instOk && !r.instHold ? '✅' : '❌'} ${r.instOk}/${r.instHold} |`);
+    rows.push(`| ${spec.name}(${spec.cls}) | ${chk(r.acc100, 'acc100', 2)} | ${chk(r.vtop, 'vtop', 0)} | ${chk(r.coast1, 'coast1', 0)} | ${chk(r.brake100, 'brake100')} | ${chk(r.gripBeta, 'gripBeta')} (${r.gripR.toFixed(0)}m) | ${chk(r.driftBeta, 'driftBeta')} (${r.driftR.toFixed(0)}m, ${r.driftKmh.toFixed(0)}km/h) | ${chk(r.straighten, 'straighten', 2)} | ${chk(r.uturn, 'uturn', 2)} | ${chk(r.dLoss, 'dLoss', 0)} | ${chk(r.counter, 'counter', 2)} | ${chk(r.exitD25, 'exitD25', 1)} / ${chk(r.exitMax, 'exitMax', 1)} | ${r.gauge2s.toFixed(2)} | ${chk(r.boostTop, 'boostTop', 0)} | ${r.instOk && !r.instHold ? '✅' : '❌'} ${r.instOk}/${r.instHold} |`);
     if (!(r.instOk && !r.instHold)) bad++;
     console.log(rows[rows.length - 1]);
   }
   const T = TARGET;
-  const head = `| 차 | 0→100 s (${T.acc100}) | 최고 km/h (${T.vtop}) | 액셀 떼고 1초 감속 km/h (${T.coast1}) | 100→0 m (${T.brake100}) | 그냥 꺾기 미끄럼° (${T.gripBeta}) | 드리프트 미끄럼° (${T.driftBeta}) | Shift 뗀 뒤 펴짐 s (${T.straighten}) | U자 s (${T.uturn}) | 드리프트 2초 감속 km/h (${T.dLoss}) | 카운터 펴짐 s (${T.counter}) | 2초 드리프트 게이지 | 부스터 최고 km/h (${T.boostTop}) | 순간부스터 새로누름/계속누름 |`;
+  const head = `| 차 | 0→100 s (${T.acc100}) | 최고 km/h (${T.vtop}) | 액셀 떼고 1초 감속 km/h (${T.coast1}) | 100→0 m (${T.brake100}) | 그냥 꺾기 미끄럼° (${T.gripBeta}) | 드리프트 미끄럼° (${T.driftBeta}) | Shift 뗀 뒤 펴짐 s (${T.straighten}) | U자 s (${T.uturn}) | 드리프트 2초 감속 km/h (${T.dLoss}) | 카운터 펴짐 s (${T.counter}) | 탈출 0.25초·1초 최대 km/h (${T.exitD25} / ${T.exitMax}) | 2초 드리프트 게이지 | 부스터 최고 km/h (${T.boostTop}) | 순간부스터 새로누름/계속누름 |`;
   fs.mkdirSync('tests/out', { recursive: true });
-  fs.writeFileSync('tests/out/physics.md', `# 카트식 주행 측정 (${new Date().toISOString()})\n\n${head}\n|${'---|'.repeat(14)}\n${rows.join('\n')}\n\n범위 밖: ${bad}개\n`);
+  fs.writeFileSync('tests/out/physics.md', `# 카트식 주행 측정 (${new Date().toISOString()})\n\n${head}\n|${'---|'.repeat(15)}\n${rows.join('\n')}\n\n범위 밖: ${bad}개\n`);
   console.log(`\n범위 밖: ${bad}개   (${((Date.now() - t0) / 1000).toFixed(1)}초)`);
+  process.exit(bad ? 1 : 0);      // 범위 밖이 있으면 실패로 끝난다 (전엔 ❌ 를 찍고도 성공으로 끝났다 — 14회차 독립검증)
 }
