@@ -34,8 +34,8 @@ export default {
   runSlope: -0.01,
   style: 'circuit',
   palette: { ground: [0x4f6e34, 0x334d22, 0x6a5a3a, 0x4a5a3a], grass: 0x8fae6a, leaves: 0xffffff, far: [0x4d6a58, 0x6f8a86] },
-  sun: { elev: 38, azim: 145 },   // 한낮 숲 (나뭇잎 사이 햇살)
-  fog: 0.0011, fogColor: 0xb9cdb4,
+  sun: { elev: 34, azim: 150 },   // 한낮 숲 (나뭇잎 사이 햇살)
+  fog: 0.0006, fogColor: 0x93ad92,   // 옅은 색 짙은 안개로 화면이 뿌옇던 것(14회차 검토) → 옅게·초록 쪽으로
   features: [
     { t: 'pad', seg: 2, at: 0.5, d: 0, w: 5, len: 8 },
     { t: 'ramp', seg: 5, at: 0.3, len: 14, h: 1.0 },

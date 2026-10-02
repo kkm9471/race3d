@@ -30,8 +30,8 @@ export default {
   runSlope: -0.01,
   style: 'circuit',
   palette: { ground: [0x5f9a32, 0x4a8228, 0x86a840, 0x6a8a50], leaves: 0xffffff },
-  sun: { elev: 66, azim: 120 },   // 한낮
-  fog: 0.0003, fogColor: 0xa9c6e2,
+  sun: { elev: 38, azim: 150 },   // 맑은 낮 (66° 였더니 하늘이 하얗게 번져 화면 전체가 뿌옇다 — 14회차 검토)
+  fog: 0.0003, fogColor: 0x9fbfe0,
   features: [
     { t: 'ramp', seg: 5, at: 0.32, len: 14, h: 0.8 },                         // 착지 뒤 큰 코너까지 120m 넘게
     { t: 'split', seg: 6, from: 0.1, to: 0.9, side: 1, extra: 9, lane: 4.6 },

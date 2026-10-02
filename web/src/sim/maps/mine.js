@@ -64,9 +64,9 @@ export default {
   runSlope: 0.0,
   style: 'mountain',
   palette: { ground: [0x5a4232, 0x3a2a20, 0x6e4c36, 0x4a3a32], grass: 0x8a6a50, rock: 0x7a6252, leaves: 0x8a7a5a, far: [0x3a2418, 0x4c2e1e] },
-  sun: { elev: 12, azim: 250 },
+  sun: { elev: 40, azim: 250 },
   // 어두운 갱도 협곡: 별 없는 칠흑 하늘, 지평선은 용암 불빛 주황. 길·암벽이 보이게 따뜻한 환경광
-  night: { top: 0x0c0605, horizon: 0x6a2a12, stars: 0, moon: 2.2, moonColor: 0xffe8d0, ambient: 2.2, ambientColor: 0xe0c8b0, exposure: 1.1, moonDisc: false },
+  night: { top: 0x1a0d09, horizon: 0x8a4424, stars: 0, moon: 2.6, moonColor: 0xffe8d0, ambient: 3.2, ambientColor: 0xf0d8c0, exposure: 1.25, moonDisc: false },
   fog: 0.0018, fogColor: 0x3a1c10,
   features: [
     { t: 'pad', seg: 2, at: 0.5, d: 0, w: 4, len: 8 },

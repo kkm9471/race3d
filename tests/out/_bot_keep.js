@@ -152,8 +152,8 @@ export function botInput(sim, k, skill = 0.95, mem = sim.cars[k].st) {
       // 옆으로 충분히 벌어지기 전에는 차간 거리를 지킨다
       if (Math.abs(side) < 1.9) vt = Math.min(vt, ov + (gap - (2 + Math.abs(v) * 0.12)) * 0.6);
     } else if (Math.abs(ahead) <= len * 0.9 && Math.abs(side) < 2.8) {
-      // 나란히 → 옆으로 벌린다. 다만 상대에게서 4m 넘게는 안 벌린다 (둘이 계속 벌어지다 다시 모이며 길 폭 전체를 흔들다 풀밭에 갇혔다 — 14회차, 이끼숲)
-      want = away > 0 ? Math.min(st.off + 1.5, o.off + 4.0) : Math.max(st.off - 1.5, o.off - 4.0);
+      // 나란히 → 상대에게서 2.6m 옆을 목표로 (전엔 '내 위치 + 1.5m'라 둘이 계속 벌어지다 다시 모이며 길 폭 전체를 흔들었다 — 14회차, 이끼숲)
+      want = o.off + away * 2.6;
       if (ahead > 0) vt *= 0.9;                       // 조금 뒤인 쪽이 양보(좁은 길에서 계속 비비지 않게)
     }
   }

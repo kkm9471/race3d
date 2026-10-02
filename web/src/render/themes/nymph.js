@@ -121,25 +121,28 @@ export function build(ctx) {
   {
     const tryAt = (seg, fr, sd) => {
       const i = ctx.segAt(seg, fr);
-      for (const r of [17, 14, 11, 8]) {
+      for (const r of [16, 13, 10, 7]) {
         const off = sd * (ctx.wallAt(i, sd) + 6 + r);
         const x = T.x[i] + T.lx[i] * off, z = T.z[i] + T.lz[i] * off;
         if (!ctx.clear(x, z, r + 2.5)) continue;
         let lo = Infinity, hi = -Infinity;
         for (let a = 0; a < 8; a++) { const h = ctx.ground(x + Math.cos(a * 0.785) * r, z + Math.sin(a * 0.785) * r); lo = Math.min(lo, h); hi = Math.max(hi, h); }
         const hc = ctx.ground(x, z); lo = Math.min(lo, hc); hi = Math.max(hi, hc);
-        if (hi - lo > 2.2) continue;
+        if (hi - lo > 0.7) continue;
         if (ponds.some(p => Math.hypot(p.x - x, p.z - z) < p.r + r + 6)) continue;
-        ponds.push({ x, z, y: lo + 0.15, r });
+        ponds.push({ x, z, y: hi + 0.12, r });
         return true;
       }
       return false;
     };
-    for (const seg of [8, 9, 10, 3, 4, 5, 11, 0, 13]) for (const fr of [0.5, 0.25, 0.75]) for (const sd of [1, -1]) if (ponds.length < 5) tryAt(seg, fr, sd);
+    for (const seg of [8, 9, 10, 3, 4, 5, 11, 7, 2, 13, 0, 6, 12, 14]) for (const fr of [0.5, 0.2, 0.8, 0.35, 0.65]) for (const sd of [1, -1]) if (ponds.length < 6) tryAt(seg, fr, sd);
     const geo = new THREE.CircleGeometry(1, 40); geo.rotateX(-Math.PI / 2);
     const tex = rippleTex(ctx);
     const mat = ctx.mat({ map: tex, color: 0x52e0d0, emissive: 0x0c5a64, roughness: 0.06, metalness: 0.25, transparent: true, opacity: 0.88 });
     const list = ponds.map(p => ({ x: p.x, y: p.y, z: p.z, s: p.r, ry: 0 }));
+    // 연못 둘레 돌 둑 (물 높이까지, 아래 1m — 땅이 낮은 쪽에서 물이 떠 보이지 않게)
+    const rim = new THREE.CylinderGeometry(1, 1, 1, 40, 1, true); rim.translate(0, -0.5, 0);
+    instance(rim, ctx.mat({ color: 0xcfeee8, emissive: 0x1a3a40, roughness: 0.9, side: THREE.DoubleSide }), list.map(o => ({ ...o, y: o.y + 0.04, s: o.s * 1.03, sy: 1 / (o.s * 1.03) })));
     const im = instance(geo, mat, list); im.receiveShadow = false;
     ctx.onFrame(t => { tex.offset.set(t * 0.012, t * 0.007); });
     // 연꽃잎 + 빛나는 연꽃
@@ -219,7 +222,7 @@ export function build(ctx) {
         p.set(o.x + Math.cos(t * 0.35 * o.sp + ph) * o.r, o.y + o.h0 + Math.sin(t * 0.9 * o.sp + ph * 2) * 0.45, o.z + Math.sin(t * 0.3 * o.sp + ph) * o.r);
         const tw = Math.max(0.05, 0.5 + 0.5 * Math.sin(t * 3.2 * o.sp + ph * 5));   // 반짝
         imC.setMatrixAt(k, m4.compose(p, qn, sc.setScalar(0.4 + tw * 0.9)));
-        imH.setMatrixAt(k, m4.compose(p, qn, sc.setScalar(0.3 + tw * 1.0)));
+        imH.setMatrixAt(k, m4.compose(p, qn, sc.setScalar(0.25 + tw * 0.55)));
       }
       imC.instanceMatrix.needsUpdate = true; imH.instanceMatrix.needsUpdate = true;
     });
