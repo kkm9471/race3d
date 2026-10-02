@@ -159,9 +159,30 @@ export function botInput(sim, k, skill = 0.95, mem = sim.cars[k].st) {
   let thr = 0, brk = 0;
   if (v < vt) thr = clamp((vt - v) * 0.6 + 0.3, 0, 1);
   else if (v > vt + 0.8) brk = clamp((v - vt) * 0.3, 0, 1);
-  // 옆으로 크게 미끄러지면 가속을 풀어 준다
+  // 드리프트·부스터(카트식): 빠른 속도로 크게 꺾어야 하는 코너에서는 Shift 로 게이지를 모으고,
+  // 앞이 한동안 트여 있으면 모은 부스터를 쓴다. 시험용 자동운전(ram)은 안 쓴다.
+  let hb = 0, bo = 0;
+  if (!mem.ram && sim.gs.frame > 300) {
+    let kk = 0;
+    const look = Math.round((10 + Math.abs(v) * 0.6) / T.ds);
+    for (let q = 0; q <= look; q++) kk = Math.max(kk, Math.abs(kl[(i + q) % n]));
+    // 옆에 차가 있거나(15m 안) 피하는 중이면 드리프트하지 않는다 — 몰려 있을 때 드리프트하면 바깥으로 밀려 나가 자갈·벽에 갇혔다
+    let crowd = want !== null;
+    for (let q = 0; q < sim.cars.length && !crowd; q++) { if (q === k) continue; const o2 = sim.cars[q].st; if (o2.ghostT > 0 || o2.dc || o2.fin) continue; const dx2 = o2.px - st.px, dz2 = o2.pz - st.pz; if (dx2 * dx2 + dz2 * dz2 < 225) crowd = true; }
+    if (!crowd && ((Math.abs(v) > 16 && kk > 1 / 70 && Math.abs(steer) > 0.3) || (st.drift && Math.abs(steer) > 0.15 && kk > 1 / 90))) hb = 1;
+    if (st.boosts > 0 && st.boostT === 0 && !st.drift) {
+      let vmin = Infinity;
+      const far = Math.round(90 / T.ds);
+      for (let q = 0; q <= far; q++) vmin = Math.min(vmin, prof[(i + q) % n]);
+      // 앞 150m 안에 점프대가 있으면 안 쓴다 (공중에선 브레이크가 안 돼 착지 뒤 코너에서 박는다)
+      for (let q = 0; q <= Math.round(150 / T.ds) && vmin > 0; q++) if (T.ramp[(i + q) % n] > 0) vmin = 0;
+      if (vmin * skill > Math.abs(v) + 4) bo = 1;
+    }
+  }
+  if (st.drift) thr = Math.max(thr, 0.6);          // 드리프트 중엔 속도 유지
+  // 옆으로 크게 미끄러지면(드리프트가 아닌데) 가속을 풀어 준다
   const vlat = st.vx * lx + st.vz * lz;
-  if (Math.abs(vlat) > 2.5 && sp > 5) thr *= 0.4;
+  if (Math.abs(vlat) > 2.5 && sp > 5 && !st.drift) thr *= 0.4;
   // 막혔거나 거꾸로 섰으면 되돌리기
   let rst = 0;
   const along = fx * T.tx[i] + fz * T.tz[i];
@@ -169,5 +190,5 @@ export function botInput(sim, k, skill = 0.95, mem = sim.cars[k].st) {
     if (sp < 1.0) mem.stuckT = (mem.stuckT || 0) + 1 / 60; else mem.stuckT = 0;
     if (mem.stuckT > 2.5 || along < -0.2 || st.flipT > 1) { rst = 1; mem.stuckT = 0; }
   }
-  return pack({ steer, thr, brk, kb: 0, rst: rst && !st.lastRst ? 1 : 0 });
+  return pack({ steer, thr, brk, hb, bo, kb: 0, rst: rst && !st.lastRst ? 1 : 0 });
 }
