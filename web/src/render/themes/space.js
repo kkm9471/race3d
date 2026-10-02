@@ -2,6 +2,8 @@
 // 검은 하늘의 별, 멀리 고리 달린 큰 행성·푸른 행성, 밝은 금속 데크 노면 + 네온 가장자리, 길 위 네온 문,
 // 길 밖 고가 레일을 달리는 우주 열차, 투명 튜브 터널, 바위 지대(발광 수정), 기지 돔·안테나·컨테이너
 
+import { applyTexSet } from '../assets.js';
+
 /** 금속 데크 노면 (u = 길 폭, v = 10m 마다 1): 밝은 판 + 이음매 + 가장자리 청록 띠 + 진행 방향 화살 */
 function deckTex(ctx) {
   return ctx.canvasTex(256, 256, (g, w, h) => {
@@ -124,6 +126,14 @@ export const look = {
   far: false,
   banner: { bg: '#071a33', fg: '#5ff0ff' },
   tunnel: { color: 0xffffff, map: tubeTex, light: 0x9fe8ff, emissive: 0x0c2c46, portal: 0x2c4a78 },
+  // 실사(15회차): 별 하늘(코드 밤하늘)은 그대로 + 실제 금속판 노면·벽, 기지 소품(돔·탑·컨테이너)에도 금속 질감 (보통·높음 화질)
+  real: {
+    road: { tex: 'metal_plate_02', scale: 3, tint: 0xb4c4e4, bright: 3.0, env: 1.2, rough: 0.7 },
+    runoff: { tex: 'metal_plate_02', scale: 3, tint: 0x9cb0d8, bright: 2.6, rough: 0.7 },
+    terrain: { tex: 'metal_plate_02', scale: 4, tint: 0x8498c0, bright: 2.2, rough: 0.8 },
+    wall: { tex: 'metal_plate_02', scale: 3, tint: 0xb0c0e0, bright: 2.8, rough: 0.6 },
+    props: { tex: 'rusty_metal_02' },
+  },
 };
 
 export function build(ctx) {
@@ -218,15 +228,21 @@ export function build(ctx) {
     }
   }
   const domeG = new THREE.SphereGeometry(1, 20, 10, 0, Math.PI * 2, 0, Math.PI / 2);
-  instanced(domeG, ctx.mat({ color: 0xb8c4e0, roughness: 0.35, metalness: 0.6 }), domes, { shadow: true });
+  const domeM = ctx.mat({ color: 0xb8c4e0, roughness: 0.35, metalness: 0.6 });
+  if (ctx.q.detail >= 1) applyTexSet(domeM, { tex: 'metal_plate_02', scale: 2, tint: 0xd0dcf4, bright: 2.4, metal: 0.15, rough: 0.5 }, [40, 20]);
+  instanced(domeG, domeM, domes, { shadow: true });
   const bandG = new THREE.CylinderGeometry(1, 1, 0.9, 20, 1, true);
   instanced(bandG, ctx.mat({ color: 0x70f0ff, toneMapped: false, side: THREE.DoubleSide }, 'basic'), bands);
   const boxG = new THREE.BoxGeometry(1, 1, 1); boxG.translate(0, 0.5, 0);
   const tG = new THREE.CylinderGeometry(0.35, 0.8, 1, 8); tG.translate(0, 0.5, 0);
-  instanced(tG, ctx.mat({ color: 0x8a96b4, roughness: 0.4, metalness: 0.7 }), towers, { shadow: true });
+  const towerM = ctx.mat({ color: 0x8a96b4, roughness: 0.4, metalness: 0.7 });
+  if (ctx.q.detail >= 1) applyTexSet(towerM, { tex: 'metal_plate_02', scale: 2, tint: 0xb8c8e8, bright: 2.2, metal: 0.25, rough: 0.5 }, [4, 60]);
+  instanced(tG, towerM, towers, { shadow: true });
   const beaconM = ctx.mat({ color: 0xff3030, toneMapped: false }, 'basic');
   instanced(new THREE.SphereGeometry(0.6, 8, 6), beaconM, beacons);
-  instanced(boxG, ctx.mat({ color: 0xffffff, roughness: 0.55, metalness: 0.4 }), boxes, { shadow: true, colors: true });
+  const boxM = ctx.mat({ color: 0xffffff, roughness: 0.55, metalness: 0.4 });
+  if (ctx.q.detail >= 1) applyTexSet(boxM, { tex: 'rusty_metal_02', scale: 1.5, bright: 1.3, metal: 0.15, rough: 0.8 }, [6, 3]);
+  instanced(boxG, boxM, boxes, { shadow: true, colors: true });
 
   // ── 바위 지대 (구간 7~14) + 발광 수정, 그리고 드문 바위 ──
   const rockRange = [seg(7, 0.5), seg(14, 0)];

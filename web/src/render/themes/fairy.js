@@ -67,10 +67,10 @@ export const look = {
   trees: { n: 0.8, conifer: 0.2, hue: [0.83, 0.99], sat: [0.75, 0.95], light: [0.8, 0.9], trunk: 0xb0805a },
   far: [0xcdb6ee, 0xe9d6f7],
   real: {   // 파스텔 동화 — 하늘은 코드 파스텔 그대로, 질감만 실제 자갈·벽돌에 파스텔 색
-    road: { tex: 'brick_pavement_02', scale: 2, env: 0.8, bright: 1.6, tint: 0xffd8b8 },
-    runoff: { tex: 'cobblestone_floor_04', scale: 2, tint: 0xd8f0dc, bright: 1.5 },
-    terrain: { tex: 'cobblestone_floor_04', scale: 4, tint: 0xd8f0dc, bright: 1.5 },
-    wall: { tex: 'brick_pavement_02', scale: 2, tint: 0xffc8e0, bright: 1.5 },
+    road: { tex: 'cobblestone_floor_04', scale: 2, env: 0.8, bright: 2.4, tint: 0xffc8dc },
+    runoff: { tex: 'cobblestone_floor_04', scale: 2, tint: 0xc4f0d0, bright: 2.2 },
+    terrain: { tex: 'cobblestone_floor_04', scale: 4, tint: 0xc4f0d0, bright: 2.2 },
+    // 벽은 테마의 사탕 줄무늬 그대로 둔다 (사진 벽돌로 바꾸니 동화 느낌의 핵심인 줄무늬가 사라졌다 — 15회차 검토)
     exposure: 0.95,
   },
   banner: { bg: '#ff7fb6', fg: '#ffffff' },

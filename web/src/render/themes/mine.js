@@ -76,6 +76,14 @@ export const look = {
   far: [0x3a1c12, 0x5a2a18],
   banner: { bg: '#3a1e10', fg: '#ffb050' },
   tunnel: { color: 0xd8b088, map: plankTunnel, light: 0xffb060, emissive: 0x3a2008, portal: 0x7a5230 },
+  // 실사(15회차): 갱도 분위기(코드 하늘·용암빛)는 그대로 + 실제 암벽·붉은 흙·자갈 (보통·높음 화질)
+  real: {
+    road: { tex: 'gravel_road', scale: 2, tint: 0xd8c4b4, bright: 1.25, env: 0.8, rough: 1 },
+    runoff: { tex: 'red_laterite_soil_stones', scale: 2.5, bright: 1.0 },
+    gravel: { tex: 'gravel_floor', scale: 2.5, tint: 0xd8b8a0 },
+    terrain: { tex: 'red_laterite_soil_stones', scale: 4, bright: 0.9 },
+    rock: { tex: 'rock_face_03', scale: 4, tint: 0xb89a84, bright: 1.05 },
+  },
 };
 
 export function build(ctx) {

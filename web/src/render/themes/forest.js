@@ -160,13 +160,13 @@ export const look = {
   runoffTex: 'grass', runoffColor: 0x8cae62,
   trees: { n: 2.2, conifer: 0.45, hue: [0.22, 0.36], sat: [0.42, 0.68], light: [0.15, 0.3], trunk: 0x4a3524 },
   real: {   // 숲 — 숲 바닥·이끼 바위
-    sky: 'kloofendal_overcast_puresky', exposure: 1.0,
+    sky: 'kloofendal_43d_clear_puresky', exposure: 1.25, hemi: 0.5,
     road: { tex: 'forest_ground_04', scale: 3, env: 0.8, bright: 1.5, tint: 0xd8c8a8 },
     runoff: { tex: 'forest_leaves_02', scale: 3, tint: 0xbcd0a0 },
     terrain: { tex: 'forest_leaves_02', scale: 5, tint: 0xb0c898 },
     rock: { tex: 'mossy_rock', scale: 4 },
     wall: { tex: 'mossy_rock', scale: 3, tint: 0xc8b898 },
-    trees: { con: ['fir_tree_01'], broad: ['island_tree_02', 'island_tree_01'], h: [9, 18], n: 1.3 },
+    trees: { con: ['fir_tree_01'], broad: ['island_tree_02', 'island_tree_01'], h: [9, 18], n: 1.3, tint: 0xc8dcb0 },
   },
   far: [0x4a6a56, 0x6c8a84],
 };

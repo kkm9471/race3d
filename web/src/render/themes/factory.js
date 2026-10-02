@@ -168,7 +168,7 @@ export const look = {
   // 실사(15회차): 흐린 산업 하늘 + 실제 철판·콘크리트·녹슨 금속 (보통·높음 화질)
   real: {
     sky: 'kloofendal_misty_morning_puresky', exposure: 1.0, fogMul: 0.8,
-    road: { tex: 'metal_plate', scale: 0.9, env: 1.2, bright: 2.0, tint: 0xd8dcd8, rough: 0.9 },
+    road: { tex: 'metal_plate', scale: 0.9, env: 1.2, bright: 2.6, tint: 0xe4e8ec, rough: 0.85 },
     runoff: { tex: 'concrete_floor_worn_001', scale: 3 },
     terrain: { tex: 'concrete_floor_worn_001', scale: 5 },
     wall: { tex: 'metal_plate_02', scale: 3, bright: 1.4 },

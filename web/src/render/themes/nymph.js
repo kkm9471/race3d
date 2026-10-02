@@ -71,8 +71,8 @@ export const look = {
   trees: { n: 1, conifer: 0.1, hue: [0.45, 0.82], sat: [0.45, 0.75], light: [0.42, 0.62], trunk: 0x6a5a88 },
   far: [0x2c2f5a, 0x3f3f78],
   real: {   // 보랏빛 밤 — 코드 밤하늘 유지, 숲 바닥·이끼 질감
-    road: { tex: 'forest_ground_04', scale: 3, env: 0.8, bright: 2.2, tint: 0xb8b0f0 },
-    runoff: { tex: 'forest_leaves_02', scale: 3, tint: 0x86d8c0, bright: 1.8 },
+    road: { tex: 'forest_ground_04', scale: 3, env: 0.8, bright: 2.6, tint: 0xb4b0f4 },
+    runoff: { tex: 'forest_leaves_02', scale: 3, tint: 0x5ad8c8, bright: 2.2 },
     terrain: { tex: 'forest_leaves_02', scale: 5, tint: 0x6ab8b0, bright: 1.6 },
     rock: { tex: 'mossy_rock', scale: 4, tint: 0x9aa0e0, bright: 1.6 },
     wall: { tex: 'mossy_rock', scale: 3, tint: 0x9aa8e8, bright: 1.7 },

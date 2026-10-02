@@ -33,15 +33,15 @@ export const look = {
   line: 0xfff4dc,
   runoffColor: 0xd2b27c,    // 갓길 모래 (기본 모래색보다 조금 짙게 — 한낮 햇빛에 하얗게 번지지 않게)
   wall: { color: 0xffffff, map: wallTex, roughness: 0.92, stripe: false },
-  trees: false,             // 기본 나무 대신 야자수·덤불을 직접
+  trees: { n: 0.25 },       // 기본 나무는 실사 알로에형 나무(real.trees)로만 — 야자수·덤불은 build 에서
   real: {   // 한낮 사막
     sky: 'qwantani_noon_puresky', exposure: 0.95,
-    road: { tex: 'worn_asphalt', scale: 3, env: 1.2, bright: 1.5, tint: 0xf0dcc0 },
+    road: { tex: 'worn_asphalt', scale: 3, env: 1.2, bright: 3.0, tint: 0xe8e0d4 },
     runoff: { tex: 'sand_01', scale: 3, tint: 0xe0c898 },
     gravel: { tex: 'sandstone_cracks', scale: 2.5 },
     terrain: { tex: 'sand_01', scale: 8, tint: 0xe0c898 },
     rock: { tex: 'sandstone_cracks', scale: 4 },
-    wall: { tex: 'sandstone_cracks', scale: 3, tint: 0xf0e0c0 },
+    wall: { tex: 'sandstone_cracks', scale: 3, tint: 0xf0e0c0, bright: 1.5 },
     trees: { con: ['quiver_tree_02'], broad: ['quiver_tree_02'], h: [3, 6], n: 0.3 },
   },
 };

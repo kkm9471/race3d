@@ -2,6 +2,8 @@
 // 밝은 청회색 노면(청록 네온 가장자리 선), 네온 띠 두른 벽, 창문마다 불 켜진 고층 빌딩 숲(emissive 창 + 지붕 네온 테두리 + 붉은 경고등),
 // 지어낸 글자 네온 간판(건물 벽·길 위 문형 간판), 가로등, 하늘을 훑는 탐조등, 터널(청록 조명)
 
+import { getTex } from '../assets.js';
+
 /** 노면: 푸른 회색 아스팔트 + 가운데 점선 + 양끝 청록 네온선 (u = 길 폭, v = 10m 마다 1) */
 function roadTex(ctx) {
   return ctx.canvasTex(256, 256, (g, w, h) => {
@@ -109,6 +111,13 @@ export const look = {
   far: [0x0b1030, 0x151c46],
   banner: { bg: '#0b1030', fg: '#4ff0ff' },
   tunnel: { color: 0xaab2d0, map: tunnelTex, light: 0x6ff3ff, emissive: 0x0c2236, portal: 0x2a3358 },
+  // 실사(15회차): 밤·네온은 그대로(코드 밤하늘, 네온 벽·간판) + 실제 아스팔트·보도 + 빌딩 외벽은 밤 창 불빛 사진(Facade009) (보통·높음 화질)
+  real: {
+    road: { tex: 'clean_asphalt', scale: 3, tint: 0xaab6e6, bright: 3.4, env: 1.4, rough: 0.8 },
+    runoff: { tex: 'concrete_pavement', scale: 3, tint: 0x8c96b8, bright: 1.8 },
+    terrain: { tex: 'concrete_pavement', scale: 4, tint: 0x7a84a8, bright: 1.6 },
+    towers: { tex: 'Facade009', glow: 1.6 },
+  },
 };
 
 export function build(ctx) {
@@ -148,6 +157,18 @@ export function build(ctx) {
     ctx.mat({ map: aWarm, emissiveMap: eWarm, emissive: 0xffffff, emissiveIntensity: 1.7, color: 0xffffff, roughness: 0.55, metalness: 0.3 }),
     ctx.mat({ map: aCool, emissiveMap: eCool, emissive: 0xffffff, emissiveIntensity: 1.7, color: 0xffffff, roughness: 0.55, metalness: 0.3 }),
   ];
+  // 실사: 빌딩 외벽을 밤 창 불빛 사진으로 (두 가지 색 느낌은 불빛 색조로 구분)
+  {
+    const set = ctx.q.detail >= 1 && getTex(look.real.towers.tex);
+    if (set) {
+      const rep = TILE / set.w, cl = t => { if (!t) return null; const c = t.clone(); c.repeat.set(rep, rep); c.anisotropy = 8; c.needsUpdate = true; return c; };
+      [[0xffe6c8, 0xffc890], [0xd0e0ff, 0x9fd8ff]].forEach(([tint, em], k) => {
+        const m = mats[k];
+        m.map = cl(set.map); m.normalMap = cl(set.normalMap); m.roughnessMap = cl(set.rough); m.emissiveMap = cl(set.emis);
+        m.color.setHex(tint); m.emissive.setHex(em); m.emissiveIntensity = look.real.towers.glow; m.roughness = 1; m.metalness = 0.15; m.needsUpdate = true;
+      });
+    }
+  }
   const sizes = [[22, 80, 22], [30, 56, 26], [18, 120, 18], [36, 40, 30], [24, 150, 24], [28, 96, 20]];
   const geos = sizes.map(([w, h, d]) => ({ w, h, d, geo: towerGeo(w, h, d) }));
   const blds = [];

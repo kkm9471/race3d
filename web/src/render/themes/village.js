@@ -49,7 +49,7 @@ export const look = {
     road: { tex: 'cobblestone_floor_04', scale: 2, env: 1.0, bright: 1.25, tint: 0xf2ece0 },
     runoff: { tex: 'leafy_grass', scale: 3, tint: 0xb4d896 },
     terrain: { tex: 'leafy_grass', scale: 5, tint: 0xb4d896 },
-    wall: { tex: 'concrete_wall_006', scale: 3, tint: 0xe6dcc6 },
+    wall: { tex: 'concrete_wall_006', scale: 3, tint: 0xf0e6d0, bright: 1.9 },
     trees: { con: ['island_tree_02'], broad: ['island_tree_01', 'island_tree_02'], h: [6, 11], n: 0.5 },
   },
   far: [0x84a8c2, 0xa3bed4],

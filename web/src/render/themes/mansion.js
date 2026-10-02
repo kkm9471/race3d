@@ -3,6 +3,9 @@
 // 복도 안은 붉은 벽지·나무 징두리·샹들리에, 정원은 철창 울타리·산울타리·가로등·촛대·편백나무, 박쥐.
 // 그림 전용 (주행 계산과 무관). 무늬는 전부 캔버스로 직접 그림, 무작위는 ctx.rand.
 
+import { applyTexSet, getTex } from '../assets.js';
+import { getTreeSet, makeTreeMesh } from '../trees.js';
+
 /** 대리석 바닥 (u = 길 폭, v = 10m 마다 1): 가로 4칸 × 세로 8줄 체크무늬 + 금빛 줄눈 + 결 */
 function roadTex(ctx) {
   return ctx.canvasTex(256, 256, (g, w, h) => {
@@ -123,6 +126,15 @@ export const look = {
   far: [0x14113a, 0x1c1950],
   banner: { bg: '#2a0f2e', fg: '#f2c85a' },
   tunnel: { color: 0xffffff, map: corridorTex, light: 0xffc890, emissive: 0x4a1a14, portal: 0x3c3350 },
+  // 실사(15회차): 밤은 그대로(코드 밤하늘) + 실제 대리석·돌담·잔디, 정원에 실사 활엽수 (보통·높음 화질)
+  real: {
+    road: { tex: 'marble_01', scale: 3, tint: 0xe2e6ff, bright: 1.3, env: 1.0, rough: 0.7 },
+    runoff: { tex: 'leafy_grass', scale: 3, tint: 0x6f9a74 },
+    terrain: { tex: 'leafy_grass', scale: 5, tint: 0x5a8466 },
+    wall: { tex: 'rock_wall_08', scale: 3, tint: 0xb8bedc, bright: 1.5 },
+    facade: { tex: 'rock_wall_08', scale: 3, tint: 0xb4bad8, bright: 1.6 },
+    trees: { broad: ['island_tree_01', 'island_tree_02'], con: ['island_tree_02'], h: [8, 14], n: 1, tint: 0x9cbcae },
+  },
 };
 
 export function build(ctx) {
@@ -183,6 +195,8 @@ export function build(ctx) {
   };
   const vcMat = (extra = {}) => ctx.mat({ vertexColors: true, roughness: 0.8, ...extra });
   const facadeMat = ctx.mat({ map: facadeTex(ctx, false), emissiveMap: facadeTex(ctx, true), emissive: 0xffffff, emissiveIntensity: 1.5, roughness: 0.85, side: THREE.DoubleSide });
+  // 실사: 외벽 무늬는 실제 돌로 바꾸고, 불 켜진 창은 발광 무늬가 그대로 얹힌다
+  if (ctx.q.detail >= 1 && getTex(look.real.facade.tex)) { applyTexSet(facadeMat, look.real.facade, [10, 10]); facadeMat.side = THREE.DoubleSide; }
   const roofMat = vcMat({ roughness: 0.55, metalness: 0.15, side: THREE.DoubleSide });
   const glowMat = ctx.mat({ color: new THREE.Color(0xffd890).multiplyScalar(2.2) }, 'basic');
   const SLATE = 0x3a3f66, SLATE2 = 0x4a3f6e;
@@ -382,6 +396,28 @@ export function build(ctx) {
   // ── 편백나무 (어두운 침엽수) ──
   const cypress = merge([part(new THREE.CylinderGeometry(0.3, 0.45, 2, 6), 0x3a2a20, [0, 1, 0]), part(new THREE.ConeGeometry(2.3, 8.5, 7), 0x1d4a34, [0, 6, 0]), part(new THREE.ConeGeometry(1.6, 5.5, 7), 0x22573d, [0, 9.6, 0])]);
   ctx.scatter({ geo: cypress, mat: vcMat({ roughness: 0.9 }), n: 190, from: 10, to: 110, scale: [0.9, 1.7], sink: 0.2, shadow: true, filter: (x, z) => bldClear(x, z, 4) });
+
+  // ── 실사 활엽수(사진판): 산울타리 바깥쪽에 드문드문 (보통·높음 화질, 미리 받아 둔 경우만) ──
+  {
+    const sets = (look.real.trees.broad || []).map(getTreeSet).filter(Boolean);
+    if (ctx.q.detail >= 1 && sets.length) {
+      const lists = sets.map(() => []);
+      for (let i = 0, k = 0; i < T.n; i += 9) {
+        if (nearTunnel(i)) continue;
+        const sd = (k++ % 2) ? 1 : -1, p = edge(i, sd, 12 + rand() * 12);
+        if (!ctx.clear(p.x, p.z, 8) || !bldClear(p.x, p.z, 6)) continue;
+        const h = look.real.trees.h;
+        lists[k % sets.length].push({ x: p.x, z: p.z, s: h[0] + rand() * (h[1] - h[0]), yaw: rand() * 6.28, tint: new THREE.Color(look.real.trees.tint).multiplyScalar(0.85 + rand() * 0.3) });
+      }
+      sets.forEach((set, k) => {
+        if (!lists[k].length) return;
+        const im = makeTreeMesh(set, lists[k], ctx.q);
+        for (let j = 0; j < im.count; j++) { im.getMatrixAt(j, m4); m4.decompose(v3, qn, sc); v3.y = G(v3.x, v3.z) - 0.15; im.setMatrixAt(j, m4.compose(v3, qn, sc)); }
+        im.instanceMatrix.needsUpdate = true;
+        ctx.group.add(im);
+      });
+    }
+  }
 
   // ── 정문(출발 직선): 돌기둥 + 철 아치 + 등 ──
   {
