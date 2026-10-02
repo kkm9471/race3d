@@ -1,25 +1,53 @@
-// (임시 시험용 — 공용 틀 확인. 담당 작업자가 진짜 맵으로 바꾼다)
+// 별무리 급행 정거장 (★5) — 14회차 테마 맵: 검은 하늘 위 우주 기지, 금속 데크 노면, 네온 선, 투명 튜브 터널
+// 긴 직선 → U자 커브 3개 → 바위 지대 → 튜브 터널 → 직각 지그재그 → 마지막 긴 직선. 가장 어려운 맵.
 import { SURF } from '../car.js';
 
 export default {
-  id: 'space', name: '시험 우주', kind: '우주', level: 5, laps: 2, theme: 'space', wip: true,
-  desc: '공용 틀 시험용',
+  id: 'space', name: '별무리 급행 정거장', kind: '우주', level: 5, laps: 1, theme: 'space', wip: true,
+  desc: '우주 기지의 긴 데크 직선에서 출발해 U자 커브 3개, 바위 지대, 투명 튜브 터널, 직각 지그재그를 지나 마지막 긴 직선으로 돌아온다. 지름길 4곳, 점프대 2개, 3단 연속 가속 발판. 한 바퀴 약 2분 40초.',
   segs: [
-    ['S', 300], ['A', 30, 90], ['S', 200], ['A', 30, 90], ['S', 300], ['A', 30, 90], ['S', 200], ['A', 30, 90],
+    ['S', 500],          // 0 출발 직선 (길이 자동)
+    ['A', 40, 180],      // 1 U자 1
+    ['S', 520],          // 2 긴 직선 (3단 발판, 점프대)
+    ['A', 40, -180],     // 3 U자 2
+    ['S', 520],          // 4 긴 직선 (점프대)
+    ['A', 40, 180],      // 5 U자 3
+    ['S', 380],          // 6 직선 (가속 발판)
+    ['A', 40, -90],      // 7 바위 지대로
+    ['S', 150],          // 8
+    ['A', 45, 55],       // 9 바위 S자
+    ['A', 45, -55],      // 10
+    ['S', 90],           // 11
+    ['A', 45, -55],      // 12
+    ['A', 45, 55],       // 13
+    ['S', 260],          // 14 투명 튜브 터널
+    ['A', 26, 90],       // 15 직각 지그재그
+    ['S', 70],           // 16
+    ['A', 26, -90],      // 17
+    ['S', 70],           // 18
+    ['A', 26, 90],       // 19
+    ['S', 70],           // 20
+    ['A', 26, -90],      // 21
+    ['S', 70],           // 22
+    ['A', 26, 90],       // 23
+    ['S', 330],          // 24 서쪽으로 (가속 발판)
+    ['A', 40, 90],       // 25 마지막 긴 구간으로
+    ['S', 1100],         // 26 마지막 긴 직선 (길이 자동)
+    ['A', 40, 90],       // 27
+    ['S', 260],          // 28 출발선으로
   ],
-  close: [0, 2],
-  smooth: 14, startAt: 150, width: 11,
-  elev: [[0, 0], [0.5, 4]],
+  close: [0, 26],
+  smooth: 14,
+  startAt: 100,
+  width: 9,
+  elev: [[0, 0], [0.5, 0]],
   bankK: 0, bankMax: 0, crossfall: 0,
   curbW: 0, curbK: 1,
-  runBase: 1.3, runOut: 0.6, runK: 20, gravel: false, runSurf: SURF.ASPHALT, runSlope: 0,
+  runBase: 1.3, runOut: 1.0, runK: 20, gravel: false, runSurf: SURF.ASPHALT, runSlope: 0,
   style: 'city',
-  palette: { ground: [0x22252e, 0x1a1c24, 0x2a2e38, 0x22252e] },
+  palette: { ground: [0x2a2e38, 0x20232c, 0x343946, 0x2a2e38] },
   sun: { elev: 30, azim: 200 },
-  night: { top: 0x000003, horizon: 0x0b0f24, stars: 2500 },
-  fog: 0.0004, fogColor: 0x0b0f24,
-  features: [
-    { t: 'tunnel', seg: 2, from: 0.2, to: 0.8 },
-    { t: 'pad', seg: 4, at: 0.5, d: 0, w: 4, len: 8 },
-  ],
+  night: { top: 0x000002, horizon: 0x0a0e22, stars: 3500, moon: 0.5, ambient: 0.9, exposure: 1.0, moonDisc: false },
+  fog: 0.0003, fogColor: 0x0a0e22,
+  features: [],
 };

@@ -128,7 +128,7 @@ const BODY = {
     fo: 0.55, ro: 0.45, crown: 0.02, tireW: 0.22, noArch: true, open: true, tail: 'center', tailY: 0.24,
     st: [[0, .14, .24, .28, .30, .26], [.10, .10, .26, .30, .42, .36], [.30, .08, .27, .31, .46, .40], [.56, .08, .28, .32, .46, .40],
       [.68, .09, .32, .40, .44, .34], [.80, .10, .36, .46, .46, .36], [.92, .11, .34, .42, .54, .42], [1, .14, .26, .30, .48, .38]],
-    bpil: 0, exh: [[0.16, 0.42, 0.02], [-0.16, 0.42, 0.02]], extras: ['kart'],
+    bpil: 0, exh: [[0.16, 0.42, 0.02], [-0.16, 0.42, 0.02]], noPipe: true, extras: ['kart'],
   },
 };
 
@@ -491,20 +491,138 @@ export function buildCar(spec, P, paintHex, quality = 1) {
       c.position.set(sx * hw * 0.99, fYb(0.5) - cg + 0.14, zAt(0.5)); car.add(c);
     }
   }
-  const exN = ex.includes('quadexhaust') ? 4 : ex.includes('twinexhaust') ? 2 : 1;
+  // ── 새 차 8종 부품 (2026-10-02) ──
+  const add = (geo, mat, x, y, z) => { const m = new THREE.Mesh(geo, mat); m.position.set(x, y, z); car.add(m); return m; };
+  /** 두 점을 잇는 둥근 막대 */
+  const rod = (x0, y0, z0, x1, y1, z1, r, mat) => {
+    const d = new THREE.Vector3(x1 - x0, y1 - y0, z1 - z0);
+    const m = add(new THREE.CylinderGeometry(r, r, d.length(), 8), mat, x0 + d.x / 2, y0 + d.y / 2, z0 + d.z / 2);
+    m.quaternion.setFromUnitVectors(new THREE.Vector3(0, 1, 0), d.normalize());
+    return m;
+  };
+  // 빛 띠 (1 넘는 색이라 번짐 효과로 빛난다)
+  const neonM = B.neon ? new THREE.MeshBasicMaterial({ color: new THREE.Color(...B.neon) }) : null;
+  /** 차체 옆면을 따라 가는 띠: zf 구간 z0~z1, 높이 = yOf(단면) */
+  const sideLine = (z0, z1, yOf, mat) => {
+    for (const sx of [1, -1]) {
+      const pts = [];
+      for (let i = 0; i <= 32; i++) { const s = sect(z0 + (z1 - z0) * i / 32); pts.push(new THREE.Vector3(sx * (s.half + 0.008), yOf(s) - cg, s.z)); }
+      car.add(new THREE.Mesh(new THREE.TubeGeometry(new THREE.CatmullRomCurve3(pts), 64, 0.013, 4, false), mat));
+    }
+  };
+  const archZ = (R * 1.18 + 0.02) / len;   // 아치 반지름(zf 비율)
+  if (ex.includes('chromeline')) {
+    sideLine(0.07, 0.72, s => s.belt - 0.02, chrome);
+    sideLine((P.b - P.b + B.ro) / len + archZ + 0.01, (B.ro + spec.wb) / len - archZ - 0.01, s => s.yb + 0.24, chrome);
+  }
+  if (ex.includes('fendervent')) {
+    for (const sx of [1, -1]) { const s = sect(0.68); add(new THREE.BoxGeometry(0.03, 0.07, 0.30), chrome, sx * (s.half + 0.005), s.belt - cg - 0.24, s.z); }
+  }
+  if (ex.includes('hexintake')) {      // 문 뒤 육각 흡기구
+    for (const sx of [1, -1]) {
+      const s = sect(0.36);
+      const h = add(new THREE.CylinderGeometry(0.2, 0.2, 0.06, 6), trim, sx * (s.half - 0.01), s.belt - cg - 0.24, s.z);
+      h.rotation.z = Math.PI / 2; h.scale.set(1, 1, 0.55);
+    }
+  }
+  if (ex.includes('engineslats')) {    // 뒤 엔진 덮개의 가로 틈
+    for (let k = 0; k < 5; k++) { const s = sect(0.09 + k * 0.022); add(new THREE.BoxGeometry(s.half * 0.9, 0.012, 0.03), trim, 0, s.top + B.crown - cg + 0.004, s.z); }
+  }
+  if (ex.includes('neonbelt')) sideLine(0.02, 0.98, s => s.belt - 0.06, neonM);
+  if (ex.includes('neonsill')) sideLine(B.ro / len + archZ + 0.01, (B.ro + spec.wb) / len - archZ - 0.01, s => s.yb + 0.16, neonM);
+  if (ex.includes('neonarch')) {
+    for (const az of axles) for (const sx of [1, -1]) {
+      const a = add(new THREE.TorusGeometry(R * 1.18 + 0.032, 0.013, 4, 28, Math.PI), neonM, sx * (sect((az - zRear) / len).half + 0.006), R - cg, az);
+      a.rotation.y = Math.PI / 2;
+    }
+  }
+  if (ex.includes('hoverpads')) {      // 바퀴 자리 아래 빛나는 부양 패드
+    for (const W0 of P.wheels) {
+      const s = sect((W0.z - zRear) / len), px = Math.sign(W0.x) * Math.min(Math.abs(W0.x) - 0.1, s.half - 0.3), y = s.yb - cg;
+      add(new THREE.CylinderGeometry(0.24, 0.28, 0.08, 20), darkMetal, px, y - 0.03, W0.z);
+      add(new THREE.CircleGeometry(0.22, 20), neonM, px, y - 0.072, W0.z).rotation.x = Math.PI / 2;
+      add(new THREE.TorusGeometry(0.27, 0.018, 4, 24), neonM, px, y - 0.065, W0.z).rotation.x = Math.PI / 2;
+    }
+  }
+  if (ex.includes('twinfins')) {       // 꼬리 위 두 지느러미 (바깥으로 벌어짐)
+    for (const sx of [1, -1]) { const s = sect(0.12); add(new THREE.BoxGeometry(0.035, 0.30, 0.6), paint, sx * s.half * 0.5, s.top - cg + 0.12, s.z).rotation.set(-0.35, 0, -sx * 0.3); }
+  }
+  if (ex.includes('fwing')) {          // 앞날개: 넓은 판 두 장 + 양끝 세움판
+    const z = zFront - 0.26, w = W * 0.94;
+    add(new THREE.BoxGeometry(w, 0.025, 0.40), darkMetal, 0, 0.09 - cg, z);
+    add(new THREE.BoxGeometry(w * 0.92, 0.02, 0.18), paint, 0, 0.15 - cg, z - 0.12).rotation.x = -0.35;
+    for (const sx of [1, -1]) add(new THREE.BoxGeometry(0.02, 0.16, 0.46), paint, sx * w / 2, 0.14 - cg, z);
+  }
+  if (ex.includes('rwing')) {          // 뒷날개: 높은 판 + 세움판 + 가운데 기둥 + 아래 보조 날개
+    const z = zRear + 0.30, w = W * 0.56, y = 0.86 - cg;
+    add(new THREE.BoxGeometry(w, 0.03, 0.30), darkMetal, 0, y, z).rotation.x = -0.15;
+    add(new THREE.BoxGeometry(w, 0.02, 0.16), paint, 0, y + 0.08, z - 0.14).rotation.x = -0.55;
+    for (const sx of [1, -1]) add(new THREE.BoxGeometry(0.02, 0.42, 0.56), paint, sx * w / 2, y - 0.08, z - 0.04);
+    add(new THREE.BoxGeometry(0.04, 0.38, 0.10), darkMetal, 0, y - 0.2, z + 0.02);
+    add(new THREE.BoxGeometry(w * 0.9, 0.02, 0.16), darkMetal, 0, 0.42 - cg, z - 0.05);
+  }
+  if (ex.includes('flatfloor')) add(new THREE.BoxGeometry(W * 0.62, 0.025, len * 0.36), trim, 0, 0.07 - cg, zAt(0.44));
+  if (ex.includes('arms')) {           // 드러난 바퀴를 잡는 위아래 A자 팔
+    for (const W0 of P.wheels) {
+      const sx = Math.sign(W0.x), s = sect((W0.z - zRear) / len);
+      const tw = B.tireW * (W0.front ? 1 : (spec.tire.rear ? 1.15 : 1));
+      const xo = Math.abs(W0.x) - tw / 2 + 0.02, xi = s.half * 0.8;
+      for (const dy of [0.07, -0.05]) for (const dz of [0.16, -0.16]) rod(sx * xi, R - cg + dy, W0.z + dz, sx * xo, R - cg + dy, W0.z, 0.014, darkMetal);
+    }
+  }
+  /** 운전자 헬멧 (칠 색 + 앞 가리개) */
+  const helmet = (y, z, r) => {
+    add(new THREE.SphereGeometry(r, 18, 12), paint, 0, y, z);
+    add(new THREE.SphereGeometry(r * 1.03, 18, 6, Math.PI / 2 - 0.9, 1.8, 1.05, 0.55), glass, 0, y, z);
+  };
+  if (ex.includes('helmet')) helmet(0.78 - cg, zAt(0.53), 0.14);
+  if (ex.includes('halo')) {           // 머리 위 보호 고리
+    const z0 = zAt(0.535), y = 0.90 - cg, r = 0.27;
+    add(new THREE.TorusGeometry(r, 0.022, 6, 20, Math.PI), darkMetal, 0, y, z0).rotation.x = Math.PI / 2;
+    rod(0, y, z0 + r, 0, sect(0.6).top - cg - 0.02, z0 + r + 0.05, 0.022, darkMetal);
+    for (const sx of [1, -1]) rod(sx * r, y, z0, sx * r, sect(0.5).top - cg - 0.06, z0 - 0.08, 0.02, darkMetal);
+  }
+  if (ex.includes('kart')) {
+    const suit = new THREE.MeshStandardMaterial({ color: 0xeef0f2, roughness: 0.6 });
+    for (const sx of [1, -1]) {        // 옆 범퍼 (통통한 캡슐)
+      const p = add(new THREE.CapsuleGeometry(0.11, 0.56, 4, 12), paint, sx * 0.56, 0.20 - cg, zAt(0.48));
+      p.rotation.x = Math.PI / 2; p.scale.set(1, 1, 0.8);
+      rod(sx * 0.30, 0.15 - cg, zAt(0.48), sx * 0.47, 0.18 - cg, zAt(0.48), 0.02, darkMetal);
+    }
+    rod(-0.62, 0.16 - cg, zFront - 0.06, 0.62, 0.16 - cg, zFront - 0.06, 0.03, darkMetal);   // 앞 범퍼 봉
+    rod(-0.78, 0.17 - cg, zRear + 0.03, 0.78, 0.17 - cg, zRear + 0.03, 0.03, darkMetal);     // 뒤 범퍼 봉
+    for (const sx of [1, -1]) rod(sx * 0.30, 0.17 - cg, zRear + 0.03, sx * 0.30, 0.13 - cg, zRear + 0.32, 0.022, darkMetal);
+    add(new THREE.BoxGeometry(0.44, 0.06, 0.38), trim, 0, 0.34 - cg, zAt(0.43));                 // 좌석 방석
+    add(new THREE.BoxGeometry(0.46, 0.50, 0.07), trim, 0, 0.56 - cg, zAt(0.355)).rotation.x = -0.3;   // 등받이
+    add(new THREE.CapsuleGeometry(0.15, 0.22, 4, 12), suit, 0, 0.60 - cg, zAt(0.42)).rotation.x = -0.25;   // 몸통
+    helmet(0.93 - cg, zAt(0.425), 0.15);
+    const wz = zAt(0.60);
+    add(new THREE.TorusGeometry(0.13, 0.022, 6, 18), darkMetal, 0, 0.66 - cg, wz).rotation.x = -0.6;   // 핸들
+    rod(0, 0.66 - cg, wz, 0, 0.42 - cg, zAt(0.74), 0.02, darkMetal);
+    for (const sx of [1, -1]) rod(sx * 0.18, 0.78 - cg, zAt(0.43), sx * 0.12, 0.67 - cg, wz - 0.02, 0.045, suit);   // 팔
+    add(new THREE.BoxGeometry(0.36, 0.24, 0.30), darkMetal, 0, 0.44 - cg, zAt(0.13));           // 엔진
+    for (let k = 0; k < 4; k++) add(new THREE.BoxGeometry(0.30, 0.015, 0.26), chrome, 0, 0.58 - cg + k * 0.035, zAt(0.13));
+    add(new THREE.CylinderGeometry(0.08, 0.08, 0.14, 14), chrome, 0.27, 0.46 - cg, zAt(0.15)).rotation.z = Math.PI / 2;
+    for (const [x] of B.exh) rod(x, 0.42 - cg, zAt(0.12), x, 0.42 - cg, zRear + 0.08, 0.035, chrome);   // 배기관
+  }
+  const exN = B.exh ? B.exh.length : ex.includes('quadexhaust') ? 4 : ex.includes('twinexhaust') ? 2 : 1;
   // 부스터 불꽃(파란 원뿔, 평소엔 숨김) — 빛나는 값(1 넘는 색)이라 번짐 효과로 반짝인다
   const flameM = new THREE.MeshBasicMaterial({ color: new THREE.Color(1.2, 2.2, 3.6), transparent: true, opacity: 0.9, blending: THREE.AdditiveBlending, depthWrite: false });
   const flameG = new THREE.ConeGeometry(0.16, 1.15, 10, 1, true);
   flameG.rotateX(-Math.PI / 2); flameG.translate(0, 0, -0.57);   // 뒤로 뻗게
   const flames = [];
   for (let k = 0; k < exN; k++) {
-    const e = new THREE.Mesh(new THREE.CylinderGeometry(0.045, 0.045, 0.15, 10), chrome);
-    e.rotation.x = Math.PI / 2;
-    const sx = exN === 1 ? -hw * 0.5 : ((k % 2 ? -1 : 1) * hw * (0.3 + 0.12 * Math.floor(k / 2)));
-    e.position.set(sx, fYb(0.03) - cg + 0.06, zRear + 0.03);
-    car.add(e);
+    const ep = B.exh ? B.exh[k] : null;
+    const sx = ep ? ep[0] : exN === 1 ? -hw * 0.5 : ((k % 2 ? -1 : 1) * hw * (0.3 + 0.12 * Math.floor(k / 2)));
+    const ey = ep ? ep[1] - cg : fYb(0.03) - cg + 0.06, ez = zRear + (ep ? ep[2] : 0) + 0.03;
+    if (!B.noPipe) {
+      const e = new THREE.Mesh(new THREE.CylinderGeometry(0.045, 0.045, 0.15, 10), chrome);
+      e.rotation.x = Math.PI / 2;
+      e.position.set(sx, ey, ez);
+      car.add(e);
+    }
     const f = new THREE.Mesh(flameG, flameM);
-    f.position.set(sx, fYb(0.03) - cg + 0.06, zRear - 0.03);
+    f.position.set(sx, ey, ez - 0.06);
     f.visible = false; f.userData.fx = true;
     car.add(f); flames.push(f);
   }
@@ -563,6 +681,7 @@ export function buildCar(spec, P, paintHex, quality = 1) {
     cal.position.set(face - side * 0.03, r0 * 0.55, -r0 * 0.3);
     pivot.add(cal);
     pivot.position.set(W0.x, R - cg, W0.z);
+    if (B.hover) pivot.visible = false;   // 호버카: 바퀴는 숨기고 객체만 남긴다
     car.add(pivot);
     wheels.push({ pivot, spin, base: R - cg, angle: 0 });
   }
