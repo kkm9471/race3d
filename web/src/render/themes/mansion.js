@@ -128,7 +128,7 @@ export const look = {
   tunnel: { color: 0xffffff, map: corridorTex, light: 0xffc890, emissive: 0x4a1a14, portal: 0x3c3350 },
   // 실사(15회차): 밤은 그대로(코드 밤하늘) + 실제 대리석·돌담·잔디, 정원에 실사 활엽수 (보통·높음 화질)
   real: {
-    road: { tex: 'marble_01', scale: 3, tint: 0xe2e6ff, bright: 1.3, env: 1.0, rough: 0.7 },
+    road: { tex: 'marble_01', scale: 3, tint: 0xc4d0ff, bright: 1.4, env: 1.0, rough: 0.7 },
     runoff: { tex: 'leafy_grass', scale: 3, tint: 0x6f9a74 },
     terrain: { tex: 'leafy_grass', scale: 5, tint: 0x5a8466 },
     wall: { tex: 'rock_wall_08', scale: 3, tint: 0xb8bedc, bright: 1.5 },

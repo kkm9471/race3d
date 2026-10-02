@@ -186,11 +186,11 @@ export const look = {
   // 실사: 이끼 낀 사암 길·벽, 진한 정글 땅, 활엽수 가득한 숲, 따뜻한 오후 하늘
   real: {
     sky: 'qwantani_late_afternoon_puresky', exposure: 1.0,
-    road: { tex: 'mossy_sandstone', scale: 2.5, tint: 0xf0ead8, bright: 1.9, env: 1.0 },
+    road: { tex: 'mossy_sandstone', scale: 2.5, tint: 0xffffff, bright: 1.7, env: 1.0 },
     runoff: { tex: 'forest_ground_04', scale: 3, tint: 0xb8d098 },
     terrain: { tex: 'forest_ground_04', scale: 5, tint: 0xa8c888 },
-    rock: { tex: 'mossy_sandstone', scale: 3.5, tint: 0xd8e8b8, bright: 1.7 },
-    wall: { tex: 'mossy_sandstone', scale: 2.5, tint: 0xece0c0, bright: 1.7 },
+    rock: { tex: 'mossy_sandstone', scale: 3.5, tint: 0xe4f0d0, bright: 1.6 },
+    wall: { tex: 'mossy_sandstone', scale: 2.5, tint: 0xf4f4ec, bright: 1.6 },
     trees: { con: ['island_tree_02'], broad: ['island_tree_01', 'island_tree_02'], h: [9, 17], n: 0.9, tint: 0xd8e8c0 },
   },
 };

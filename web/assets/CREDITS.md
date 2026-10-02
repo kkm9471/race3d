@@ -59,3 +59,5 @@
 - Rock Wall 08 (1.8×1.8m) — https://polyhaven.com/a/rock_wall_08
 - Marble 01 (1.5×1.5m) — https://polyhaven.com/a/marble_01
 - Gravel Road (2×2m) — https://polyhaven.com/a/gravel_road
+- Whitewashed Brick (2×2m) — https://polyhaven.com/a/whitewashed_brick
+- Stone Tiles (3.17×3.17m) — https://polyhaven.com/a/stone_tiles

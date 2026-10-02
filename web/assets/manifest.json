@@ -150,18 +150,6 @@
    "src": "ambientCG",
    "url": "https://ambientcg.com/view?id=Facade009"
   },
-  "brick_pavement": {
-   "name": "Brick Pavement",
-   "w": 2,
-   "h": 2,
-   "url": "https://polyhaven.com/a/brick_pavement"
-  },
-  "coast_sand_02": {
-   "name": "Coast Sand 02",
-   "w": 15,
-   "h": 15,
-   "url": "https://polyhaven.com/a/coast_sand_02"
-  },
   "castle_brick_02_red": {
    "name": "Castle Brick 02 Red",
    "w": 1.5,
@@ -179,12 +167,6 @@
    "w": 2,
    "h": 2,
    "url": "https://polyhaven.com/a/mossy_cobblestone"
-  },
-  "rocky_trail": {
-   "name": "Rocky Trail",
-   "w": 2,
-   "h": 2,
-   "url": "https://polyhaven.com/a/rocky_trail"
   },
   "cobblestone_floor_04": {
    "name": "Cobblestone Floor 04",
@@ -269,6 +251,18 @@
    "w": 2,
    "h": 2,
    "url": "https://polyhaven.com/a/gravel_road"
+  },
+  "whitewashed_brick": {
+   "name": "Whitewashed Brick",
+   "w": 2,
+   "h": 2,
+   "url": "https://polyhaven.com/a/whitewashed_brick"
+  },
+  "stone_tiles": {
+   "name": "Stone Tiles",
+   "w": 3.1700000762939453,
+   "h": 3.169999837875366,
+   "url": "https://polyhaven.com/a/stone_tiles"
   }
  },
  "sky": {
