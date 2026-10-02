@@ -14,6 +14,7 @@ export const REAL = {
     exposure: 1.05,
     gravel: { tex: 'gravel_floor', scale: 2.5 },
     wall: { tex: 'concrete_wall_006', scale: 3 },
+    trees: { con: ['fir_tree_01'], broad: ['island_tree_02', 'island_tree_01'], h: [9, 18] },
   },
   mountain: {   // 안개 낀 아침 산길
     sky: 'kloofendal_misty_morning_puresky', exposure: 1.05,
@@ -52,7 +53,7 @@ export const REAL = {
     road: { tex: 'asphalt_snow', scale: 3, env: 1.2, bright: 1.2 },
     runoff: { tex: 'snow_02', scale: 3 },
     terrain: { tex: 'snow_02', scale: 5 },
-    rock: { tex: 'snow_02', scale: 4, tint: 0xd8e2ee, normal: 2 },   // 눈 덮인 절벽 (갈색 바위 질감은 얼음·눈 맵에 안 맞았다)
+    rock: { tex: 'snow_02', scale: 4, tint: 0xeef4fa, bright: 1.45, normal: 2 },   // 눈 덮인 절벽 (갈색 바위 질감은 얼음·눈 맵에 안 맞았다)
     wall: { tex: 'concrete_wall_006', scale: 3 },
   },
   harbor: {     // 해 질 녘 항구 도시
@@ -67,7 +68,7 @@ export const REAL = {
     road: { tex: 'asphalt_snow', scale: 3, env: 1.2, bright: 1.2 },
     runoff: { tex: 'snow_02', scale: 3 },
     terrain: { tex: 'snow_02', scale: 5 },
-    rock: { tex: 'snow_02', scale: 4, tint: 0xd8e2ee, normal: 2 },   // 눈 덮인 절벽 (갈색 바위 질감은 얼음·눈 맵에 안 맞았다)
+    rock: { tex: 'snow_02', scale: 4, tint: 0xeef4fa, bright: 1.45, normal: 2 },   // 눈 덮인 절벽 (갈색 바위 질감은 얼음·눈 맵에 안 맞았다)
     wall: { tex: 'concrete_wall_006', scale: 3 },
   },
 };

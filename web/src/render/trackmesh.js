@@ -10,6 +10,7 @@ import { buildCity } from './city.js';
 import { THEMES } from './themes/index.js';
 import { makeCtx } from './themes/kit.js';
 import { applyTexSet } from './assets.js';
+import { getTreeSet, makeTreeMesh } from './trees.js';
 import { realFor } from './realism.js';
 
 function hash2(x, z) {
@@ -360,7 +361,15 @@ export function buildTrackScene(T, world, q, def) {
   if (look.far !== false) group.add(buildFarMountains(T, Array.isArray(look.far) ? { ...def, palette: { ...def.palette, far: look.far } } : def));
 
   // ── 나무 ──
-  if (look.trees !== false) group.add(buildTrees(T, def, terrainH, q, look.trees || null));
+  // 실사 나무(사진판) — 보통·높음 화질, 미리 받아 둔 경우만. real.trees = { con: [침엽수 id], broad: [활엽수 id], h: [최소, 최대 높이 m], n: 개수 배율, tint }
+  let imp = null;
+  if (real && real.trees) {
+    const pick = ids => (ids || []).map(getTreeSet).filter(Boolean);
+    imp = { ...real.trees, con: pick(real.trees.con), broad: pick(real.trees.broad) };
+    if (!imp.con.length && !imp.broad.length) imp = null;
+    else { if (!imp.con.length) imp.con = imp.broad; if (!imp.broad.length) imp.broad = imp.con; }
+  }
+  if (look.trees !== false) group.add(buildTrees(T, def, terrainH, q, look.trees || null, imp));
 
   // ── 서킷 시설: 관중석·피트·게이트·광고판 (테마 맵은 출발 게이트만 — 관중석·광고판은 서킷 분위기라서) ──
   const lights = { gantry: null };
@@ -668,9 +677,10 @@ function buildFarMountains(T, def) {
   return grp;
 }
 
-function buildTrees(T, def, natural, q, tl = null) {
+function buildTrees(T, def, natural, q, tl = null, imp = null) {
   const grp = new THREE.Group();
-  const count = Math.round((def.style === 'mountain' ? 5200 : def.style === 'city' ? (tl ? 1800 : 0) : 1800) * q.trees * (tl?.n ?? 1));
+  const count = Math.round((def.style === 'mountain' ? 5200 : def.style === 'city' ? (tl || imp ? 1800 : 0) : 1800) * q.trees * (tl?.n ?? 1) * (imp?.n ?? 1));
+  const impCon = [], impBroad = [];
   const b = T.bounds, pad = def.style === 'mountain' ? 700 : 500;
   const trunkG = new THREE.CylinderGeometry(0.18, 0.28, 3, 5);
   trunkG.translate(0, 1.5, 0);
@@ -737,6 +747,15 @@ function buildTrees(T, def, natural, q, tl = null) {
     const isCon = kc < nCon && (kb >= nBlob || r() < conifer);
     const h = 0;  // 높이는 나중에 지형 메쉬에서
     const s = 0.7 + r() * 0.7;
+    if (imp) {
+      // 실사 나무: 높이 범위 안에서, 밝기를 조금씩 달리
+      const hh = imp.h || [9, 17], v = 0.82 + r() * 0.3;
+      const tint = new THREE.Color(imp.tint ?? 0xffffff).multiplyScalar(v);
+      (isCon ? impCon : impBroad).push({ x, z, s: hh[0] + r() * (hh[1] - hh[0]), yaw: r() * 6.28, tint });
+      if (isCon) kc++; else kb++;
+      kt++;
+      continue;
+    }
     qn.setFromAxisAngle(new THREE.Vector3(0, 1, 0), r() * 6.28);
     p.set(x, h, z);
     sc.set(s, s * (0.85 + r() * 0.4), s);
@@ -747,18 +766,27 @@ function buildTrees(T, def, natural, q, tl = null) {
     kt++;
   }
   iTrunk.count = kt; iCon.count = kc; iBlob.count = kb;
-  for (const im of [iTrunk, iCon, iBlob]) { im.castShadow = q.detail >= 1; im.receiveShadow = false; grp.add(im); }
+  let meshes = [iTrunk, iCon, iBlob];
+  if (imp) {
+    // 종류마다 InstancedMesh 하나 (여러 종류면 번갈아)
+    meshes = [];
+    for (const [list, sets] of [[impCon, imp.con], [impBroad, imp.broad]]) {
+      sets.forEach((set, k) => { const part = list.filter((_, j) => j % sets.length === k); if (part.length) meshes.push(makeTreeMesh(set, part, q)); });
+    }
+    for (const im of [iTrunk, iCon, iBlob]) { im.geometry.dispose(); }
+    for (const im of meshes) grp.add(im);
+  } else for (const im of meshes) { im.castShadow = q.detail >= 1; im.receiveShadow = false; grp.add(im); }
   grp.userData.placeOn = (heightAt) => {
-    for (const im of [iTrunk, iCon, iBlob]) {
+    for (const im of meshes) {
       for (let i = 0; i < im.count; i++) {
         im.getMatrixAt(i, m);
         m.decompose(p, qn, sc);
-        p.y = heightAt(p.x, p.z) - 0.3;
+        p.y = heightAt(p.x, p.z) - (im.userData.isTree ? 0.15 : 0.3);
         m.compose(p, qn, sc);
         im.setMatrixAt(i, m);
       }
       im.instanceMatrix.needsUpdate = true;
-      im.computeBoundingSphere();
+      if (!im.userData.isTree) im.computeBoundingSphere();
     }
   };
   return grp;

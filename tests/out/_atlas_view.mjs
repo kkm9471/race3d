@@ -1,0 +1,10 @@
+import puppeteer from 'puppeteer-core';
+import fs from 'node:fs';
+const ids = process.argv.slice(2);
+const b = await puppeteer.launch({ executablePath: 'C:/Program Files/Google/Chrome/Application/chrome.exe', headless: 'new' });
+const p = await b.newPage();
+await p.setViewport({ width: 1600, height: ids.length * 220 });
+const rows = ids.map(id => `<div style="height:200px;margin:10px 0;background:linear-gradient(#8ab,#cdb)"><img style="height:200px" src="data:image/png;base64,${fs.readFileSync(`web/assets/trees/${id}/albedo.png`).toString('base64')}"><span style="color:#fff;font:14px sans-serif">${id}</span></div>`).join('');
+await p.setContent(`<body style="margin:0;background:#333">${rows}</body>`);
+await p.screenshot({ path: 'tests/out/atlas_view.png' });
+await b.close();

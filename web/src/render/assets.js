@@ -5,6 +5,7 @@
 // 화질 '낮음'에서는 아무것도 받지 않는다(가장 약한 PC 를 지키려고).
 import * as THREE from 'three';
 import { HDRLoader } from 'three/addons/loaders/HDRLoader.js';
+import { loadTreeSet } from './trees.js';
 
 const BASE = './assets/';
 let manifest = null;
@@ -108,6 +109,7 @@ export async function preloadReal(real, q) {
   }
   const jobs = [...ids].map(fetchTex);
   if (real.sky) jobs.push(fetchSky(real.sky));
+  if (real.trees) for (const id of [...(real.trees.con || []), ...(real.trees.broad || [])]) jobs.push(loadTreeSet(id));
   // 너무 오래 걸리면(느린 망) 8초에서 끊고 받은 것만 쓴다 — 출발이 무한히 미뤄지지 않게
   await Promise.race([Promise.all(jobs), new Promise(r => setTimeout(r, 8000))]);
 }
