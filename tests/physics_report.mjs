@@ -52,11 +52,9 @@ export const TARGET = {
   tapPeak: [8, 18], tapPeakT: [0.35, 0.8], tapEnd: [0.8, 1.6], tapLoss: [0, 8],
   //  풀(0.7초 → 0.25초 아무것도 → 반대 방향키): 0.15초까지 거의 안 돎(묵직), 0.7초에 35~60°, 키를 떼도 각도 유지(관성),
   //  카운터 0.5~1.0초에 펴짐, 속도 -20~40%(영상 -33%), 오래 누르면 U자
-  fullB015: [0, 6], fullB07: [35, 60], fullHold: [0.85, 1.3], counterT: [0.5, 1.0], fullLoss: [18, 40], uturn: [2.5, 4.2],   // U자: Shift+방향키를 계속(17회차 꺾이는 양을 줄여 약 3.5초)
+  fullB015: [0, 6], fullB07: [35, 60], fullHold: [0.85, 1.3], counterT: [0.5, 1.0], fullLoss: [18, 40], uturn: [1.4, 2.6],
   // (14회차 독립검증) 드리프트가 끝난 뒤(순간부스터 안 씀) 실제 속력: 0.25초 뒤 변화(급감속·급가속 없음), 1초 동안 최대 상승(탈출 속도가 공짜로 붙지 않음 — 동우 피드백)
   exitD25: [-14, 4], exitMax: [0, 8],     // (3차) 그냥 직진보다 더 붙는 속도
-  // (16회차 사용자: "드리프트만큼 딱 꺾이고 풀리게") 펴질 때 차 머리가 되돌아가는 양(°) / 톡톡이 초당 3번 3초: 드리프트 유지·가장 느려진 속도(시작 대비 %)
-  swingBack: [0, 6], tokKeep: [95, 112],
 };
 
 /** 영상과 같은 키 순서의 풀 드리프트: Shift+→ 0.7초 → 0.25초 아무것도 → ← 를 펴질 때까지. 가속 키는 계속(thr 로 바꿀 수 있음) */
@@ -153,31 +151,7 @@ export function measure(spec) {
     }
     r.exitD25 = d25; r.exitMax = mx; void v0;
   }
-  // 돌린 만큼 딱 꺾이나: 풀 드리프트(영상 순서, 펴지면 반대 방향키도 뗌) 동안 차 머리가 가장 많이 돈 각도에서 끝날 때까지 되돌아간 양
-  {
-    const { c, w } = newCar(spec);
-    c.setSpeed(150 / 3.6);
-    const head = () => { const a = c.axes([]); return Math.atan2(a[6], a[8]) * 180 / Math.PI; };
-    let ph = head(), tot = 0, mx = 0;
-    for (let f = 0; f < FPS * 3 && (f < 57 || c.st.drift); f++) {
-      frame(c, w, pack(fullPlan(f)));
-      let d = head() - ph; if (d > 180) d -= 360; if (d < -180) d += 360; ph = head(); tot += d;
-      if (Math.abs(tot) > Math.abs(mx)) mx = tot;
-    }
-    r.swingBack = Math.abs(mx) - Math.abs(tot);
-  }
-  // 톡톡이(끌기): 드리프트를 건 뒤 반대키 한 번 → 꺾은 쪽을 초당 3번 톡. 3초 동안 드리프트가 이어지고 속도가 줄지 않아야
-  {
-    const { c, w } = newCar(spec);
-    c.setSpeed(150 / 3.6);
-    let vmin = 999, alive = 1;
-    for (let f = 0; f < FPS * 3.5; f++) {
-      frame(c, w, pack({ kb: 1, thr: 1, hb: f < 20 ? 1 : 0, steer: f < 20 ? 1 : f < 26 ? -1 : ((f - 26) % 20) < 4 ? 1 : 0 }));
-      if (f > 30) { vmin = Math.min(vmin, c.out.speed * 3.6); if (!c.st.drift) alive = 0; }
-    }
-    r.tokKeep = alive ? vmin / 1.5 : 0;
-  }
-  // 꺾이는 양(가는 방향 총 회전, 끝난 뒤 2초까지): 톡 / 풀(영상 순서, 펴지면 반대 방향키 뗌) — 차끼리 크게 벌어지면 안 된다(regress)
+  // 꺾이는 양(가는 방향 총 회전, 3초까지): 톡 / 풀(영상 순서, 펴지면 반대 방향키 뗌) — 차끼리 크게 벌어지면 안 된다(regress, 18회차)
   {
     const turnOf = plan => {
       const { c, w } = newCar(spec); c.setSpeed(150 / 3.6);
@@ -220,14 +194,14 @@ if ((process.argv[1] || '').replace(/\\/g, '/').endsWith('tests/physics_report.m
   const chk = (v, k, d = 1) => { const [a, b] = TARGET[k]; const ok = v >= a && v <= b; if (!ok) bad++; return `${ok ? '✅' : '❌'} ${v.toFixed(d)}`; };
   for (const spec of CARS) {
     const r = measure(spec);
-    rows.push(`| ${spec.name}(${spec.cls}) | ${chk(r.acc100, 'acc100', 2)} | ${chk(r.vtop, 'vtop', 0)} | ${chk(r.coast1, 'coast1', 0)} | ${chk(r.brake100, 'brake100')} | ${chk(r.gripBeta, 'gripBeta')} (${r.gripR.toFixed(0)}m) | ${chk(r.tapPeak, 'tapPeak')}° ${chk(r.tapPeakT, 'tapPeakT', 2)}s ${chk(r.tapEnd, 'tapEnd', 2)}s ${chk(r.tapLoss, 'tapLoss')}% | ${chk(r.fullB015, 'fullB015')}° ${chk(r.fullB07, 'fullB07')}° ${chk(r.fullHold, 'fullHold', 2)} | ${chk(r.counterT, 'counterT', 2)} | ${chk(r.fullLoss, 'fullLoss')} | ${chk(r.uturn, 'uturn', 2)} | ${chk(r.exitD25, 'exitD25', 1)} / ${chk(r.exitMax, 'exitMax', 1)} | ${chk(r.swingBack, 'swingBack', 1)}° | ${chk(r.tokKeep, 'tokKeep', 0)}% | ${r.gauge2s.toFixed(2)} | ${chk(r.boostTop, 'boostTop', 0)} | ${r.instOk && !r.instHold ? '✅' : '❌'} ${r.instOk}/${r.instHold} |`);
+    rows.push(`| ${spec.name}(${spec.cls}) | ${chk(r.acc100, 'acc100', 2)} | ${chk(r.vtop, 'vtop', 0)} | ${chk(r.coast1, 'coast1', 0)} | ${chk(r.brake100, 'brake100')} | ${chk(r.gripBeta, 'gripBeta')} (${r.gripR.toFixed(0)}m) | ${chk(r.tapPeak, 'tapPeak')}° ${chk(r.tapPeakT, 'tapPeakT', 2)}s ${chk(r.tapEnd, 'tapEnd', 2)}s ${chk(r.tapLoss, 'tapLoss')}% | ${chk(r.fullB015, 'fullB015')}° ${chk(r.fullB07, 'fullB07')}° ${chk(r.fullHold, 'fullHold', 2)} | ${chk(r.counterT, 'counterT', 2)} | ${chk(r.fullLoss, 'fullLoss')} | ${chk(r.uturn, 'uturn', 2)} | ${chk(r.exitD25, 'exitD25', 1)} / ${chk(r.exitMax, 'exitMax', 1)} | ${r.gauge2s.toFixed(2)} | ${chk(r.boostTop, 'boostTop', 0)} | ${r.instOk && !r.instHold ? '✅' : '❌'} ${r.instOk}/${r.instHold} |`);
     if (!(r.instOk && !r.instHold)) bad++;
     console.log(rows[rows.length - 1]);
   }
   const T = TARGET;
-  const head = `| 차 | 0→100 s (${T.acc100}) | 최고 km/h (${T.vtop}) | 액셀 떼고 1초 감속 km/h (${T.coast1}) | 100→0 m (${T.brake100}) | 그냥 꺾기 미끄럼° (${T.gripBeta}) | 톡: 최대°·그때·펴짐 s·감속% (${T.tapPeak}/${T.tapPeakT}/${T.tapEnd}/${T.tapLoss}) | 풀: 0.15초°·0.7초°·뗀 뒤 유지비 (${T.fullB015}/${T.fullB07}/${T.fullHold}) | 카운터 펴짐 s (${T.counterT}) | 풀 감속 % (${T.fullLoss}) | U자 s (${T.uturn}) | 탈출 0.25초·1초 최대 km/h (${T.exitD25} / ${T.exitMax}) | 펴질 때 머리 되돌아감 ° (${T.swingBack}) | 톡톡이 3초 속도 % (${T.tokKeep}) | 2초 드리프트 게이지 | 부스터 최고 km/h (${T.boostTop}) | 순간부스터 새로누름/계속누름 |`;
+  const head = `| 차 | 0→100 s (${T.acc100}) | 최고 km/h (${T.vtop}) | 액셀 떼고 1초 감속 km/h (${T.coast1}) | 100→0 m (${T.brake100}) | 그냥 꺾기 미끄럼° (${T.gripBeta}) | 톡: 최대°·그때·펴짐 s·감속% (${T.tapPeak}/${T.tapPeakT}/${T.tapEnd}/${T.tapLoss}) | 풀: 0.15초°·0.7초°·뗀 뒤 유지비 (${T.fullB015}/${T.fullB07}/${T.fullHold}) | 카운터 펴짐 s (${T.counterT}) | 풀 감속 % (${T.fullLoss}) | U자 s (${T.uturn}) | 탈출 0.25초·1초 최대 km/h (${T.exitD25} / ${T.exitMax}) | 2초 드리프트 게이지 | 부스터 최고 km/h (${T.boostTop}) | 순간부스터 새로누름/계속누름 |`;
   fs.mkdirSync('tests/out', { recursive: true });
-  fs.writeFileSync('tests/out/physics.md', `# 카트식 주행 측정 (${new Date().toISOString()})\n\n${head}\n|${'---|'.repeat(17)}\n${rows.join('\n')}\n\n범위 밖: ${bad}개\n`);
+  fs.writeFileSync('tests/out/physics.md', `# 카트식 주행 측정 (${new Date().toISOString()})\n\n${head}\n|${'---|'.repeat(15)}\n${rows.join('\n')}\n\n범위 밖: ${bad}개\n`);
   console.log(`\n범위 밖: ${bad}개   (${((Date.now() - t0) / 1000).toFixed(1)}초)`);
   process.exit(bad ? 1 : 0);      // 범위 밖이 있으면 실패로 끝난다 (전엔 ❌ 를 찍고도 성공으로 끝났다 — 14회차 독립검증)
 }

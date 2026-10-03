@@ -139,17 +139,8 @@ export class RaceView {
     const sp = vel.length();
     // 부스터: 시야가 살짝 넓어져 속도감 (부드럽게)
     this.boostFov = (this.boostFov || 0) + ((car.st.boostT > 0 ? 9 : 0) - (this.boostFov || 0)) * Math.min(1, dt * 6);
-    // 카메라는 '가는 방향'을 주로 따라간다(카트라이더처럼 — 화면은 실제로 가는 만큼만 돌고, 드리프트하면 차가 그 안에서 옆으로 미끄러져 보인다).
-    // 전엔 차 머리를 65% 따라가 드리프트로 머리가 돌면 화면이 더 꺾였다 돌아왔다(16회차 사용자 피드백). 후진·저속은 머리 방향
-    const fwdV = vel.x * fwd.x + vel.z * fwd.z;
-    const dir = sp > 4 && fwdV > 2 ? fwd.clone().lerp(vel.normalize(), 0.85).normalize() : fwd.clone();
-    // 보는 방향은 묵직하게(약 0.2초) 따라간다 — 드리프트를 펼 때 가는 방향이 빨리 돌아도 화면이 홱 돌지 않게(17회차 사용자 "확 꺾인다")
-    if (!this.camInit || !this.camDirS) this.camDirS = dir.clone();
-    else {
-      this.camDirS.lerp(dir, 1 - Math.exp(-dt * 5));
-      if (this.camDirS.lengthSq() < 0.01) this.camDirS.copy(dir); else this.camDirS.normalize();   // 거의 반대 방향(스핀 뒤)이면 바로 맞춤
-    }
-    dir.copy(this.camDirS);
+    // 드리프트할 때는 진행방향 쪽으로 카메라가 돌아 차 옆모습이 보이게
+    const dir = sp > 4 ? fwd.clone().lerp(vel.normalize(), 0.35).normalize() : fwd.clone();
     if (look) dir.multiplyScalar(-1);
     const len = car.P.Lb;
     const modes = [
@@ -225,7 +216,7 @@ class Effects {
     g.fillStyle = gr; g.fillRect(0, 0, 64, 64);
     this.smokeTex = new THREE.CanvasTexture(c);
     this.N = n;
-    this.pp = new Float32Array(n * 3); this.pv = new Float32Array(n * 3); this.pl = new Float32Array(n); this.pl0 = new Float32Array(n); this.ps = new Float32Array(n); this.pc = new Float32Array(n * 3);
+    this.pp = new Float32Array(n * 3); this.pv = new Float32Array(n * 3); this.pl = new Float32Array(n); this.ps = new Float32Array(n); this.pc = new Float32Array(n * 3);
     this.sizes = new Float32Array(n); this.alphas = new Float32Array(n);
     const geo = new THREE.BufferGeometry();
     geo.setAttribute('position', new THREE.BufferAttribute(this.pp, 3));
@@ -237,7 +228,7 @@ class Effects {
       uniforms: { map: { value: this.smokeTex }, scale: { value: 600 } },
       vertexShader: `attribute float size; attribute float alpha; attribute vec3 color; varying float vA; varying vec3 vC;
         uniform float scale;
-        void main(){ vA = alpha; vC = color; vec4 mv = modelViewMatrix * vec4(position,1.0); gl_PointSize = min(size * scale / -mv.z, 70.0); gl_Position = projectionMatrix * mv; }`,
+        void main(){ vA = alpha; vC = color; vec4 mv = modelViewMatrix * vec4(position,1.0); gl_PointSize = size * scale / -mv.z; gl_Position = projectionMatrix * mv; }`,
       fragmentShader: `uniform sampler2D map; varying float vA; varying vec3 vC;
         void main(){ vec4 t = texture2D(map, gl_PointCoord); gl_FragColor = vec4(vC, t.a * vA); if (gl_FragColor.a < 0.01) discard; }`,
       transparent: true, depthWrite: false,
@@ -287,7 +278,7 @@ class Effects {
 
   emit(x, y, z, vx, vy, vz, size, life, r, g, b) {
     const i = this.next; this.next = (this.next + 1) % this.N;
-    this.pp.set([x, y, z], i * 3); this.pv.set([vx, vy, vz], i * 3); this.pl[i] = life; this.pl0[i] = life; this.ps[i] = size;
+    this.pp.set([x, y, z], i * 3); this.pv.set([vx, vy, vz], i * 3); this.pl[i] = life; this.ps[i] = size;
     this.pc.set([r, g, b], i * 3);
     this.sizes[i] = size; this.alphas[i] = 0.5;
   }
@@ -317,14 +308,13 @@ class Effects {
         void fx;
       } else this.trail.delete(key);
       // 연기 (아스팔트) / 흙먼지 (잔디·자갈·흙) / 옅은 눈가루 (빙판 = 5 — 흙먼지로 치면 길 위가 갈색 구름으로 뒤덮인다)
-      // 뒷바퀴에서만, 작고 옅고 짧게 — 카메라가 가는 방향 뒤에서 보면 연기 띠가 차를 통째로 가렸다(16회차). 카트라이더도 드리프트 땐 차가 또렷하다
-      if (sliding && i >= 2 && Math.random() < Math.min(1, (slip - 1.2) * dt * 12)) {
+      if (sliding && Math.random() < Math.min(1, (slip - 1.2) * dt * 30)) {
         const dust = w.surf >= 2 && w.surf !== 5;
-        const c = w.surf === 5 ? [0.9, 0.94, 1.0] : dust ? (w.surf === 3 ? [0.62, 0.56, 0.46] : [0.45, 0.42, 0.3]) : [0.88, 0.88, 0.88];
-        this.emit(w.cx, w.cy + 0.15, w.cz, (Math.random() - 0.5) * 1.2 + car.st.vx * 0.1, 0.4 + Math.random() * 0.5, (Math.random() - 0.5) * 1.2 + car.st.vz * 0.1, dust ? 0.8 : 0.4, dust ? 0.8 + Math.random() * 0.3 : 0.4 + Math.random() * 0.25, ...c);
+        const c = w.surf === 5 ? [0.9, 0.94, 1.0] : dust ? (w.surf === 3 ? [0.62, 0.56, 0.46] : [0.45, 0.42, 0.3]) : [0.85, 0.85, 0.85];
+        this.emit(w.cx, w.cy + 0.2, w.cz, (Math.random() - 0.5) * 1.5 + car.st.vx * 0.15, 0.6 + Math.random(), (Math.random() - 0.5) * 1.5 + car.st.vz * 0.15, dust ? 1.4 : 1.0, 1.6 + Math.random(), ...c);
       } else if (lateral && w.surf >= 2 && w.surf !== 5 && car.out.speed > 8 && Math.random() < dt * 20) {
         const c = w.surf === 3 ? [0.62, 0.56, 0.46] : [0.4, 0.38, 0.28];
-        this.emit(w.cx, w.cy + 0.15, w.cz, car.st.vx * 0.2, 0.8, car.st.vz * 0.2, 0.9, 0.9, ...c);
+        this.emit(w.cx, w.cy + 0.15, w.cz, car.st.vx * 0.2, 0.8, car.st.vz * 0.2, 1.2, 1.2, ...c);
       }
     }
   }
@@ -360,9 +350,8 @@ class Effects {
       this.pl[i] -= dt;
       this.pp[i * 3] += this.pv[i * 3] * dt; this.pp[i * 3 + 1] += this.pv[i * 3 + 1] * dt; this.pp[i * 3 + 2] += this.pv[i * 3 + 2] * dt;
       this.pv[i * 3] *= 0.97; this.pv[i * 3 + 2] *= 0.97;
-      // 나이에 따라 커지고(1초에 2.6배) 수명 끝으로 갈수록 옅어진다
-      this.sizes[i] = this.ps[i] * (1 + (this.pl0[i] - Math.max(0, this.pl[i])) * 1.6);
-      this.alphas[i] = Math.max(0, Math.min(0.16, this.pl[i] * 0.35));     // 카메라 바로 앞 연기는 화면에서 70px 까지만(큰 회색 원판처럼 보이던 것)
+      this.sizes[i] = this.ps[i] * (1 + (2.5 - Math.max(0, this.pl[i])) * 1.3);
+      this.alphas[i] = Math.max(0, Math.min(0.45, this.pl[i] * 0.3));
     }
     this.smokeGeo.attributes.position.needsUpdate = true;
     this.smokeGeo.attributes.size.needsUpdate = true;
