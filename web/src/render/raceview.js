@@ -218,7 +218,7 @@ class Effects {
     g.fillStyle = gr; g.fillRect(0, 0, 64, 64);
     this.smokeTex = new THREE.CanvasTexture(c);
     this.N = n;
-    this.pp = new Float32Array(n * 3); this.pv = new Float32Array(n * 3); this.pl = new Float32Array(n); this.ps = new Float32Array(n); this.pc = new Float32Array(n * 3);
+    this.pp = new Float32Array(n * 3); this.pv = new Float32Array(n * 3); this.pl = new Float32Array(n); this.pl0 = new Float32Array(n); this.ps = new Float32Array(n); this.pc = new Float32Array(n * 3);
     this.sizes = new Float32Array(n); this.alphas = new Float32Array(n);
     const geo = new THREE.BufferGeometry();
     geo.setAttribute('position', new THREE.BufferAttribute(this.pp, 3));
@@ -230,7 +230,7 @@ class Effects {
       uniforms: { map: { value: this.smokeTex }, scale: { value: 600 } },
       vertexShader: `attribute float size; attribute float alpha; attribute vec3 color; varying float vA; varying vec3 vC;
         uniform float scale;
-        void main(){ vA = alpha; vC = color; vec4 mv = modelViewMatrix * vec4(position,1.0); gl_PointSize = size * scale / -mv.z; gl_Position = projectionMatrix * mv; }`,
+        void main(){ vA = alpha; vC = color; vec4 mv = modelViewMatrix * vec4(position,1.0); gl_PointSize = min(size * scale / -mv.z, 70.0); gl_Position = projectionMatrix * mv; }`,
       fragmentShader: `uniform sampler2D map; varying float vA; varying vec3 vC;
         void main(){ vec4 t = texture2D(map, gl_PointCoord); gl_FragColor = vec4(vC, t.a * vA); if (gl_FragColor.a < 0.01) discard; }`,
       transparent: true, depthWrite: false,
@@ -280,7 +280,7 @@ class Effects {
 
   emit(x, y, z, vx, vy, vz, size, life, r, g, b) {
     const i = this.next; this.next = (this.next + 1) % this.N;
-    this.pp.set([x, y, z], i * 3); this.pv.set([vx, vy, vz], i * 3); this.pl[i] = life; this.ps[i] = size;
+    this.pp.set([x, y, z], i * 3); this.pv.set([vx, vy, vz], i * 3); this.pl[i] = life; this.pl0[i] = life; this.ps[i] = size;
     this.pc.set([r, g, b], i * 3);
     this.sizes[i] = size; this.alphas[i] = 0.5;
   }
@@ -310,13 +310,14 @@ class Effects {
         void fx;
       } else this.trail.delete(key);
       // 연기 (아스팔트) / 흙먼지 (잔디·자갈·흙) / 옅은 눈가루 (빙판 = 5 — 흙먼지로 치면 길 위가 갈색 구름으로 뒤덮인다)
-      if (sliding && Math.random() < Math.min(1, (slip - 1.2) * dt * 30)) {
+      // 뒷바퀴에서만, 작고 옅고 짧게 — 카메라가 가는 방향 뒤에서 보면 연기 띠가 차를 통째로 가렸다(16회차). 카트라이더도 드리프트 땐 차가 또렷하다
+      if (sliding && i >= 2 && Math.random() < Math.min(1, (slip - 1.2) * dt * 12)) {
         const dust = w.surf >= 2 && w.surf !== 5;
-        const c = w.surf === 5 ? [0.9, 0.94, 1.0] : dust ? (w.surf === 3 ? [0.62, 0.56, 0.46] : [0.45, 0.42, 0.3]) : [0.85, 0.85, 0.85];
-        this.emit(w.cx, w.cy + 0.2, w.cz, (Math.random() - 0.5) * 1.5 + car.st.vx * 0.15, 0.6 + Math.random(), (Math.random() - 0.5) * 1.5 + car.st.vz * 0.15, dust ? 1.4 : 1.0, 1.6 + Math.random(), ...c);
+        const c = w.surf === 5 ? [0.9, 0.94, 1.0] : dust ? (w.surf === 3 ? [0.62, 0.56, 0.46] : [0.45, 0.42, 0.3]) : [0.88, 0.88, 0.88];
+        this.emit(w.cx, w.cy + 0.15, w.cz, (Math.random() - 0.5) * 1.2 + car.st.vx * 0.1, 0.4 + Math.random() * 0.5, (Math.random() - 0.5) * 1.2 + car.st.vz * 0.1, dust ? 0.8 : 0.5, dust ? 0.8 + Math.random() * 0.3 : 0.5 + Math.random() * 0.3, ...c);
       } else if (lateral && w.surf >= 2 && w.surf !== 5 && car.out.speed > 8 && Math.random() < dt * 20) {
         const c = w.surf === 3 ? [0.62, 0.56, 0.46] : [0.4, 0.38, 0.28];
-        this.emit(w.cx, w.cy + 0.15, w.cz, car.st.vx * 0.2, 0.8, car.st.vz * 0.2, 1.2, 1.2, ...c);
+        this.emit(w.cx, w.cy + 0.15, w.cz, car.st.vx * 0.2, 0.8, car.st.vz * 0.2, 0.9, 0.9, ...c);
       }
     }
   }
@@ -352,8 +353,9 @@ class Effects {
       this.pl[i] -= dt;
       this.pp[i * 3] += this.pv[i * 3] * dt; this.pp[i * 3 + 1] += this.pv[i * 3 + 1] * dt; this.pp[i * 3 + 2] += this.pv[i * 3 + 2] * dt;
       this.pv[i * 3] *= 0.97; this.pv[i * 3 + 2] *= 0.97;
-      this.sizes[i] = this.ps[i] * (1 + (2.5 - Math.max(0, this.pl[i])) * 1.3);
-      this.alphas[i] = Math.max(0, Math.min(0.45, this.pl[i] * 0.3));
+      // 나이에 따라 커지고(1초에 2.6배) 수명 끝으로 갈수록 옅어진다
+      this.sizes[i] = this.ps[i] * (1 + (this.pl0[i] - Math.max(0, this.pl[i])) * 1.6);
+      this.alphas[i] = Math.max(0, Math.min(0.22, this.pl[i] * 0.4));     // 카메라 바로 앞 연기는 화면에서 70px 까지만(큰 회색 원판처럼 보이던 것)
     }
     this.smokeGeo.attributes.position.needsUpdate = true;
     this.smokeGeo.attributes.size.needsUpdate = true;
