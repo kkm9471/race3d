@@ -52,7 +52,7 @@ export const TARGET = {
   tapPeak: [8, 18], tapPeakT: [0.35, 0.8], tapEnd: [0.8, 1.6], tapLoss: [0, 8],
   //  풀(0.7초 → 0.25초 아무것도 → 반대 방향키): 0.15초까지 거의 안 돎(묵직), 0.7초에 35~60°, 키를 떼도 각도 유지(관성),
   //  카운터 0.5~1.0초에 펴짐, 속도 -20~40%(영상 -33%), 오래 누르면 U자
-  fullB015: [0, 6], fullB07: [35, 60], fullHold: [0.85, 1.3], counterT: [0.5, 1.0], fullLoss: [18, 40], uturn: [1.4, 2.6],
+  fullB015: [0, 6], fullB07: [35, 60], fullHold: [0.85, 1.3], counterT: [0.5, 1.0], fullLoss: [18, 40], uturn: [2.5, 4.2],   // U자: Shift+방향키를 계속(17회차 꺾이는 양을 줄여 약 3.5초)
   // (14회차 독립검증) 드리프트가 끝난 뒤(순간부스터 안 씀) 실제 속력: 0.25초 뒤 변화(급감속·급가속 없음), 1초 동안 최대 상승(탈출 속도가 공짜로 붙지 않음 — 동우 피드백)
   exitD25: [-14, 4], exitMax: [0, 8],     // (3차) 그냥 직진보다 더 붙는 속도
   // (16회차 사용자: "드리프트만큼 딱 꺾이고 풀리게") 펴질 때 차 머리가 되돌아가는 양(°) / 톡톡이 초당 3번 3초: 드리프트 유지·가장 느려진 속도(시작 대비 %)
@@ -176,6 +176,19 @@ export function measure(spec) {
       if (f > 30) { vmin = Math.min(vmin, c.out.speed * 3.6); if (!c.st.drift) alive = 0; }
     }
     r.tokKeep = alive ? vmin / 1.5 : 0;
+  }
+  // 꺾이는 양(가는 방향 총 회전, 끝난 뒤 2초까지): 톡 / 풀(영상 순서, 펴지면 반대 방향키 뗌) — 차끼리 크게 벌어지면 안 된다(regress)
+  {
+    const turnOf = plan => {
+      const { c, w } = newCar(spec); c.setSpeed(150 / 3.6);
+      const pa = () => Math.atan2(c.st.vx, c.st.vz) * 180 / Math.PI;
+      let pp = pa(), tot = 0;
+      for (let f = 0; f < FPS * 3; f++) { frame(c, w, pack(plan(f, c))); let d = pa() - pp; if (d > 180) d -= 360; if (d < -180) d += 360; pp = pa(); tot += d; }
+      return Math.abs(tot);
+    };
+    r.tapTurn = turnOf(f => ({ thr: 1, steer: f < 8 ? 1 : 0, hb: f < 8 ? 1 : 0, kb: 1 }));
+    let off = 0;
+    r.fullTurn = turnOf((f, c) => { const p = fullPlan(f); if (f >= 57 && !c.st.drift) off = 1; if (off) p.steer = 0; return p; });
   }
   // 부스터 최고속
   {

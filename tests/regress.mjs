@@ -78,6 +78,17 @@ console.log('[카트 손맛]');
       `${spec.name}: 톡 최대 ${r.tapPeak.toFixed(0)}°(${r.tapPeakT.toFixed(2)}초)·펴짐 ${r.tapEnd.toFixed(2)}초 · 풀 0.15초 ${r.fullB015.toFixed(0)}°·0.7초 ${r.fullB07.toFixed(0)}°·뗀 뒤 유지 ${r.fullHold.toFixed(2)} · 카운터 ${r.counterT.toFixed(2)}초 · 풀 감속 ${r.fullLoss.toFixed(0)}% · U자 ${r.uturn.toFixed(2)}초 · 탈출 0.25초 ${r.exitD25.toFixed(1)}/최대 +${r.exitMax.toFixed(1)}km/h · 머리 되돌아감 ${r.swingBack.toFixed(1)}° · 톡톡이 3초 ${r.tokKeep.toFixed(0)}% · 순간부스터 새로누름 ${r.instOk}/계속누름 ${r.instHold}${bad.length ? ' · 벗어남: ' + bad.join(',') : ''}`);
   }
 }
+// 1-2) 차끼리 드리프트로 꺾이는 양이 크게 다르지 않다 (17회차 사용자: 슬립스트림만 예민하다 → 실측은 같았지만, 앞으로 한 대만 튀면 잡도록)
+//      톡·풀 드리프트의 총 회전이 가장 큰 차 / 가장 작은 차 ≤ 1.25, 그리고 풀 드리프트 90~135°·톡 20~45° (영상: 숏은 '살짝 방향 보정', 풀은 깊은 코너)
+console.log('[차끼리 드리프트 꺾이는 양]');
+{
+  const { measure } = await import('./physics_report.mjs');
+  const rs = CARS.map(s => ({ name: s.name, ...measure(s) }));
+  const rng = k => { const v = rs.map(r => r[k]); return [Math.min(...v), Math.max(...v)]; };
+  const [t0, t1] = rng('tapTurn'), [f0, f1] = rng('fullTurn');
+  ok(t1 / t0 <= 1.25 && f1 / f0 <= 1.25 && t0 >= 20 && t1 <= 45 && f0 >= 90 && f1 <= 135,
+    `톡 ${t0.toFixed(0)}~${t1.toFixed(0)}° · 풀 ${f0.toFixed(0)}~${f1.toFixed(0)}° (가장 큰 차/작은 차 ${(t1 / t0).toFixed(2)}·${(f1 / f0).toFixed(2)})`);
+}
 // 2) 드리프트를 끝까지 붙잡고 있어도 스핀하지 않는다 (미끄럼각이 목표각으로 모인다)
 console.log('[드리프트 붙잡기]');
 {

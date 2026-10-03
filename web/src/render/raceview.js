@@ -143,6 +143,13 @@ export class RaceView {
     // 전엔 차 머리를 65% 따라가 드리프트로 머리가 돌면 화면이 더 꺾였다 돌아왔다(16회차 사용자 피드백). 후진·저속은 머리 방향
     const fwdV = vel.x * fwd.x + vel.z * fwd.z;
     const dir = sp > 4 && fwdV > 2 ? fwd.clone().lerp(vel.normalize(), 0.85).normalize() : fwd.clone();
+    // 보는 방향은 묵직하게(약 0.2초) 따라간다 — 드리프트를 펼 때 가는 방향이 빨리 돌아도 화면이 홱 돌지 않게(17회차 사용자 "확 꺾인다")
+    if (!this.camInit || !this.camDirS) this.camDirS = dir.clone();
+    else {
+      this.camDirS.lerp(dir, 1 - Math.exp(-dt * 5));
+      if (this.camDirS.lengthSq() < 0.01) this.camDirS.copy(dir); else this.camDirS.normalize();   // 거의 반대 방향(스핀 뒤)이면 바로 맞춤
+    }
+    dir.copy(this.camDirS);
     if (look) dir.multiplyScalar(-1);
     const len = car.P.Lb;
     const modes = [
@@ -314,7 +321,7 @@ class Effects {
       if (sliding && i >= 2 && Math.random() < Math.min(1, (slip - 1.2) * dt * 12)) {
         const dust = w.surf >= 2 && w.surf !== 5;
         const c = w.surf === 5 ? [0.9, 0.94, 1.0] : dust ? (w.surf === 3 ? [0.62, 0.56, 0.46] : [0.45, 0.42, 0.3]) : [0.88, 0.88, 0.88];
-        this.emit(w.cx, w.cy + 0.15, w.cz, (Math.random() - 0.5) * 1.2 + car.st.vx * 0.1, 0.4 + Math.random() * 0.5, (Math.random() - 0.5) * 1.2 + car.st.vz * 0.1, dust ? 0.8 : 0.5, dust ? 0.8 + Math.random() * 0.3 : 0.5 + Math.random() * 0.3, ...c);
+        this.emit(w.cx, w.cy + 0.15, w.cz, (Math.random() - 0.5) * 1.2 + car.st.vx * 0.1, 0.4 + Math.random() * 0.5, (Math.random() - 0.5) * 1.2 + car.st.vz * 0.1, dust ? 0.8 : 0.4, dust ? 0.8 + Math.random() * 0.3 : 0.4 + Math.random() * 0.25, ...c);
       } else if (lateral && w.surf >= 2 && w.surf !== 5 && car.out.speed > 8 && Math.random() < dt * 20) {
         const c = w.surf === 3 ? [0.62, 0.56, 0.46] : [0.4, 0.38, 0.28];
         this.emit(w.cx, w.cy + 0.15, w.cz, car.st.vx * 0.2, 0.8, car.st.vz * 0.2, 0.9, 0.9, ...c);
@@ -355,7 +362,7 @@ class Effects {
       this.pv[i * 3] *= 0.97; this.pv[i * 3 + 2] *= 0.97;
       // 나이에 따라 커지고(1초에 2.6배) 수명 끝으로 갈수록 옅어진다
       this.sizes[i] = this.ps[i] * (1 + (this.pl0[i] - Math.max(0, this.pl[i])) * 1.6);
-      this.alphas[i] = Math.max(0, Math.min(0.22, this.pl[i] * 0.4));     // 카메라 바로 앞 연기는 화면에서 70px 까지만(큰 회색 원판처럼 보이던 것)
+      this.alphas[i] = Math.max(0, Math.min(0.16, this.pl[i] * 0.35));     // 카메라 바로 앞 연기는 화면에서 70px 까지만(큰 회색 원판처럼 보이던 것)
     }
     this.smokeGeo.attributes.position.needsUpdate = true;
     this.smokeGeo.attributes.size.needsUpdate = true;
