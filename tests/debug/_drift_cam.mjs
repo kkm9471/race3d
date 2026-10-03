@@ -1,0 +1,22 @@
+// 실제 크롬: 영상 순서 드리프트 중 화면 4장 — 카메라가 가는 방향을 따라 차가 옆으로 미끄러져 보이는지 (실제 시간이라 타이밍은 대략)
+import puppeteer from 'puppeteer-core';
+import fs from 'node:fs';
+const [track = 'circuit', warm = '5000'] = process.argv.slice(2);
+const b = await puppeteer.launch({ executablePath: 'C:/Program Files/Google/Chrome/Application/chrome.exe', headless: 'new', args: ['--use-angle=d3d11', '--enable-gpu'], defaultViewport: { width: 800, height: 450 } });
+const p = await b.newPage(); const errs = []; p.on('pageerror', e => errs.push(e.message));
+await p.goto(`http://127.0.0.1:8790/index.html?solo=1&track=${track}&bots=0&q=medium`, { waitUntil: 'load' });
+await p.waitForFunction(() => window.__game && window.__game.session.frame > 240, { timeout: 90000, polling: 100 });
+const wait = ms => new Promise(r => setTimeout(r, ms));
+const shots = [];
+const shot = async () => shots.push(Buffer.from(await p.screenshot({ type: 'jpeg', quality: 80 })).toString('base64'));
+await p.keyboard.down('ArrowUp'); await wait(+warm);
+await p.keyboard.down('ArrowRight'); await p.keyboard.down('ShiftLeft');
+await wait(450); await shot();
+await wait(150); await p.keyboard.up('ShiftLeft'); await p.keyboard.up('ArrowRight'); await shot();
+await wait(150); await p.keyboard.down('ArrowLeft'); await wait(250); await shot();
+await wait(400); await p.keyboard.up('ArrowLeft'); await wait(150); await shot();
+const html = '<body style="margin:0;display:grid;grid-template-columns:1fr 1fr">' + shots.map(s => `<img src="data:image/jpeg;base64,${s}" style="width:800px">`).join('') + '</body>';
+await p.setViewport({ width: 1600, height: 900 }); await p.setContent(html); await wait(200);
+await p.screenshot({ path: `tests/out/drift_cam_${track}.png` });
+console.log('화면 오류:', errs.length ? errs.join(' | ') : '없음');
+await b.close();

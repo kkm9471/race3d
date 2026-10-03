@@ -139,8 +139,10 @@ export class RaceView {
     const sp = vel.length();
     // 부스터: 시야가 살짝 넓어져 속도감 (부드럽게)
     this.boostFov = (this.boostFov || 0) + ((car.st.boostT > 0 ? 9 : 0) - (this.boostFov || 0)) * Math.min(1, dt * 6);
-    // 드리프트할 때는 진행방향 쪽으로 카메라가 돌아 차 옆모습이 보이게
-    const dir = sp > 4 ? fwd.clone().lerp(vel.normalize(), 0.35).normalize() : fwd.clone();
+    // 카메라는 '가는 방향'을 주로 따라간다(카트라이더처럼 — 화면은 실제로 가는 만큼만 돌고, 드리프트하면 차가 그 안에서 옆으로 미끄러져 보인다).
+    // 전엔 차 머리를 65% 따라가 드리프트로 머리가 돌면 화면이 더 꺾였다 돌아왔다(16회차 사용자 피드백). 후진·저속은 머리 방향
+    const fwdV = vel.x * fwd.x + vel.z * fwd.z;
+    const dir = sp > 4 && fwdV > 2 ? fwd.clone().lerp(vel.normalize(), 0.85).normalize() : fwd.clone();
     if (look) dir.multiplyScalar(-1);
     const len = car.P.Lb;
     const modes = [

@@ -72,10 +72,10 @@ console.log('[카트 손맛]');
     const r = measure(spec);
     // 14회차: 사용자 요구(오래 누르면 U자·드리프트 감속·카운터 빠르게)와 동우 피드백(탈출 속도)도 단언 (전엔 보고서에만 찍혀 퇴행을 못 잡았다 — 독립검증)
     // 2026-10-03 3차: 카트라이더 공식 가이드 영상에서 잰 값 (톡·풀·카운터·관성 유지·감속)
-    const keys = ['coast1', 'gripBeta', 'boostTop', 'tapPeak', 'tapPeakT', 'tapEnd', 'tapLoss', 'fullB015', 'fullB07', 'fullHold', 'counterT', 'fullLoss', 'uturn', 'exitD25', 'exitMax'];
+    const keys = ['coast1', 'gripBeta', 'boostTop', 'tapPeak', 'tapPeakT', 'tapEnd', 'tapLoss', 'fullB015', 'fullB07', 'fullHold', 'counterT', 'fullLoss', 'uturn', 'exitD25', 'exitMax', 'swingBack', 'tokKeep'];
     const bad = keys.filter(k => !inR(r[k], k));
     ok(!bad.length && r.instOk && !r.instHold,
-      `${spec.name}: 톡 최대 ${r.tapPeak.toFixed(0)}°(${r.tapPeakT.toFixed(2)}초)·펴짐 ${r.tapEnd.toFixed(2)}초 · 풀 0.15초 ${r.fullB015.toFixed(0)}°·0.7초 ${r.fullB07.toFixed(0)}°·뗀 뒤 유지 ${r.fullHold.toFixed(2)} · 카운터 ${r.counterT.toFixed(2)}초 · 풀 감속 ${r.fullLoss.toFixed(0)}% · U자 ${r.uturn.toFixed(2)}초 · 탈출 0.25초 ${r.exitD25.toFixed(1)}/최대 +${r.exitMax.toFixed(1)}km/h · 순간부스터 새로누름 ${r.instOk}/계속누름 ${r.instHold}${bad.length ? ' · 벗어남: ' + bad.join(',') : ''}`);
+      `${spec.name}: 톡 최대 ${r.tapPeak.toFixed(0)}°(${r.tapPeakT.toFixed(2)}초)·펴짐 ${r.tapEnd.toFixed(2)}초 · 풀 0.15초 ${r.fullB015.toFixed(0)}°·0.7초 ${r.fullB07.toFixed(0)}°·뗀 뒤 유지 ${r.fullHold.toFixed(2)} · 카운터 ${r.counterT.toFixed(2)}초 · 풀 감속 ${r.fullLoss.toFixed(0)}% · U자 ${r.uturn.toFixed(2)}초 · 탈출 0.25초 ${r.exitD25.toFixed(1)}/최대 +${r.exitMax.toFixed(1)}km/h · 머리 되돌아감 ${r.swingBack.toFixed(1)}° · 톡톡이 3초 ${r.tokKeep.toFixed(0)}% · 순간부스터 새로누름 ${r.instOk}/계속누름 ${r.instHold}${bad.length ? ' · 벗어남: ' + bad.join(',') : ''}`);
   }
 }
 // 2) 드리프트를 끝까지 붙잡고 있어도 스핀하지 않는다 (미끄럼각이 목표각으로 모인다)

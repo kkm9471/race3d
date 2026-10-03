@@ -15,10 +15,13 @@
 //      Shift·방향키를 다 떼도 드리프트는 이어진다(관성 — 목표각이 초당 26° 씩 천천히 줄어 숏 드리프트는 1초쯤에 저절로 펴짐).
 //      끝내기는 반대 방향키(카운터): 목표각을 초당 137° 씩 줄인다 → 풀 드리프트(55°)는 0.7~0.8초 눌러야 펴진다. 반대 방향키+Shift 는 두 배(끊기).
 //      가는 방향은 미끄럼각만큼 휘고, 감속은 목표각이 클 때 크다(풀 드리프트 초당 약 40% — 영상 200→135km/h). 카운터를 누르면 감속이 바로 준다.
-//      코너링 중(Shift·드리프트 쪽 방향키를 누른 채) 가속 키를 떼면 차체가 더 돌아간다(공식 가이드). 손맛 3가지(DRIFT_PRESETS)는 혼자 연습에서 숫자키 1·2·3.
+//      코너링 중(Shift·드리프트 쪽 방향키를 누른 채) 가속 키를 떼면 차체가 더 돌아간다(공식 가이드).
+//      미끄럼각이 커질 땐 차 머리가 코너 안으로 돌고, 줄어들 땐 머리는 그대로 두고 가는 방향이 머리 쪽으로 따라온다
+//      → 드리프트로 돌린 만큼 딱 꺾인다(사용자: "카트라이더는 드리프트와 차 꺾이는 게 일치" — 전엔 펴질 때 머리가 되돌아가 더 꺾였다 돌아오는 느낌).
+//      톡톡이(끌기): 드리프트 중 꺾은 쪽 방향키를 새로 누를 때마다 목표각 +4°. 연타하는 동안은 감속 대신 속도가 조금씩 붙는다(부스터 없이도). 손맛 3가지(DRIFT_PRESETS)는 혼자 연습에서 숫자키 1·2·3.
 //  · 드리프트하면 게이지가 찬다 = 속도/최고속 × 미끄럼각 × 충전 계수. 가득 차면 부스터 1개(최대 2개). 부스터 키로 쓴다.
 //    드리프트가 끝난(차체가 펴진) 직후 0.3초 안에 가속 키를 "새로" 누르면 순간부스터(0.5초), 출발 신호 직후 새로 누르면 출발부스터.
-//    부스터 중 드리프트하며 방향키를 톡톡 연타하면(톡톡이) 감속 없이 부스터 최고속의 110% 까지 더 밀어 준다.
+//    톡톡이 중엔 드리프트 감속이 없고 최고속까지 다시 붙는다. 부스터 중이면 부스터 최고속의 110% 까지.
 //  · 모든 계산은 dmath 의 결정적 함수만 쓴다(세 화면이 비트 단위로 같아야 하므로). 상태는 전부 st 에.
 //
 // 좌표: 월드 Y 가 위. 차 기준 +Z 앞, +Y 위, +X 왼쪽.
@@ -60,9 +63,10 @@ export const KART = {
   D_WN: 7,            // 실제 미끄럼각이 목표각을 따라가는 빠르기(1/초, 2차 응답·감쇠 1) — 묵직함. 클수록 예민
   D_PATH: 1.9,        // 가는 방향이 도는 빠르기 = 이 값 × sin(미끄럼각) rad/초 (풀 드리프트 U자 약 1.8초)
   D_DEC: 0.52,        // 드리프트 감속 = 이 값 × sin(목표각)^1.5 × 속력 (풀 드리프트 초당 약 40% — 영상 200→135km/h). 시속 43km 아래에선 0 으로 줄인다
+  D_TAP: 0.07,        // 톡톡이: 드리프트 중 꺾은 쪽 방향키를 새로 누를 때마다 목표각에 더하는 값 rad (4° — 초당 3~4번 치면 각도 유지, 더 빨리 치면 더 꺾임, 강진우 강좌)
   D_END: 0.2,         // 목표각이 0 이고 미끄럼각이 이보다 작으면 드리프트 끝 rad (11°) — 이때 순간부스터 기회, 남은 미끄럼은 0.3초에 걸쳐 접지로
   D_YAWCAP: 5,        // 드리프트 중 머리 회전 속도 상한 rad/초
-  toktokAccelMultiplier: 1.10,// 톡톡이: 부스터 최고속의 이 배까지
+  toktokAccelMultiplier: 1.10,// 톡톡이: 부스터 중이면 부스터 최고속의 이 배까지 (부스터가 없으면 보통 최고속까지)
   instantBoostWindowTime: 0.3,// 드리프트를 끝낸 뒤 순간부스터 입력을 받아 주는 시간(초)
   instantBoostForce: 1.14,    // 순간부스터: 최고속의 이 배까지 밀어 준다
   // (AI 드리프트 계획용 — bot.js 가 쓴다. AI 드리프트는 꺼 둠)
@@ -73,7 +77,8 @@ export const KART = {
   DRIFT_THR: 0.25,    // 드리프트 중 가속 키의 힘(평소의 25% — 액셀을 밟고 있어도 드리프트하면 속도가 준다)
   KYAW_D: 16,         // 드리프트 중 목표 회전 속도로 따라가는 빠르기(1/초)
   RECOVER: 0.3,       // 드리프트가 끝난 뒤 접지가 다 돌아오는 시간(초)
-  TOKTOK_ACC: 8,      // 톡톡이 추가 가속 m/s²
+  TOKTOK_ACC: 8,      // 톡톡이 추가 가속 m/s² (부스터 중)
+  TOKTOK_ACC0: 3,     // 톡톡이 추가 가속 m/s² (부스터 없이 — "속도가 조금씩 찬다")
   TAP_N: 1.2,         // 톡톡이 판정: 방향키를 새로 누른 횟수(0.4초 반감) 누적이 이 값을 넘으면 '연타'
   RMIN: 2.8,          // 제자리 회전 방지: 최소 회전 반경 m
   TILT_K: 6,          // 땅에 닿아 있을 때 롤·피치 흔들림을 잡는 빠르기
@@ -272,7 +277,8 @@ export class Car {
 
     // 방향키 연타 세기 (톡톡이 판정): 새로 누르거나 반대쪽으로 바꿀 때마다 +1, 0.4초마다 절반으로
     const sIn = inp.steer > 0.5 ? 1 : inp.steer < -0.5 ? -1 : 0;
-    if (sIn !== 0 && sIn !== s.stIn) s.tap += 1;
+    const tapNew = sIn !== 0 && sIn !== s.stIn;
+    if (tapNew) s.tap += 1;
     s.stIn = sIn;
     s.tap -= s.tap * Math.min(1, 1.75 * dtF);
     if (!s.hb) s.hbLatch = 0;
@@ -298,6 +304,7 @@ export class Car {
       // 코너링 중(Shift 나 드리프트 쪽 방향키를 누르고 있을 때) 가속 키를 떼면 차체가 돌아간다(공식 가이드). 키를 다 뗀 채 흘러가는 중엔 아님
       // (그때도 돌게 하면 목표각이 0 이 안 돼 드리프트가 안 끝나고, 순간부스터를 쓰려고 ↑ 를 잠깐 뗄 때도 75° 로 돌았다 — 16회차 독립검증)
       if (!counter && s.thr < 0.1 && (s.hb || same)) { s.dB += KART.D_SPIN * dtF; lim = KART.D_BSPIN; }
+      if (tapNew && sIn === s.ddir) s.dB += KART.D_TAP * P.driftK;     // 톡톡이: 꺾은 쪽을 새로 누를 때마다 조금 더
       if (s.dB > lim) s.dB = lim; else if (s.dB < 0) s.dB = 0;
       const done = s.dB === 0 && aNow < KART.D_END;
       if (done || vf < KART.DRIFT_MIN_V * 0.6 || s.dc) {
@@ -421,11 +428,11 @@ export class Car {
       // 미끄럼각 β (진행 방향이 차 머리보다 왼쪽이면 +)
       const beta = datan(vl / Math.max(vf, 1));
       const aB = beta < 0 ? -beta : beta;
-      // 톡톡이: 부스터 중 드리프트 + 미끄럼각 25~50° + 방향키 연타 → 드리프트 감속 없이 부스터 최고속의 110% 까지 더 민다
-      const toktok = s.drift && s.boostT > 0 && aB > 0.436 && aB < 0.873 && s.tap > KART.TAP_N;
+      // 톡톡이(끌기): 드리프트 + 미끄럼각 15~50° + 방향키 연타 → 드리프트 감속 없이 속도가 붙는다(부스터 없이도). 부스터 중이면 그 최고속의 110% 까지
+      const toktok = s.drift && aB > 0.26 && aB < 0.873 && s.tap > KART.TAP_N;
       this.out.tok = toktok ? 1 : 0;     // 화면 표시용 (상태 아님)
       const vtopB = P.vtop * sV * (s.boostT > 0 ? s.boostV : 1);
-      const vtop = toktok ? vtopB * KART.toktokAccelMultiplier : vtopB;
+      const vtop = toktok && s.boostT > 0 ? vtopB * KART.toktokAccelMultiplier : vtopB;
       // 최고속·부스터 비교는 '앞 속도'가 아니라 실제 속력으로 (드리프트 중엔 앞 속도가 작아 부스터가 끝없이 밀어 265km/h 까지 나왔다 — 14회차에 발견)
       const vs = vf > 0 ? Math.sqrt(vf * vf + vl * vl) : vf;
       let ax = 0;
@@ -443,7 +450,7 @@ export class Car {
         }
         // 부스터: 부스터 최고속까지 바로 밀어 준다(가속 키를 안 눌러도)
         if (boost > 0 && vs < vtopB) ax = Math.max(ax, (vtopB - vs) / KART.BOOST_TAU * boost);
-        if (toktok && vs < vtop) ax += KART.TOKTOK_ACC;
+        if (toktok && vs < vtop) ax += s.boostT > 0 ? KART.TOKTOK_ACC : KART.TOKTOK_ACC0;
         if (s.thr < 0.05 && boost === 0) ax -= KART.COAST0 + KART.COAST1 * Math.max(0, vf);   // 액셀을 떼면 확 준다
         if (s.brk > 0 && vf > 0) ax -= KART.BRAKE * s.brk * (0.5 + 0.5 * sI);   // 빙판에선 덜 선다
         if (s.dc) ax = -clamp(vf * 2, -6, 6);
@@ -461,13 +468,15 @@ export class Car {
           const dec = KART.D_DEC * sb * Math.sqrt(sb) * spd * fade;
           aF -= dec * cf; aL -= dec * cl;
         }
-        ax += aF; al = aL;
-        wPath = (cf * al - cl * ax) / spd;                    // 가는 방향이 실제로 도는 속도(왼쪽 +)
-        // 미끄럼각이 목표각을 묵직하게 따라간다(2차 응답, 감쇠 1): dR = 미끄럼각이 변하는 속도, 머리 회전 = 경로 회전 − dR
+        // 미끄럼각이 목표각을 묵직하게 따라간다(2차 응답, 감쇠 1): dR = 미끄럼각이 변하는 속도
         const bt = s.ddir * s.dB, wn = KART.D_WN;
         s.dR += (wn * wn * (bt - beta) - 2 * wn * s.dR) * dt;
         if (aB > KART.D_BSPIN + 0.1 && s.dR * beta > 0) s.dR = 0;     // 팽이처럼 도는 스핀 방지
-        wt = wPath - s.dR;
+        // 미끄럼각이 줄어드는 중이면 머리는 그대로 두고 가는 방향을 머리 쪽으로 돌린다(속도에 수직인 왼쪽 = (−cl, cf)) — 돌린 만큼 딱 꺾인다
+        if (s.dR * beta < 0) { aF -= s.dR * spd * cl; aL += s.dR * spd * cf; }
+        ax += aF; al = aL;
+        wPath = (cf * al - cl * ax) / spd;                    // 가는 방향이 실제로 도는 속도(왼쪽 +)
+        wt = wPath - s.dR;                                    // 미끄럼각 변화 = 경로 회전 − 머리 회전
         if (wt > KART.D_YAWCAP) wt = KART.D_YAWCAP; else if (wt < -KART.D_YAWCAP) wt = -KART.D_YAWCAP;
         kyaw = KART.KYAW_D;
       } else {
