@@ -80,3 +80,8 @@ desktop.ini
 /tests/out/models/
 /tests/out/review14/*.png
 /web/assets/.manifest.lock
+
+# ── Cloudflare wrangler 캐시·로컬 비밀(10/31) ──
+.wrangler/
+.dev.vars
+.dev.vars.*
