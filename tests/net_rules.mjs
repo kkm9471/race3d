@@ -59,10 +59,36 @@ ok(wB && wB.lobby.players.length === 2, 'B 입장, 두 명');
 
 // 2) 쓰레기 메시지에도 죽지 않는다
 for (const g of ['not json', '{', '[]', 'null', JSON.stringify({ t: 'in', e: [[1, NaN, 'x'], ['a', 1, 2], null, [1, 2]] }),
-  JSON.stringify({ t: 'set', laps: 99, track: '../../etc' }), JSON.stringify({ t: 'car', car: '<b>' }), 'x'.repeat(20000),
+  JSON.stringify({ t: 'set', laps: 99, track: '../../etc' }), JSON.stringify({ t: 'car', car: '<b>' }),
   JSON.stringify({ t: 'hash', f: 'a', h: {} }), JSON.stringify({ t: 'done', r: 'zzz' }), JSON.stringify({ t: 12 })]) A.send(g);
 A.send({ t: 'ping', c: 1 });
 ok(!!(await A.wait(m => m.t === 'pong')), '쓰레기 메시지 뒤에도 응답함');
+
+// 2-0) (2026-10-31) 큰 메시지·이진 메시지 → 그 연결만 끊는다 (전엔 버리기만 해서 속도 검사를 피했다)
+{
+  const X = await new C(R, '큰글').open(); X.send('x'.repeat(20000));
+  const Y = await new C(R, '이진').open(); Y.ws.send(new Uint8Array(32));
+  await sleep(800);
+  ok(X.closed === 1009 && Y.closed === 1003, `8KB 넘음 → 끊김 ${X.closed} · 이진 → 끊김 ${Y.closed}`);
+  A.send({ t: 'ping', c: 5 });
+  ok(!!(await A.wait(m => m.t === 'pong' && m.c === 5)) && A.closed === null, '다른 사람 연결은 그대로');
+}
+
+// 2-0b) (2026-10-31) 접속 출처: 남의 사이트 → 거절, 공개 사이트·로컬 → 통과 (ws 꾸러미로 Origin 머리말을 붙여 본다)
+{
+  const { default: WSO } = await import('ws');
+  const tryO = o => new Promise(res => {
+    const w = new WSO(`${WS}?room=${room()}`, { origin: o });
+    w.on('open', () => { res('열림'); w.close(); });
+    w.on('unexpected-response', (_q, r) => res(r.statusCode));
+    w.on('error', () => res('오류'));
+    setTimeout(() => res('시간초과'), 5000);
+  });
+  const g1 = await tryO('https://kkm9471.github.io'), g2 = await tryO('http://127.0.0.1:8790');
+  const b1 = await tryO('https://evil.example'), b2 = await tryO('https://kkm9471.github.io.evil.com');
+  ok(g1 === '열림' && g2 === '열림', `공개 사이트·로컬 출처 → 접속 (${g1}, ${g2})`);
+  ok(b1 === 403 && b2 === 403, `남의 사이트 출처 → 403 (${b1}, ${b2})`);
+}
 
 // 2-1) 같은 소켓으로 두 번 입장해도 사람이 늘지 않는다
 A.send({ t: 'hi', v: PROTOCOL, ver: 'test', name: '또', tok: 'other', car: 'baram' });
@@ -166,5 +192,29 @@ if (!lb) console.log('   마지막 대기실:', JSON.stringify(B.last('lobby')?.
 ok(lb && lb.lobby.records.circuit.best === 3000, `결과 → 대기실, 방 최고 랩 기록 ${lb && JSON.stringify(lb.lobby.records.circuit)}`);
 
 A.close(); B.close();
+
+// 13) (2026-10-31 돈 상한) 레이스 중 30초 동안 아무 입력이 없으면 서버가 레이스를 끝낸다 (0.25초 타이머가 멈춰 방이 잠든다)
+//     실제 시간으로 약 35초 걸린다
+{
+  const H = await new C(room(), '혼자').open(); H.hi();
+  await H.wait(m => m.t === 'welcome');
+  H.send({ t: 'start' });
+  const s2 = await H.wait(m => m.t === 'start');
+  ok(!!s2, '혼자 출발 → 레이스');
+  await sleep(Math.max(0, s2.race.startAt - Date.now()) + 500);
+  H.msgs.length = 0;
+  H.send({ t: 'in', e: [[1, 30, 777]] });
+  const tIn = Date.now();
+  await sleep(25000);
+  const early = H.msgs.find(m => m.t === 'lobby' && m.lobby.phase === 'lobby');
+  ok(!early, '마지막 입력 25초 뒤 → 아직 레이스');
+  const lb2 = await H.wait(m => m.t === 'lobby' && m.lobby.phase === 'lobby', 12000);
+  const sec = (Date.now() - tIn) / 1000;
+  ok(!!lb2 && sec >= 29 && sec <= 34, `마지막 입력 ${sec.toFixed(1)}초 뒤 레이스 끝 → 대기실`);
+  const nTick = H.msgs.filter(m => m.t === 'tick').length;
+  await sleep(1500);
+  ok(H.msgs.filter(m => m.t === 'tick').length === nTick, '끝난 뒤 0.25초 타이머 멈춤 (tick 안 옴)');
+  H.close();
+}
 console.log(fail ? `\n실패 ${fail}개` : '\n전부 통과');
 process.exit(fail ? 1 : 0);

@@ -13,6 +13,7 @@
 //  · 대기실에서 아무 일 없으면 Durable Object 가 잠든다(잠든 동안은 사용시간 과금 없음).
 //    연결 유지 신호 "ka" 는 자동응답이라 서버를 깨우지 않는다.
 //  · 연결당 초당 메시지 수 제한, 메시지 크기 제한, 방 인원 4명.
+//  · 레이스 중 30초 동안 아무 입력이 없으면 레이스를 끝내 잠들게 한다. 이진·큰 메시지는 연결을 끊는다. (2026-10-31)
 
 const PROTOCOL = 5;              // 4: 카트식(부스터 키 비트 22) — 2026-10-02 / 5: 차 색 고르기·대기실 대화 — 2026-10-02 14회차
 const MAX_PLAYERS = 4;
@@ -23,6 +24,13 @@ const MAX_MSG = 8192;
 const RATE = 60, BURST = 150;
 const LOBBY_GRACE_MS = 45000;          // 대기실에서 끊긴 사람 자리 유지 (새로고침 대비)
 const RACE_MAX_MS = 25 * 60 * 1000;
+// 레이스 중 30초 동안 아무도 조작(입력)하지 않으면 레이스를 끝낸다 → 0.25초 타이머가 멈춰 방이 잠든다.
+// (혼자 "출발"만 누르고 떠나면 방이 25분씩 깨어 있던 돈 구멍 — 2026-10-31)
+// 아직 아무도 입력을 안 보냈으면(화면이 트랙 사진 자료를 처음 받는 중 — 느린 PC) 60초를 더 준다. 첫 입력이 오면 그때부터 30초.
+const IDLE_RACE_MS = 30000, LOAD_GRACE_MS = 60000;
+// 접속 출처: 공개 사이트와 이 PC 로컬 서버(127.0.0.1·localhost)만. 출처 머리말이 없는 접속(시험 도구)은 그대로 받는다.
+// 남의 사이트가 방문자 브라우저로 몰래 접속시키는 것을 막는다 (직접 짠 프로그램은 못 막음)
+const ORIGIN_OK = /^(https:\/\/kkm9471\.github\.io|http:\/\/(127\.0\.0\.1|localhost)(:\d+)?)$/;
 const TRACKS = ['circuit', 'mountain', 'city', 'beach', 'canyon', 'glacier', 'harbor', 'express',
   'village', 'forest', 'desert', 'fairy', 'nymph', 'pirate', 'china', 'ice', 'cemetery', 'factory', 'mansion', 'moonhill', 'golden', 'mine', 'space'];   // web/src/sim/tracks.js 와 같아야 한다 (tests/room_unit.mjs 가 대조)
 const CARS = ['kongal', 'masil', 'beongae', 'deundeun', 'jimkkun', 'baram', 'cheondung', 'yuseong', 'heukmeonji', 'chueok',
@@ -61,6 +69,8 @@ export default {
     if (url.pathname === '/health') return new Response('ok', { headers: cors });
     if (url.pathname === '/ws') {
       if (req.headers.get('Upgrade') !== 'websocket') return new Response('websocket only', { status: 426 });
+      const origin = req.headers.get('Origin');
+      if (origin && !ORIGIN_OK.test(origin)) return new Response('forbidden origin', { status: 403 });
       const room = (url.searchParams.get('room') || '').toUpperCase();
       if (!/^[A-Z0-9]{4,6}$/.test(room)) return new Response('bad room', { status: 400 });
       const stub = env.ROOM.get(env.ROOM.idFromName('room:' + room));
@@ -194,7 +204,9 @@ export class Room {
 
   async webSocketMessage(ws, data) {
     await this.load();
-    if (typeof data !== 'string' || data.length > MAX_MSG) return;
+    // 이진·큰 메시지는 정상 화면이 보내지 않는다 → 버리기만 하면 속도 검사를 피해 무한히 보낼 수 있으므로 연결을 끊는다
+    if (typeof data !== 'string') { try { ws.close(1003, 'text only'); } catch { /* */ } return; }
+    if (data.length > MAX_MSG) { try { ws.close(1009, 'too big'); } catch { /* */ } return; }
     if (!this.allow(ws)) return;
     let m;
     try { m = JSON.parse(data); } catch { return; }
@@ -354,6 +366,7 @@ export class Room {
       startAt: Date.now() + 2500, cfg, log: [], last: cfg.players.map(() => 0),
       hashes: new Map(), slotOf: new Map(cfg.players.map((p, i) => [p.id, i])), ended: false,
       ver: ps[0].ver, done: new Map(), firstDone: 0, perFrame: cfg.players.map(() => [-1, 0]), logCap: cfg.players.map(() => 0), quit: new Set(),
+      lastIn: Date.now() + LOAD_GRACE_MS,
     };
     this.phase = 'race';
     for (const p of ps) p.ready = false;
@@ -380,6 +393,8 @@ export class Room {
     if (el > RACE_MAX_MS || (!active.length && el > 10000)) this.endRace();
     // 결과 보고 뒤: 과반이 보고했으면 15초, 한 명뿐이면 90초 기다렸다 끝낸다 (한 사람이 모두의 레이스를 끝내지 못하게)
     else if (r.firstDone && Date.now() - r.firstDone > (r.done.size * 2 > active.length ? 15000 : 90000)) this.endRace();
+    // 아무도 조작하지 않으면 끝 (방이 잠들 수 있게)
+    else if (Date.now() - r.lastIn > IDLE_RACE_MS) this.endRace();
   }
 
   input(id, e) {
@@ -405,7 +420,7 @@ export class Room {
       else { r.log.push([s, f2, v]); pf[0] = f2; pf[1] = r.log.length - 1; r.logCap[s]++; }
       out.push(isInt(q) ? [f2, v, q] : [f2, v]);
     }
-    if (out.length) this.broadcast({ t: 'in', p: s, e: out });
+    if (out.length) { r.lastIn = Date.now(); this.broadcast({ t: 'in', p: s, e: out }); }
   }
 
   hash(id, m) {

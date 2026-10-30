@@ -326,6 +326,86 @@ const hi = (room, s, name, tok, extra = {}) => room.webSocketMessage(s, JSON.str
   ok(!v.out.some(m => m.t === 'chat'), '채움 문자만 있는 대화는 보내지 않는다');
 }
 
+// 15) (2026-10-31 돈 상한) 레이스 중 30초 동안 아무 입력이 없으면 끝 → 0.25초 타이머가 멈춰 방이 잠든다
+//     첫 입력 전에는 트랙 불러오기 여유 60초를 더 준다 / 정상 플레이(누군가 계속 조작)는 끝나지 않는다
+{
+  console.log('[30초 무입력 → 레이스 끝]');
+  const st = new Storage(), socks = [];
+  const room = new Room(makeCtx(st, socks), {});
+  const a = new Sock('a'); socks.push(a);
+  await hi(room, a, 'A', 'ta');
+  const t0 = now;
+  await room.webSocketMessage(a, JSON.stringify({ t: 'start' }));
+  clearInterval(room.tickTimer);
+  ok(room.phase === 'race', '혼자 출발 → 레이스');
+  now = t0 + 85000; room.tick();
+  ok(room.phase === 'race', '입력 없이 85초 → 아직 레이스 (트랙 불러오기 여유)');
+  now = t0 + 91000; room.tick();
+  ok(room.phase === 'lobby' && room.tickTimer === null, `입력 없이 91초 → 끝, 타이머 멈춤 (${room.phase})`);
+  clearTimeout(room._saveT);
+}
+{
+  const st = new Storage(), socks = [];
+  const room = new Room(makeCtx(st, socks), {});
+  const a = new Sock('a'), b = new Sock('b'); socks.push(a, b);
+  await hi(room, a, 'A', 'ta'); await hi(room, b, 'B', 'tb');
+  await room.webSocketMessage(b, JSON.stringify({ t: 'ready', on: true }));
+  await room.webSocketMessage(a, JSON.stringify({ t: 'start' }));
+  clearInterval(room.tickTimer);
+  const t0 = now;
+  let alive = true;
+  for (let k = 1; k <= 10; k++) {          // 4분 넘게 B 만 25초마다 조작 (A 는 가만히)
+    now = t0 + k * 25000;
+    await room.webSocketMessage(b, JSON.stringify({ t: 'in', e: [[k, 1, 5000 + k]] }));
+    room.tick(); if (room.phase !== 'race') alive = false;
+  }
+  ok(alive, '한 사람이라도 25초마다 조작하면 계속 레이스 (4분 넘게)');
+  const tLast = now;
+  now = tLast + 15000;
+  await room.webSocketMessage(a, JSON.stringify({ t: 'hash', f: 120, h: 1 }));
+  await room.webSocketMessage(a, JSON.stringify({ t: 'ping', c: 1 }));
+  now = tLast + 29000; room.tick();
+  ok(room.phase === 'race', '마지막 입력 29초 뒤 → 아직 레이스');
+  now = tLast + 31000; room.tick();
+  ok(room.phase === 'lobby', `마지막 입력 31초 뒤 → 끝 (해시·핑은 조작으로 안 침) (${room.phase})`);
+  clearTimeout(room._saveT);
+}
+
+// 16) (2026-10-31) 이진·큰 메시지 → 그 연결만 끊는다 (전엔 속도 검사 전에 버려져 무한히 보낼 수 있었다)
+{
+  console.log('[이진·큰 메시지 → 끊음]');
+  const st = new Storage(), socks = [];
+  const room = new Room(makeCtx(st, socks), {});
+  const a = new Sock('a'), b = new Sock('b'), c = new Sock('c'), d = new Sock('d'); socks.push(a, b, c, d);
+  await hi(room, a, 'A', 'ta');
+  await room.webSocketMessage(b, new ArrayBuffer(16));
+  await room.webSocketMessage(c, 'x'.repeat(9000));
+  await room.webSocketMessage(d, JSON.stringify({ t: 'chat', text: '가'.repeat(2000) }));
+  ok(b.closed === 1003 && c.closed === 1009, `이진 → ${b.closed}, 8KB 넘음 → ${c.closed}`);
+  ok(d.closed === null, '8KB 안쪽 메시지는 그대로 (긴 대화 글 2,000자)');
+  await room.webSocketMessage(a, JSON.stringify({ t: 'ping', c: 7 }));
+  ok(a.last('pong')?.c === 7 && a.closed === null, '다른 정상 연결은 그대로');
+}
+
+// 17) (2026-10-31) 접속 출처: 남의 사이트에서 온 접속은 방을 만들기 전에 거절, 공개 사이트·로컬·출처 없음(시험 도구)은 통과
+{
+  console.log('[접속 출처]');
+  const worker = (await import('../server/src/room.js')).default;
+  let made = 0;
+  const env = { ROOM: { idFromName: n => n, get: () => ({ fetch: async () => { made++; return new Response('passed'); } }) } };
+  const tryO = async o => {
+    const h = { Upgrade: 'websocket' }; if (o !== undefined) h.Origin = o;
+    const r = await worker.fetch(new Request('https://x.workers.dev/ws?room=ABCD', { headers: h }), env);
+    return r.status;
+  };
+  const good = ['https://kkm9471.github.io', 'http://127.0.0.1:8790', 'http://localhost:8790', 'http://127.0.0.1', undefined];
+  const bad = ['https://evil.example', 'https://kkm9471.github.io.evil.com', 'http://localhost.evil.com', 'null', 'https://other.github.io', 'http://192.168.0.5:8790'];
+  const gs = []; for (const o of good) gs.push(await tryO(o));
+  const m0 = made; const bs = []; for (const o of bad) bs.push(await tryO(o));
+  ok(gs.every(s => s === 200), `공개 사이트·로컬·출처 없음 → 통과 (${gs.join(',')})`);
+  ok(bs.every(s => s === 403) && made === m0, `남의 출처 → 403, 방(DO)을 깨우지 않음 (${bs.join(',')})`);
+}
+
 Date.now = realNow;
 console.log(fail ? `\n실패 ${fail}개` : '\n전부 통과');
 process.exit(fail ? 1 : 0);
