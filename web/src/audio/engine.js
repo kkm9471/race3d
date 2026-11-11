@@ -1,4 +1,4 @@
-// 소리 — 녹음 파일 없이 합성: 엔진(회전수 × 실린더 수), 타이어 끼익, 부딪힘
+// 소리 — 녹음 파일 없이 합성: 엔진(회전수 × 실린더 수), 타이어 끼익, 부딪힘, 사건 효과음(부스터·발판·카운트다운 — 2026-11-11)
 // 브라우저는 사용자가 한 번 누르기 전에는 소리를 못 낸다 → 첫 키/클릭 때 켠다.
 const CYL = { kongal: 3, masil: 4, beongae: 4, deundeun: 4, jimkkun: 4, baram: 4, cheondung: 8, yuseong: 8, heukmeonji: 4, chueok: 6 };
 
@@ -112,6 +112,92 @@ export class EngineAudio {
     const bf = c.createBiquadFilter(); bf.type = 'bandpass'; bf.frequency.value = e.t === 'wall' ? 700 : 1100; bf.Q.value = 1.2;
     const ng = c.createGain(); ng.gain.setValueAtTime(0.9 * vol, t); ng.gain.exponentialRampToValueAtTime(0.001, t + 0.22);
     n.connect(bf); bf.connect(ng); ng.connect(this.master); n.start(t, Math.random() * 1.5); n.stop(t + 0.24);
+  }
+
+  // ── 사건 효과음 (2026-11-11): 내 차의 부스터·발판·카운트다운. 언제 낼지는 sfx.js 가 고른다 ──
+  // 녹음 없이 합성, 음색은 이 게임 것으로 새로 정함. 크기는 엔진음(내 차 최대 0.22)·부딪힘(최대 1.1) 사이 0.1~0.5,
+  // 한 소리에 음 2~3개, 같은 소리는 짧은 간격 안에 겹쳐 내지 않는다.
+
+  /** 소리를 낼 수 있나(소리 끔이면 아예 안 만든다) + 같은 소리 간격 */
+  _sfx(name, gap) {
+    if (!this.ctx || !this.on || !this.noise) return false;
+    const t = this.ctx.currentTime, last = (this._sfxT ||= {});
+    if (t - (last[name] ?? -9) < gap) return false;
+    last[name] = t;
+    this.sfxCount = (this.sfxCount || 0) + 1;      // 시험용
+    return true;
+  }
+
+  /** 크기 곡선: atk 동안 올라가 dur 의 hold 비율까지 유지, 그 뒤 줄어든다 (바로 지수로 줄이면 50ms 마다 반씩 작아져 '톡' 하고 끝났다) */
+  _env(g, t, dur, vol, atk, hold) {
+    g.gain.setValueAtTime(0.0001, t); g.gain.linearRampToValueAtTime(vol, t + atk);
+    g.gain.setValueAtTime(vol, t + Math.max(atk, dur * hold)); g.gain.exponentialRampToValueAtTime(0.001, t + dur);
+  }
+
+  /** 음 하나: 파형, 주파수 f0→f1, 시작 t, 길이 dur, 크기 vol, 올라가는 시간 atk, 저역 필터 lp(0 = 없음), 유지 비율 hold */
+  _tone(type, f0, f1, t, dur, vol, atk = 0.01, lp = 0, hold = 0.4) {
+    const c = this.ctx, o = c.createOscillator(), g = c.createGain();
+    o.type = type;
+    o.frequency.setValueAtTime(f0, t); o.frequency.exponentialRampToValueAtTime(f1, t + dur);
+    this._env(g, t, dur, vol, atk, hold);
+    let src = o;
+    if (lp) { const f = c.createBiquadFilter(); f.type = 'lowpass'; f.frequency.value = lp; o.connect(f); src = f; }
+    src.connect(g); g.connect(this.master);
+    o.start(t); o.stop(t + dur + 0.02);
+  }
+
+  /** 바람 한 줄기: 잡음을 대역 필터 fc0→fc1 로 쓸어 올린다 */
+  _whoosh(fc0, fc1, q, t, dur, vol, atk = 0.04, hold = 0.45) {
+    const c = this.ctx, n = c.createBufferSource(), bf = c.createBiquadFilter(), g = c.createGain();
+    n.buffer = this.noise;
+    bf.type = 'bandpass'; bf.Q.value = q;
+    bf.frequency.setValueAtTime(fc0, t); bf.frequency.exponentialRampToValueAtTime(fc1, t + dur);
+    this._env(g, t, dur, vol, atk, hold);
+    n.connect(bf); bf.connect(g); g.connect(this.master);
+    n.start(t, Math.random() * 1.2); n.stop(t + dur + 0.02);
+  }
+
+  /** 부스터 점화(Ctrl): 낮게 꺼지는 '훙' + 위로 쓸려 올라가는 분사음 */
+  boost() {
+    if (!this._sfx('boost', 0.15)) return;
+    const t = this.ctx.currentTime;
+    this._tone('sine', 120, 42, t, 0.45, 0.5, 0.008);
+    this._whoosh(320, 2600, 0.9, t, 0.75, 0.42, 0.06);
+    this._tone('sawtooth', 150, 520, t + 0.02, 0.55, 0.09, 0.05, 1600);
+  }
+
+  /** 게이지가 차서 부스터 하나 얻음: 짧은 두 음 */
+  gain() {
+    if (!this._sfx('gain', 0.3)) return;
+    const t = this.ctx.currentTime;
+    this._tone('triangle', 784, 784, t, 0.16, 0.32, 0.005);
+    this._tone('triangle', 1175, 1175, t + 0.09, 0.3, 0.32, 0.005);
+    this._tone('sine', 2350, 2350, t + 0.09, 0.22, 0.05, 0.005);
+  }
+
+  /** 순간부스터(1)·출발부스터(2): 짧게 위로 튀는 소리. 출발부스터는 조금 길고 묵직하게 */
+  inst(kind) {
+    if (!this._sfx('inst', 0.1)) return;
+    const t = this.ctx.currentTime, big = kind === 2;
+    this._tone('square', big ? 380 : 520, 1350, t, big ? 0.26 : 0.2, 0.15, 0.008, 2400);
+    this._whoosh(700, 3000, 1.1, t, big ? 0.32 : 0.26, 0.32, 0.02);
+    if (big) this._tone('sine', 95, 45, t, 0.22, 0.32, 0.006);
+  }
+
+  /** 가속 발판: 짧게 '휙' */
+  pad() {
+    if (!this._sfx('pad', 0.2)) return;
+    const t = this.ctx.currentTime;
+    this._tone('sine', 240, 760, t, 0.15, 0.2, 0.01);
+    this._whoosh(600, 2200, 1, t, 0.26, 0.24, 0.03);
+  }
+
+  /** 카운트다운 삐: 3·2·1 은 짧게, 출발은 한 옥타브 위로 길게 */
+  beep(hi) {
+    if (!this._sfx(hi ? 'beepHi' : 'beep', 0.3)) return;
+    const t = this.ctx.currentTime, f = hi ? 1480 : 740, d = hi ? 0.45 : 0.15;
+    this._tone('sine', f, f, t, d, 0.2, 0.005);
+    this._tone('square', f, f, t, d, 0.05, 0.005, 3000);
   }
 
   stop() {

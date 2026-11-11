@@ -47,13 +47,36 @@ const r = await p.evaluate(async () => {
   const lh = a.lastHit;
   a.hit({ t: 'car', vn: 15, a: 1, b: 2, x: 300, z: 0 }, sim, 0);
   const farPlayed = a.lastHit !== lh;
-  // 5) 소리 끔이면 부딪힘도 안 남
+  // 6) 사건 효과음(2026-11-11): 소리마다 커졌다가 1초 안에 원래대로 (언제 낼지는 tests/sfx_events.mjs 가 실제 Session 으로 본다)
+  //    짧은 소리(0.15~0.3초)라 평균 대신 '약 43ms 구간 크기의 최댓값'으로 잰다 — 부딪힘도 같은 잣대로 다시 잼
+  const maxOf = async (ms) => { let m = 0; const end = performance.now() + ms; while (performance.now() < end) { a.update(sim, 0); m = Math.max(m, rms()); await wait(16); } return m; };
+  await tick(700);
+  a.lastHit = 0; a.hit({ t: 'car', vn: 12, a: 0, b: 1, x: 2, z: 0 }, sim, 0);
+  const hitMax = await maxOf(250);
+  const sfx = {};
+  for (const [name, arg] of [['boost'], ['gain'], ['inst', 1], ['inst', 2], ['pad'], ['beep', false], ['beep', true]]) {
+    await tick(700);
+    const b0 = await avg(150);
+    a[name](arg);
+    const peak = await maxOf(250);
+    await tick(900);
+    const after = await avg(150);
+    sfx[name + (arg === undefined ? '' : '_' + arg)] = { b0, peak, after };
+  }
+  // 같은 순간 5번 눌려도(따라잡기 등) 1번만
+  await tick(300);
+  const c0 = a.sfxCount; for (let i = 0; i < 5; i++) a.boost();
+  const burst = a.sfxCount - c0;
+  // 5) 소리 끔이면 부딪힘도 안 남 (효과음도)
+  await tick(400);
   a.toggle();
   const lh2 = a.lastHit; await wait(100);
   a.hit({ t: 'car', vn: 15, a: 0, b: 1, x: 0, z: 0 }, sim, 0);
   const mutedPlayed = a.lastHit !== lh2;
+  const c1 = a.sfxCount; a.boost(); a.gain(); a.inst(2); a.pad(); a.beep(true);
+  const mutedSfx = a.sfxCount - c1;
   a.toggle(); a.stop();
-  return { base, hitPeak, afterHit, shifting, afterShift, plays, farPlayed, mutedPlayed };
+  return { base, hitPeak, afterHit, shifting, afterShift, plays, farPlayed, mutedPlayed, sfx, burst, mutedSfx, hitMax };
 });
 let fail = 0;
 const ok = (c, m) => { console.log(`  ${c ? '✅' : '❌'} ${m}`); if (!c) fail++; };
@@ -67,6 +90,14 @@ ok(Math.abs(r.afterShift - r.base) < r.base * 0.3, `변속 끝나면 돌아옴 $
 ok(r.plays === 1, `같은 순간 10번 부딪혀도 소리는 ${r.plays}번`);
 ok(!r.farPlayed, '300m 밖 남끼리 부딪힘은 소리 없음');
 ok(!r.mutedPlayed, '소리 끔이면 부딪힘 소리도 없음');
+console.log('[사건 효과음]');
+for (const [k, v] of Object.entries(r.sfx)) {
+  ok(v.peak > v.b0 * 1.3, `${k}: 엔진음 위로 들림 ${f(v.b0)} → 최대 ${f(v.peak)}`);
+  ok(Math.abs(v.after - v.b0) < v.b0 * 0.3, `${k}: 1초 뒤 원래대로 ${f(v.after)}`);
+  ok(v.peak <= r.hitMax, `${k}: 세게 부딪힌 소리(최대 ${f(r.hitMax)})보다 크지 않음`);
+}
+ok(r.burst === 1, `같은 순간 부스터 소리 5번 → ${r.burst}번`);
+ok(r.mutedSfx === 0, `소리 끔이면 효과음도 안 만듦 (${r.mutedSfx})`);
 ok(errs.length === 0, `페이지 오류 없음 ${errs.slice(0, 3).join(' / ')}`);
 console.log(fail ? `실패 ${fail}개` : '전부 통과');
 await b.close();

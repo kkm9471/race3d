@@ -132,14 +132,27 @@ export class Session {
     const start = this.frame;
     let steps = 0;
     const n = this.n, inp = new Array(n);
+    const cars = this.sim.cars, b0 = this._b0 ||= [], i0 = this._i0 ||= [];
     while (this.frame < target && steps < maxSteps + redo) {
       const f = this.frame;
       for (let k = 0; k < n; k++) inp[k] = this.inputAt(k, f);
+      // 소리·섬광용 사건(2026-11-11): 한 걸음 앞뒤 값만 비교한다 — 시뮬레이션 상태(st)·해시는 건드리지 않는다.
+      // 부스터 사용 = boosts 감소(car.js 부스터 키 한 곳), 획득 = boosts 증가(게이지 가득), 순간·출발부스터 = 이 걸음에 out.inst 가 켜짐.
+      // (boostT 0→양수는 가속 발판·순간·출발부스터도 같이 써서 부스터 점화 신호로 못 쓴다 — 11/11 반증)
+      for (let k = 0; k < n; k++) { const c = cars[k]; b0[k] = c.st.boosts; i0[k] = c.out.inst; c.out.inst = 0; }
       this.sim.step(inp);
-      if (f >= this.lastFxFrame) {
-        for (const e of this.sim.events) this.events.push({ ...e, f });
-        this.lastFxFrame = f + 1;
+      const fresh = f >= this.lastFxFrame;     // 롤백으로 다시 계산하는 프레임은 사건을 다시 내보내지 않는다
+      if (fresh) for (const e of this.sim.events) this.events.push({ ...e, f });
+      for (let k = 0; k < n; k++) {
+        const c = cars[k], fired = c.out.inst;
+        if (fresh) {
+          if (c.st.boosts < b0[k]) this.events.push({ t: 'boost', a: k, f });
+          else if (c.st.boosts > b0[k]) this.events.push({ t: 'gain', a: k, f });
+          if (fired) this.events.push({ t: 'inst', a: k, k: fired, f });
+        }
+        if (!fired) c.out.inst = i0[k];        // HUD 알림은 예전 그대로 — HUD 가 읽고 지울 때까지 남겨 둔다
       }
+      if (fresh) this.lastFxFrame = f + 1;
       this.saveState();
       if (this.frame % 120 === 0) this.hashes.set(this.frame, this.sim.hash());
       steps++;

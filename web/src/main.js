@@ -12,6 +12,7 @@ import { NetClient, PROTOCOL } from './net/client.js';
 import { Hud, fmtTime } from './ui/hud.js';
 import { Controls } from './ui/controls.js';
 import { EngineAudio } from './audio/engine.js';
+import { SfxPicker } from './audio/sfx.js';
 import { CARS, CAR_BY_ID, STAT_NAMES } from './sim/cars.js';
 import { TRACK_DEFS, TRACK_BY_ID } from './sim/tracks.js';
 import { pack, NEUTRAL } from './sim/input.js';
@@ -135,6 +136,14 @@ class Game {
     this.def = TRACK_BY_ID[cfg.track];
     this.view = new RaceView(gfx, this.session, this.def);
     this.view.onHit = (e, follow) => audio.hit(e, this.session.sim, follow);
+    // 사건 효과음·부스터 섬광: 롤백에 안전한 사건 통로에서 받는다 (HUD 가 지우는 out.inst 를 읽지 않음 — sfx.js 참고)
+    this.sfx = new SfxPicker();
+    this.view.onEvents = (evs, follow) => {
+      for (const [name, arg] of this.sfx.pick(evs, follow, this.session.frame)) {
+        audio[name](arg);
+        if (name === 'boost') this.hud.flash();
+      }
+    };
     this.hud = new Hud($('hud'));
     this.hud.setupMap(this.session.sim.T);
     this.lastSent = -1; this.seq = 0; this.sendBuf = [];
@@ -252,6 +261,8 @@ class Game {
     this.hud.update(this.session, follow, this.view, this.names, this.netInfo());
     if (this.catchingUp) { this.hud.center.textContent = '따라잡는 중…'; this.hud.center.classList.add('small'); }
     audio.update(this.session.sim, follow, this.session.frame >= GO_FRAME || this.session.frame < GO_FRAME);
+    const cd = this.sfx.countdown(this.session.frame);      // 카운트다운 삐 (화면 숫자 3·2·1·출발과 같은 때)
+    if (cd) audio.beep(cd === 'hi');
     gfx.render();
     // 성능 기록
     this.frameTimes.push(dt * 1000);

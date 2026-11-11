@@ -18,6 +18,9 @@ export class Hud {
     this.root = root;
     root.innerHTML = '';
     root.classList.add('hud');
+    // 부스터 화면 연출(2026-11-11): 가장자리 옅은 색(부스터 동안) · 점화 섬광. 글자보다 먼저 넣어 글자 아래에 깔린다
+    this.vig = el('div', 'hud-vig', root);
+    this.flashEl = el('div', 'hud-flash', root);
     const tl = el('div', 'hud-tl', root);
     this.pos = el('div', 'hud-pos', tl);
     this.lap = el('div', 'hud-lap', tl);
@@ -83,6 +86,14 @@ export class Hud {
     this.msgUntil = performance.now() + secs * 1000;
   }
 
+  /** 부스터 점화 섬광: 가장자리가 0.26초 잠깐 밝아졌다 사라진다. 빛에 민감한 사람을 위해 옅게, '동작 줄이기' 설정이면 안 한다 */
+  flash() {
+    try {
+      if (!this.flashEl.animate || matchMedia('(prefers-reduced-motion: reduce)').matches) return;
+      this.flashEl.animate([{ opacity: 1 }, { opacity: 0 }], { duration: 260, easing: 'ease-out' });
+    } catch { /* 연출만 — 실패해도 게임은 그대로 */ }
+  }
+
   update(session, localSlot, view, names, netInfo) {
     const sim = session.sim, f = sim.gs.frame;
     const me = sim.cars[localSlot] || sim.cars[0];
@@ -112,6 +123,7 @@ export class Hud {
     this.gear.classList.toggle('has', st.boosts > 0);
     this.rpmFill.style.width = (Math.max(0, Math.min(1, st.gauge)) * 100).toFixed(1) + '%';
     this.rpmFill.classList.toggle('hot', st.boostT > 0);
+    this.vig.classList.toggle('on', st.boostT > 0);     // 부스터·순간·출발부스터·발판 모두 (시야 넓어짐 FOV +9 와 같은 조건)
     setText(this.assist, me.out.tok ? '톡톡이!' : st.boostT > 0 ? '부스터!' : st.drift ? '드리프트 — 게이지 충전 중' : st.boosts > 0 ? 'Ctrl 로 부스터' : 'Shift 드리프트로 게이지 충전');
     this.assist.classList.toggle('esc', st.boostT > 0 || !!st.drift);
     // 알림은 화면이 읽고 지운다 (화면이 느려 한 번에 여러 프레임을 계산해도 빠지지 않게)

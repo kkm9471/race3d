@@ -83,13 +83,15 @@ export class RaceView {
       this.fx.car(k, car, m, dt);
     }
     // 충돌 불꽃·흔들림
-    for (const e of this.session.takeEvents()) {
+    const evs = this.session.takeEvents();
+    for (const e of evs) {
       if ((e.t === 'car' || e.t === 'wall') && e.vn > 2.5) {
         this.fx.sparks(e.x, e.y, e.z, Math.min(1, e.vn / 15));
         if (e.a === followSlot || e.b === followSlot) this.shake = Math.min(1, this.shake + e.vn / 20);
         if (this.onHit) this.onHit(e, followSlot);      // 부딪힘 소리 (main.js 가 연결)
       }
     }
+    if (this.onEvents && evs.length) this.onEvents(evs, followSlot);   // 부스터·발판 효과음과 섬광 (main.js 가 연결)
     this.fx.update(dt);
     this.updateCamera(followSlot, dt, look);
     this.clearView(followSlot);

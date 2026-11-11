@@ -76,6 +76,13 @@ button.small { padding: 5px 10px; font-size: 13px; }
 
 /* ── 레이스 화면 ── */
 .hud { position: fixed; inset: 0; pointer-events: none; z-index: 5; font-variant-numeric: tabular-nums; text-shadow: 0 1px 3px rgba(0,0,0,0.8); }
+/* 부스터 연출 (2026-11-11): 가장자리만 옅게 물들인다 — 가운데(차·길)는 그대로. 낮 맵에서 눈부시지 않게 밝히지 않고(덧셈 섞기 없음) 색만 얹는다 */
+.hud-vig { position: absolute; inset: 0; opacity: 0; transition: opacity 0.5s ease-out;
+  background: radial-gradient(ellipse 75% 70% at 50% 55%, transparent 55%, rgba(40, 150, 255, 0.10) 78%, rgba(40, 150, 255, 0.26) 100%); }
+.hud-vig.on { opacity: 1; transition-duration: 0.18s; }
+.hud-flash { position: absolute; inset: 0; opacity: 0;
+  background: radial-gradient(ellipse 80% 75% at 50% 55%, transparent 35%, rgba(170, 225, 255, 0.28) 100%); }
+@media (prefers-reduced-motion: reduce) { .hud-vig { transition: none; } }
 .hud-tl { position: absolute; left: 18px; top: 14px; }
 .hud-pos { font-size: 44px; font-weight: 900; line-height: 1; font-style: italic; }
 .hud-lap { font-size: 20px; font-weight: bold; margin: 4px 0 8px; color: var(--accent2); }
