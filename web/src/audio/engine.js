@@ -179,8 +179,8 @@ export class EngineAudio {
   inst(kind) {
     if (!this._sfx('inst', 0.1)) return;
     const t = this.ctx.currentTime, big = kind === 2;
-    this._tone('square', big ? 380 : 520, 1350, t, big ? 0.26 : 0.2, 0.15, 0.008, 2400);
-    this._whoosh(700, 3000, 1.1, t, big ? 0.32 : 0.26, 0.32, 0.02);
+    this._tone('square', big ? 380 : 520, 1350, t, big ? 0.26 : 0.2, 0.18, 0.008, 2400);
+    this._whoosh(700, 3000, 1.1, t, big ? 0.32 : 0.26, 0.36, 0.02);
     if (big) this._tone('sine', 95, 45, t, 0.22, 0.32, 0.006);
   }
 
@@ -188,8 +188,8 @@ export class EngineAudio {
   pad() {
     if (!this._sfx('pad', 0.2)) return;
     const t = this.ctx.currentTime;
-    this._tone('sine', 240, 760, t, 0.15, 0.2, 0.01);
-    this._whoosh(600, 2200, 1, t, 0.26, 0.24, 0.03);
+    this._tone('sine', 240, 760, t, 0.15, 0.26, 0.01);
+    this._whoosh(600, 2200, 1, t, 0.26, 0.32, 0.03);
   }
 
   /** 카운트다운 삐: 3·2·1 은 짧게, 출발은 한 옥타브 위로 길게 */
