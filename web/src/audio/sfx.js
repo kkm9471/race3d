@@ -10,18 +10,20 @@
 //   ② 셋에 AI 까지 부스터 소리가 섞이면 "내 부스터가 나갔나"를 귀로 못 가린다. 남의 차는 엔진음으로 충분하다
 import { FPS, GO_FRAME } from '../sim/race.js';
 
-const STALE = 15;                                // 0.25초보다 오래된 사건은 소리 안 냄 (탭에 돌아와 몇 초치를 한꺼번에 계산할 때 몰아서 울리지 않게)
+const STALE = 15;                                // 시계보다 0.25초 넘게 지난 사건은 소리 안 냄 (탭에 돌아와 몇 초치를 한꺼번에 계산할 때 몰아서 울리지 않게)
 const CD = [FPS, 2 * FPS, 3 * FPS, GO_FRAME];    // 화면 숫자 3·2·1·출발이 바뀌는 프레임 (hud.js 와 같은 셈)
 const CD_LATE = 20;                              // 이만큼 지나서야 본 단계(재접속·따라잡기)는 조용히 넘긴다
 
 export class SfxPicker {
   constructor() { this.cd = 0; }
 
-  /** 사건 목록 → [소리 이름, 인자] 목록 (이름 = EngineAudio 의 함수 이름) */
-  pick(events, follow, frame) {
+  /** 사건 목록 → [소리 이름, 인자] 목록 (이름 = EngineAudio 의 함수 이름)
+   *  now = 시계가 가리키는 지금 프레임(main.js loop 의 target). session.frame 이 아니다:
+   *  재접속·중간 관전으로 600프레임씩 묶어 따라잡을 때 session.frame 은 시계보다 한참 뒤라, 그 기준이면 묶음 끝의 옛 사건이 소리·섬광을 냈다(11/11 판정 재현) */
+  pick(events, follow, now) {
     const out = [];
     for (const e of events) {
-      if (e.a !== follow || frame - e.f > STALE) continue;
+      if (e.a !== follow || now - e.f > STALE) continue;
       if (e.t === 'boost') out.push(['boost']);
       else if (e.t === 'gain') out.push(['gain']);
       else if (e.t === 'inst') out.push(['inst', e.k]);

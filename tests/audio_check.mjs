@@ -48,11 +48,9 @@ const r = await p.evaluate(async () => {
   a.hit({ t: 'car', vn: 15, a: 1, b: 2, x: 300, z: 0 }, sim, 0);
   const farPlayed = a.lastHit !== lh;
   // 6) 사건 효과음(2026-11-11): 소리마다 커졌다가 1초 안에 원래대로 (언제 낼지는 tests/sfx_events.mjs 가 실제 Session 으로 본다)
-  //    짧은 소리(0.15~0.3초)라 평균 대신 '약 43ms 구간 크기의 최댓값'으로 잰다 — 부딪힘도 같은 잣대로 다시 잼
+  //    짧은 소리(0.15~0.3초)라 평균 대신 '약 43ms 구간 크기의 최댓값'으로 잰다
+  //    (부딪힘과의 크기 비교는 아래 오프라인 렌더링으로 — 여기 실시간 표본은 엔진음과 위상이 겹쳐 ±10% 흔들린다)
   const maxOf = async (ms) => { let m = 0; const end = performance.now() + ms; while (performance.now() < end) { a.update(sim, 0); m = Math.max(m, rms()); await wait(16); } return m; };
-  await tick(700);
-  a.lastHit = 0; a.hit({ t: 'car', vn: 12, a: 0, b: 1, x: 2, z: 0 }, sim, 0);
-  const hitMax = await maxOf(250);
   const sfx = {};
   for (const [name, arg] of [['boost'], ['gain'], ['inst', 1], ['inst', 2], ['pad'], ['beep', false], ['beep', true]]) {
     await tick(700);
@@ -76,7 +74,27 @@ const r = await p.evaluate(async () => {
   const c1 = a.sfxCount; a.boost(); a.gain(); a.inst(2); a.pad(); a.beep(true);
   const mutedSfx = a.sfxCount - c1;
   a.toggle(); a.stop();
-  return { base, hitPeak, afterHit, shifting, afterShift, plays, farPlayed, mutedPlayed, sfx, burst, mutedSfx, hitMax };
+  return { base, hitPeak, afterHit, shifting, afterShift, plays, farPlayed, mutedPlayed, sfx, burst, mutedSfx };
+});
+// 7) 효과음 크기 vs 세게 부딪힘(vn 12) — 실제 engine.js 를 OfflineAudioContext 로 렌더링해 잰다(시간 흔들림 없음).
+//    2026-11-11 판정: 실시간 16ms 표본 비교는 3번 중 1번 실패했다(엔진음과 위상이 겹침). 효과음만, 압축기 뒤(들리는 값), 약 43ms RMS 최댓값.
+//    부스터는 한 바퀴에 여러 번 쓰는 소리라 가장 센 부딪힘의 0.8배 아래로 둔다(고치기 전 부스터 0.86~0.88배).
+const off = await p.evaluate(async () => {
+  const { EngineAudio } = await import('./src/audio/engine.js');
+  const SR = 48000, DUR = 1.6, T0 = 0.3;
+  const peakRms = d => { let best = 0; for (let s = Math.floor(T0 * SR); s + 2048 <= d.length; s += 256) { let q = 0; for (let i = s; i < s + 2048; i++) q += d[i] * d[i]; best = Math.max(best, Math.sqrt(q / 2048)); } return best; };
+  async function render(trigger) {
+    const Real = window.AudioContext; let c, a;
+    window.AudioContext = function () { c = new OfflineAudioContext(1, Math.floor(SR * DUR), SR); return c; };
+    try { a = new EngineAudio(); a.on = true; a.ensure(); } finally { window.AudioContext = Real; }
+    if (!c || a.ctx !== c) return -1;
+    const sim = { cars: [{ st: { px: 0, pz: 0 } }] };
+    c.suspend(T0).then(() => { trigger(a, sim); c.resume(); });
+    return peakRms((await c.startRendering()).getChannelData(0));
+  }
+  const out = { hit: await render((a, s) => a.hit({ t: 'car', vn: 12, a: 0, b: 1, x: 1, z: 0 }, s, 0)) };
+  for (const [k, fn] of [['boost', a => a.boost()], ['gain', a => a.gain()], ['inst_1', a => a.inst(1)], ['inst_2', a => a.inst(2)], ['pad', a => a.pad()], ['beep_false', a => a.beep(false)], ['beep_true', a => a.beep(true)]]) out[k] = await render(fn);
+  return out;
 });
 let fail = 0;
 const ok = (c, m) => { console.log(`  ${c ? '✅' : '❌'} ${m}`); if (!c) fail++; };
@@ -94,7 +112,12 @@ console.log('[사건 효과음]');
 for (const [k, v] of Object.entries(r.sfx)) {
   ok(v.peak > v.b0 * 1.3, `${k}: 엔진음 위로 들림 ${f(v.b0)} → 최대 ${f(v.peak)}`);
   ok(Math.abs(v.after - v.b0) < v.b0 * 0.3, `${k}: 1초 뒤 원래대로 ${f(v.after)}`);
-  ok(v.peak <= r.hitMax, `${k}: 세게 부딪힌 소리(최대 ${f(r.hitMax)})보다 크지 않음`);
+}
+console.log(`[효과음 크기 — 오프라인 렌더링, 효과음만·압축기 뒤, 세게 부딪힘 ${f(off.hit)} 기준]`);
+ok(off.hit > 0.05, `부딪힘 렌더링이 소리를 냄 (${f(off.hit)})`);
+for (const k of Object.keys(r.sfx)) {
+  const v = off[k];
+  ok(v > 0.02 && v <= off.hit * 0.8, `${k}: 세게 부딪힌 소리의 0.8배 아래 — ${f(v)} (${(v / off.hit * 100).toFixed(0)}%)`);
 }
 ok(r.burst === 1, `같은 순간 부스터 소리 5번 → ${r.burst}번`);
 ok(r.mutedSfx === 0, `소리 끔이면 효과음도 안 만듦 (${r.mutedSfx})`);

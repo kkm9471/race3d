@@ -139,7 +139,7 @@ class Game {
     // 사건 효과음·부스터 섬광: 롤백에 안전한 사건 통로에서 받는다 (HUD 가 지우는 out.inst 를 읽지 않음 — sfx.js 참고)
     this.sfx = new SfxPicker();
     this.view.onEvents = (evs, follow) => {
-      for (const [name, arg] of this.sfx.pick(evs, follow, this.session.frame)) {
+      for (const [name, arg] of this.sfx.pick(evs, follow, this.target)) {   // 시계 기준 — 따라잡는 동안의 옛 사건은 조용히 (sfx.js)
         audio[name](arg);
         if (name === 'boost') this.hud.flash();
       }
@@ -247,6 +247,7 @@ class Game {
     this.lastT = now;
     const tf = this.clockFrames(now);
     const target = Math.max(0, Math.floor(tf) + 1);
+    this.target = target;                  // 효과음 고르기의 '지금' (onEvents)
     const alpha = Math.max(0, Math.min(1, tf - Math.floor(tf)));
     if (!this.paused) this.sampleInput();
     this.flush(now);
